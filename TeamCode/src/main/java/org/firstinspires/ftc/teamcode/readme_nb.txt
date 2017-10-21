@@ -1,1 +1,1 @@
-This file contains Newton Busters notes.
+This file contains notes about Newton Busters code.
