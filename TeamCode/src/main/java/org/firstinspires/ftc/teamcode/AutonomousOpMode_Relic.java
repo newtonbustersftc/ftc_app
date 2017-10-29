@@ -58,7 +58,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     private RelicRecoveryVuMark findVuMark (){
         RelicRecoveryVuMark vuMark = RelicRecoveryVuMark.from(relicTemplate);
         long vuStartTime = System.currentTimeMillis();
-        while (vuMark == RelicRecoveryVuMark.UNKNOWN){
+        while (vuMark == RelicRecoveryVuMark.UNKNOWN && opModeIsActive()){
             vuMark = RelicRecoveryVuMark.from(relicTemplate);
             telemetry.addData("VuMark", "not visible");
             telemetry.update();

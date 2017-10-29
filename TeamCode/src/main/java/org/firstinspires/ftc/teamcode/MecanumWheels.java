@@ -22,19 +22,19 @@ class MecanumWheels {
     private boolean forward;
 
 
-    MecanumWheels(HardwareMap hardwareMap, Telemetry telemetry, boolean backwardsSetup) {
+    MecanumWheels(HardwareMap hardwareMap, Telemetry telemetry, boolean frontForward) {
         this.telemetry = telemetry;
-        this.forward = backwardsSetup;
+        this.forward = frontForward;
 
         //"initializing" the motors
-        motorFrontLeft = hardwareMap.dcMotor.get("DC1");
-        motorFrontRight = hardwareMap.dcMotor.get("DC2");
-        motorRearLeft = hardwareMap.dcMotor.get("DC3");
-        motorRearRight = hardwareMap.dcMotor.get("DC4");
+        motorFrontLeft = hardwareMap.dcMotor.get("Front-Left"); //DC1
+        motorFrontRight = hardwareMap.dcMotor.get("Front-Right");//DC2
+        motorRearLeft = hardwareMap.dcMotor.get("Rear-Left"); //DC3
+        motorRearRight = hardwareMap.dcMotor.get("Rear-Right"); //DC4
 
-        //setting the motors on the right side in reverse so both wheels spin the same way.
-        motorFrontRight.setDirection(DcMotor.Direction.REVERSE);
-        motorRearRight.setDirection(DcMotor.Direction.REVERSE);
+        //setting the motors on the left side in reverse so both wheels spin the same way.
+        motorFrontLeft.setDirection(DcMotor.Direction.REVERSE);
+        motorRearLeft.setDirection(DcMotor.Direction.REVERSE);
 
         resetEncoders();
 
@@ -104,6 +104,7 @@ class MecanumWheels {
                 (int) (front_right * 100) + ", " +
                 (int) (rear_left * 100) + ", " +
                 (int) (rear_right * 100));
+        telemetry.update();
     }
 
     private void setRunMode(DcMotor.RunMode runMode) {
@@ -113,6 +114,14 @@ class MecanumWheels {
         motorRearRight.setMode(runMode);
     }
 
+    private void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior) {
+
+        motorFrontLeft.setZeroPowerBehavior(behavior);
+        motorFrontRight.setZeroPowerBehavior(behavior);
+        motorRearLeft.setZeroPowerBehavior(behavior);
+        motorRearRight.setZeroPowerBehavior(behavior);
+
+    }
 
     //-----------------------
     //AUTONOMOUS MODE METHODS
@@ -161,5 +170,23 @@ class MecanumWheels {
                 motorFrontRight.getCurrentPosition() + "," +
                 motorRearLeft.getCurrentPosition() + "," +
                 motorRearRight.getCurrentPosition());
+        telemetry.update();
     }
+
+    public void goCounts(int counts) throws InterruptedException {
+        resetEncoders();
+        setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        int startPos = motorFrontRight.getCurrentPosition();
+        powerMotors(0.4, 0, 0);
+        int currentPos = startPos;
+        while ( Math.abs(currentPos-startPos) < counts ) {
+            Thread.yield();
+            logEncoders();
+            currentPos = motorFrontRight.getCurrentPosition();
+        }
+        powerMotors(0,0,0);
+        logEncoders();
+    }
+
 }
