@@ -25,22 +25,22 @@ public class DriverOpMode_Relic extends OpMode {
     private DigitalChannel touchSensor; //Touch sensor at lowest position on the lift
 
     Servo leftHand;
-    double LEFT_HAND_IN_POS = 0.63;
-    double LEFT_HAND_OUT_POS = 0.48;
+    public static final double LEFT_HAND_IN_POS = 0.63;
+    public static final double LEFT_HAND_OUT_POS = 0.48;
 
     Servo rightHand;
-    double RIGHT_HAND_IN_POS = 0.25;
-    double RIGHT_HAND_OUT_POS = 0.4;
+    public static final double RIGHT_HAND_IN_POS = 0.25;
+    public static final double RIGHT_HAND_OUT_POS = 0.4;
 
     Servo jewelArm;
-    double JEWEL_ARM_HOME = 0.72; // home position
-    double JEWEL_ARM_DOWN = 0.08; // down position
-    double JEWEL_ARM_VERTICAL = 0.55; // down position
+    public static final double JEWEL_ARM_HOME = 0.72; // home position
+    public static final double JEWEL_ARM_DOWN = 0.03; // down position
+    public static final double JEWEL_ARM_VERTICAL = 0.55; // down position
 
     Servo jewelKick;
-    double JEWEL_KICK_IN = 0.8; // start (rest) position and counterclockwise kick
-    double JEWEL_KICK_OUT = 0.15; // clockwise kick
-    double JEWEL_KICK_CENTER = 0.47;
+    public static final double JEWEL_KICK_RIGHT = 0.8; // start (rest) position and counterclockwise kick
+    public static final double JEWEL_KICK_LEFT = 0.15; // clockwise kick
+    public static final double JEWEL_KICK_CENTER = 0.47;
 
     @Override
     public void init() {
@@ -71,13 +71,14 @@ public class DriverOpMode_Relic extends OpMode {
         jewelArm = hardwareMap.servo.get("Jewel-Arm");
         jewelArm.setPosition(JEWEL_ARM_HOME);
         jewelKick = hardwareMap.servo.get("Jewel-Kick");
-        jewelKick.setPosition(JEWEL_KICK_IN);
+        jewelKick.setPosition(JEWEL_KICK_RIGHT);
     }
 
     @Override
     public void loop() {
 
         controlLift();
+        controlGrip();
         telemetry();
 
         // DRIVING
@@ -116,6 +117,12 @@ public class DriverOpMode_Relic extends OpMode {
         }
     }
 
+    private void controlGrip()
+    {
+        float percentOpen = gamepad2.left_trigger;
+        setPercentOpen(rightHand, percentOpen);
+        setPercentOpen(leftHand, percentOpen);
+    }
     private void controlLift() {
 
         // touchSensor.getState==true means the button is NOT PRESSED
