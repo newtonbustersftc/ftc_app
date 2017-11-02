@@ -13,6 +13,8 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 class MecanumWheels {
 
+    public enum Wheel {FL, FR, RL, RR};
+
     //defining the 4 motors
     private DcMotor motorFrontLeft;
     private DcMotor motorFrontRight;
@@ -114,7 +116,7 @@ class MecanumWheels {
         motorRearRight.setMode(runMode);
     }
 
-    private void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior) {
+    public void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior) {
 
         motorFrontLeft.setZeroPowerBehavior(behavior);
         motorFrontRight.setZeroPowerBehavior(behavior);
@@ -129,7 +131,7 @@ class MecanumWheels {
 
 
 
-    private void resetEncoders() {
+    public void resetEncoders() {
         setRunMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
 
@@ -165,7 +167,7 @@ class MecanumWheels {
         setRunMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     }
 
-    private void logEncoders() {
+    public void logEncoders() {
         telemetry.addData("PosFL,FR,RL,RR", motorFrontLeft.getCurrentPosition() + "," +
                 motorFrontRight.getCurrentPosition() + "," +
                 motorRearLeft.getCurrentPosition() + "," +
@@ -173,20 +175,15 @@ class MecanumWheels {
         telemetry.update();
     }
 
-    public void goCounts(int counts) throws InterruptedException {
-        resetEncoders();
-        setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-
-        int startPos = motorFrontRight.getCurrentPosition();
-        powerMotors(0.4, 0, 0);
-        int currentPos = startPos;
-        while ( Math.abs(currentPos-startPos) < counts ) {
-            Thread.yield();
-            logEncoders();
-            currentPos = motorFrontRight.getCurrentPosition();
+    public DcMotor getMotor(Wheel wheel) {
+        switch(wheel){
+            case FR: return motorFrontRight;
+            case FL: return motorFrontLeft;
+            case RR: return motorRearRight;
+            case RL: return motorRearLeft;
+            default: return null;
         }
-        powerMotors(0,0,0);
-        logEncoders();
     }
+
 
 }

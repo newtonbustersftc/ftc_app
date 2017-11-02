@@ -29,7 +29,7 @@ public class DriverOpMode_Relic extends OpMode {
     public static final double LEFT_HAND_OUT_POS = 0.48;
 
     Servo rightHand;
-    public static final double RIGHT_HAND_IN_POS = 0.25;
+    public static final double RIGHT_HAND_IN_POS = 0.20;
     public static final double RIGHT_HAND_OUT_POS = 0.4;
 
     Servo jewelArm;

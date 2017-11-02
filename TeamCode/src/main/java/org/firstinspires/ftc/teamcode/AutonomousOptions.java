@@ -35,11 +35,15 @@ public class AutonomousOptions extends OpMode {
     //   public static final String DELAY_PREF = "delay";
     //   public static final String START_TILE_PREF = "startTile";
     private static final String NONE = "none";
-
+    public static final String ALLIANCE_PREF = "alliance";
+    public static final String START_POSITION_PREF = "startposition";
     // ADD preference values here
     // for example:
     //   private static final String[] DELAYS = {"0 sec", "3 sec", "5 sec", "7 sec"};
     //   private static final String[] START_POS = {"3rd tile from corner", "4th tile from corner"};
+    public static final String[] ALLIANCES = {"blue", "red"};
+    public static final String[] START_POSITIONS ={"corner", "other"};
+
 
     public static SharedPreferences getSharedPrefs(HardwareMap hardwareMap) {
         return hardwareMap.appContext.getSharedPreferences("autonomous", 0);
@@ -52,6 +56,8 @@ public class AutonomousOptions extends OpMode {
         // for example:
         //    prefMap.put(DELAY_PREF, DELAYS);
         //    prefMap.put(START_TILE_PREF, START_POS);
+        prefMap.put(ALLIANCE_PREF, ALLIANCES);
+        prefMap.put(START_POSITION_PREF, START_POSITIONS);
     }
     private static String[] prefKeys = prefMap.keySet().toArray(new String[prefMap.keySet().size()]);
     static {

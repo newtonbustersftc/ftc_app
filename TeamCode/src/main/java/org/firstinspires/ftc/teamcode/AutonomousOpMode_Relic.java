@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.ColorSensor;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
@@ -13,6 +14,8 @@ import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackable;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackables;
 
+import static org.firstinspires.ftc.teamcode.AutonomousOptions.ALLIANCE_PREF;
+import static org.firstinspires.ftc.teamcode.AutonomousOptions.START_POSITION_PREF;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.setUpServo;
 
 /**
@@ -45,6 +48,10 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     VuforiaTrackables relicTrackables;
     VuforiaTrackable relicTemplate;
 
+    MecanumWheels wheels;
+    boolean isBlue;
+    boolean isCornerPos;
+
     public void autonomousStart() {
         leftHand = hardwareMap.servo.get("Left-Hand");
         setUpServo(leftHand, LEFT_HAND_IN_POS, LEFT_HAND_OUT_POS);
@@ -72,13 +79,33 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             sleep(40);
         }
     }
-    @Override public void runOpMode() {
+
+    public void preRun(){
 
         relicTemplate = vuforiaInitialize();
         sensorColor = hardwareMap.get(ColorSensor.class, "Color-Sensor");
 
+        SharedPreferences prefs = AutonomousOptions.getSharedPrefs(hardwareMap);
+
+        String allianceString = prefs.getString(ALLIANCE_PREF, null);
+        isBlue = allianceString.equals("blue");
+
+        String startPosString = prefs.getString(START_POSITION_PREF, null);
+        isCornerPos = startPosString.equals("corner");
+
+        wheels = new MecanumWheels(hardwareMap, telemetry, !isBlue);
+
+        telemetry.addData(ALLIANCE_PREF, allianceString);
+        telemetry.addData("isBlue", isBlue);
+        telemetry.addData(START_POSITION_PREF, startPosString);
+        telemetry.addData("isCornerPos", isCornerPos);
         telemetry.addData(">", "Press Play to start");
         telemetry.update();
+    }
+
+    @Override public void runOpMode() throws InterruptedException {
+
+        preRun();
 
         waitForStart();
 
@@ -89,11 +116,11 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         //Assuming here that we are the blue alliance
         if(colour == 1) //Colour 1 is red
         {
-            jewelKick.setPosition(JEWEL_KICK_RIGHT);
+            jewelKick.setPosition(isBlue?JEWEL_KICK_RIGHT:JEWEL_KICK_LEFT);
         }
         else if(colour == -1)
         {
-            jewelKick.setPosition(JEWEL_KICK_LEFT);
+            jewelKick.setPosition(isBlue?JEWEL_KICK_LEFT:JEWEL_KICK_RIGHT);
         }
         sleep(1000);
         jewelKick.setPosition(JEWEL_KICK_CENTER);
@@ -104,6 +131,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         relicTrackables.activate(); // Starts looking for VuMarks
 
         RelicRecoveryVuMark vuMark = findVuMark();
+
+        goCounts(0.4, isCornerPos?3000:2900);
 
         while (opModeIsActive()){
 
@@ -163,5 +192,27 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         }
         // Return color
         return color;
+    }
+
+    /**
+     * moves robot given number of encoder counts
+     * @param power power to apply to all wheel motors
+     * @param counts motor encoder counts
+     * @throws InterruptedException
+     */
+    public void goCounts(double power, int counts) throws InterruptedException {
+        wheels.resetEncoders();
+        wheels.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        DcMotor motor = wheels.getMotor(MecanumWheels.Wheel.FR);
+        int startPos = motor.getCurrentPosition();
+        wheels.powerMotors(power, 0, 0);
+        int currentPos = startPos;
+        while ( Math.abs(currentPos-startPos) < counts && opModeIsActive() ) {
+            idle();
+            wheels.logEncoders();
+            currentPos = motor.getCurrentPosition();
+        }
+        wheels.powerMotors(0,0,0);
+        wheels.logEncoders();
     }
 }
