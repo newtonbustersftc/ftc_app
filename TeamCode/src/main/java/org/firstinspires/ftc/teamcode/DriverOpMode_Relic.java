@@ -11,7 +11,7 @@ import com.qualcomm.robotcore.hardware.Servo;
  * Created by JASMINE on 10/22/17.
  * This class has the code for our driver controlled mode.
  */
-@TeleOp(name="DriverOpMode", group ="Main")
+@TeleOp(name = "DriverOpMode", group = "Main")
 public class DriverOpMode_Relic extends OpMode {
 
     private MecanumWheels mecanumWheels;
@@ -34,7 +34,7 @@ public class DriverOpMode_Relic extends OpMode {
 
     Servo jewelArm;
     public static final double JEWEL_ARM_HOME = 0.72; // home position
-    public static final double JEWEL_ARM_DOWN = 0.03; // down position
+    public static final double JEWEL_ARM_DOWN = 0.02; // down position
     public static final double JEWEL_ARM_VERTICAL = 0.55; // down position
 
     Servo jewelKick;
@@ -53,7 +53,7 @@ public class DriverOpMode_Relic extends OpMode {
         touchSensor.setMode(DigitalChannel.Mode.INPUT);
         touchSensorReleased = touchSensor.getState();
         if (!touchSensorReleased) {
-            resetEncoders(lift,true);
+            resetEncoders(lift, true);
 
         }
         lift.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -117,19 +117,19 @@ public class DriverOpMode_Relic extends OpMode {
         }
     }
 
-    private void controlGrip()
-    {
+    private void controlGrip() {
         float percentOpen = gamepad2.left_trigger;
         setPercentOpen(rightHand, percentOpen);
         setPercentOpen(leftHand, percentOpen);
     }
+
     private void controlLift() {
 
         // touchSensor.getState==true means the button is NOT PRESSED
         boolean touchPressed = !touchSensor.getState();
         if (touchPressed) {
-            if (touchSensorReleased){
-                resetEncoders(lift,false);
+            if (touchSensorReleased) {
+                resetEncoders(lift, false);
                 touchSensorReleased = false;
             } else {
                 if (lift.getCurrentPosition() < 50 && !lift.getMode().equals(DcMotor.RunMode.RUN_WITHOUT_ENCODER)) {
@@ -141,7 +141,7 @@ public class DriverOpMode_Relic extends OpMode {
             touchSensorReleased = true;
         }
 
-        if (gamepad2.y && lift.getCurrentPosition()< LIFT_COUNT_MAX) {
+        if (gamepad2.y && lift.getCurrentPosition() < LIFT_COUNT_MAX) {
             lift.setPower(0.3);
         } else if (gamepad2.x && !touchPressed) {
             lift.setPower(-0.2);
@@ -155,8 +155,9 @@ public class DriverOpMode_Relic extends OpMode {
      * Makes them the minimum and maximum servo positions
      * After this method, you can pass percentOpen as the servo position.
      * Holding position would be 0, complete release position would be 1.
-     * @param servo - servo motor
-     * @param inPos - holding position between 0 and 1
+     *
+     * @param servo  - servo motor
+     * @param inPos  - holding position between 0 and 1
      * @param outPos - releasing position between 0 and 1
      */
     public static void setUpServo(Servo servo, double inPos, double outPos) {
@@ -177,16 +178,17 @@ public class DriverOpMode_Relic extends OpMode {
 
     /**
      * Sets percent open
-     * @param servo - servo motor to use
+     *
+     * @param servo       - servo motor to use
      * @param percentOpen is the number between 0 and 1
      */
     public static void setPercentOpen(Servo servo, double percentOpen) {
         servo.setPosition(percentOpen);
     }
 
-    void resetEncoders(DcMotor motor,boolean wait) {
+    void resetEncoders(DcMotor motor, boolean wait) {
         motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        if (wait){
+        if (wait) {
             while (motor.getCurrentPosition() > 10) {
 
                 try {

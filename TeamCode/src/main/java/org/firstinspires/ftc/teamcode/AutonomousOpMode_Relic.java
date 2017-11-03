@@ -22,7 +22,7 @@ import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.setUpServo;
  * Created by Brandon on 10/22/2017.
  */
 
-@Autonomous(name="AutonomousOpMode", group ="Main")
+@Autonomous(name = "AutonomousOpMode", group = "Main")
 public class AutonomousOpMode_Relic extends LinearOpMode {
 
     ColorSensor sensorColor;
@@ -42,7 +42,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     Servo jewelKick;
     public static final double JEWEL_KICK_RIGHT = DriverOpMode_Relic.JEWEL_KICK_RIGHT;
     public static final double JEWEL_KICK_LEFT = DriverOpMode_Relic.JEWEL_KICK_LEFT;
-    public static final double JEWEL_KICK_CENTER =  DriverOpMode_Relic.JEWEL_KICK_CENTER;
+    public static final double JEWEL_KICK_CENTER = DriverOpMode_Relic.JEWEL_KICK_CENTER;
 
     VuforiaLocalizer vuforia;
     VuforiaTrackables relicTrackables;
@@ -62,17 +62,15 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         jewelKick = hardwareMap.servo.get("Jewel-Kick");
         jewelKick.setPosition(JEWEL_KICK_RIGHT);
     }
-    public void moveArm(double endPos)
-    {
+
+    public void moveArm(double endPos) {
         double currentPos = jewelArm.getPosition();
         int c = 1;
-        if(endPos < currentPos)
-        {
+        if (endPos < currentPos) {
             c = -1;
         }
-        while (Math.abs(endPos - currentPos) >= 0.025 && opModeIsActive())
-        {
-            currentPos = currentPos + c*0.025;
+        while (Math.abs(endPos - currentPos) >= 0.025 && opModeIsActive()) {
+            currentPos = currentPos + c * 0.025;
             jewelArm.setPosition(currentPos);
             telemetry.addData("Arm Position: ", currentPos);
             telemetry.update();
@@ -80,7 +78,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         }
     }
 
-    public void preRun(){
+    public void preRun() {
 
         relicTemplate = vuforiaInitialize();
         sensorColor = hardwareMap.get(ColorSensor.class, "Color-Sensor");
@@ -103,7 +101,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         telemetry.update();
     }
 
-    @Override public void runOpMode() throws InterruptedException {
+    @Override
+    public void runOpMode() throws InterruptedException {
 
         preRun();
 
@@ -112,15 +111,14 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         autonomousStart(); //Initialize the servos
         jewelKick.setPosition(JEWEL_KICK_CENTER);
         moveArm(JEWEL_ARM_DOWN);
+        sleep(5000);
         int colour = jewelColorCheck();
         //Assuming here that we are the blue alliance
-        if(colour == 1) //Colour 1 is red
+        if (colour == 1) //Colour 1 is red
         {
-            jewelKick.setPosition(isBlue?JEWEL_KICK_RIGHT:JEWEL_KICK_LEFT);
-        }
-        else if(colour == -1)
-        {
-            jewelKick.setPosition(isBlue?JEWEL_KICK_LEFT:JEWEL_KICK_RIGHT);
+            jewelKick.setPosition(isBlue ? JEWEL_KICK_RIGHT : JEWEL_KICK_LEFT);
+        } else if (colour == -1) {
+            jewelKick.setPosition(isBlue ? JEWEL_KICK_LEFT : JEWEL_KICK_RIGHT);
         }
         sleep(1000);
         jewelKick.setPosition(JEWEL_KICK_CENTER);
@@ -132,15 +130,15 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
         RelicRecoveryVuMark vuMark = findVuMark();
 
-        goCounts(0.4, isCornerPos?3000:2900);
+        goCounts(0.4, isCornerPos ? 3000 : 2900);
 
-        while (opModeIsActive()){
+        while (opModeIsActive()) {
 
         }
 
     }
 
-    private VuforiaTrackable vuforiaInitialize(){
+    private VuforiaTrackable vuforiaInitialize() {
         int cameraMonitorViewId = hardwareMap.appContext.getResources().getIdentifier("cameraMonitorViewId", "id", hardwareMap.appContext.getPackageName());
         //TODO: In the line below, delete "cameraMonitorViewId" before using to speed up program.
         VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters(cameraMonitorViewId);
@@ -155,15 +153,15 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         return relicTemplate;
     }
 
-    private RelicRecoveryVuMark findVuMark (){
+    private RelicRecoveryVuMark findVuMark() {
         RelicRecoveryVuMark vuMark = RelicRecoveryVuMark.from(relicTemplate);
         long vuStartTime = System.currentTimeMillis();
-        while (vuMark == RelicRecoveryVuMark.UNKNOWN && opModeIsActive()){
+        while (vuMark == RelicRecoveryVuMark.UNKNOWN && opModeIsActive()) {
             vuMark = RelicRecoveryVuMark.from(relicTemplate);
             telemetry.addData("VuMark", "not visible");
             telemetry.update();
             // If the seeing takes too long (10 seconds here), then just go with putting a block in the left one.
-            if (System.currentTimeMillis() - vuStartTime > 10*1000){
+            if (System.currentTimeMillis() - vuStartTime > 10 * 1000) {
                 vuMark = RelicRecoveryVuMark.LEFT;
             }
         }
@@ -174,19 +172,20 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
     /**
      * returns the ball colour that is on the right
+     *
      * @return 1 if red, -1 if blue, and 0 if cannot be determined
      */
-    private int jewelColorCheck(){
+    private int jewelColorCheck() {
         // Check for determinable color
         long startTime = System.currentTimeMillis();
         int color = 0;
-        while (color == 0 && opModeIsActive()){
-            if (sensorColor.blue() > sensorColor.red()){
+        while (color == 0 && opModeIsActive()) {
+            if (sensorColor.blue() > sensorColor.red()) {
                 color = -1;
-            }else if (sensorColor.red() > sensorColor.blue()){
+            } else if (sensorColor.red() > sensorColor.blue()) {
                 color = 1;
             }
-            if (System.currentTimeMillis() - startTime > 10*1000){ // 10 second cutoff
+            if (System.currentTimeMillis() - startTime > 10 * 1000) { // 10 second cutoff
                 break;
             }
         }
@@ -196,7 +195,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
     /**
      * moves robot given number of encoder counts
-     * @param power power to apply to all wheel motors
+     *
+     * @param power  power to apply to all wheel motors
      * @param counts motor encoder counts
      * @throws InterruptedException
      */
@@ -207,12 +207,12 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         int startPos = motor.getCurrentPosition();
         wheels.powerMotors(power, 0, 0);
         int currentPos = startPos;
-        while ( Math.abs(currentPos-startPos) < counts && opModeIsActive() ) {
+        while (Math.abs(currentPos - startPos) < counts && opModeIsActive()) {
             idle();
             wheels.logEncoders();
             currentPos = motor.getCurrentPosition();
         }
-        wheels.powerMotors(0,0,0);
+        wheels.powerMotors(0, 0, 0);
         wheels.logEncoders();
     }
 }
