@@ -25,6 +25,10 @@ import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.setUpServo;
 @Autonomous(name = "AutonomousOpMode", group = "Main")
 public class AutonomousOpMode_Relic extends LinearOpMode {
 
+    enum Color{
+        RED, BLUE, NONE
+    }
+
     ColorSensor sensorColor;
     Servo leftHand;
     public static final double LEFT_HAND_IN_POS = DriverOpMode_Relic.LEFT_HAND_IN_POS;
@@ -93,12 +97,14 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
         wheels = new MecanumWheels(hardwareMap, telemetry, !isBlue);
 
-        telemetry.addData(ALLIANCE_PREF, allianceString);
-        telemetry.addData("isBlue", isBlue);
-        telemetry.addData(START_POSITION_PREF, startPosString);
-        telemetry.addData("isCornerPos", isCornerPos);
-        telemetry.addData(">", "Press Play to start");
-        telemetry.update();
+        while (!opModeIsActive()) {
+            telemetry.addData(ALLIANCE_PREF, allianceString);
+            telemetry.addData("isBlue", isBlue);
+            telemetry.addData(START_POSITION_PREF, startPosString);
+            telemetry.addData("isCornerPos", isCornerPos);
+            telemetry.addData("Color RGB", sensorColor.red()+" "+sensorColor.green()+" "+sensorColor.blue());
+            telemetry.update();
+        }
     }
 
     @Override
@@ -111,13 +117,21 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         autonomousStart(); //Initialize the servos
         jewelKick.setPosition(JEWEL_KICK_CENTER);
         moveArm(JEWEL_ARM_DOWN);
-        sleep(5000);
-        int colour = jewelColorCheck();
+        telemetry.addData("Color RGB", sensorColor.red()+" "+sensorColor.green()+" "+sensorColor.blue());
+        telemetry.update();
+        sleep(2000);
+        telemetry.addData("Color RGB", sensorColor.red()+" "+sensorColor.green()+" "+sensorColor.blue());
+        telemetry.update();
+        sleep(2000);
+        telemetry.addData("Color RGB", sensorColor.red()+" "+sensorColor.green()+" "+sensorColor.blue());
+        telemetry.update();
+        sleep(1000);
+        Color colour = jewelColorCheck();
         //Assuming here that we are the blue alliance
-        if (colour == 1) //Colour 1 is red
+        if (colour == Color.RED) //Colour 1 is red
         {
             jewelKick.setPosition(isBlue ? JEWEL_KICK_RIGHT : JEWEL_KICK_LEFT);
-        } else if (colour == -1) {
+        } else if (colour == Color.BLUE) {
             jewelKick.setPosition(isBlue ? JEWEL_KICK_LEFT : JEWEL_KICK_RIGHT);
         }
         sleep(1000);
@@ -173,17 +187,17 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     /**
      * returns the ball colour that is on the right
      *
-     * @return 1 if red, -1 if blue, and 0 if cannot be determined
+     * @return Color.RED, Color.BLUE, and Color.NONE if cannot be determined
      */
-    private int jewelColorCheck() {
+    private Color jewelColorCheck() {
         // Check for determinable color
         long startTime = System.currentTimeMillis();
-        int color = 0;
-        while (color == 0 && opModeIsActive()) {
+        Color color = Color.NONE;
+        while (color == Color.NONE && opModeIsActive()) {
             if (sensorColor.blue() > sensorColor.red()) {
-                color = -1;
+                color = Color.BLUE;
             } else if (sensorColor.red() > sensorColor.blue()) {
-                color = 1;
+                color = Color.RED;
             }
             if (System.currentTimeMillis() - startTime > 10 * 1000) { // 10 second cutoff
                 break;
