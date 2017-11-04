@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import android.content.SharedPreferences;
+import android.os.Environment;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -14,6 +15,13 @@ import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackable;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackables;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+
 import static org.firstinspires.ftc.teamcode.AutonomousOptions.ALLIANCE_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptions.START_POSITION_PREF;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.setUpServo;
@@ -24,6 +32,8 @@ import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.setUpServo;
 
 @Autonomous(name = "AutonomousOpMode", group = "Main")
 public class AutonomousOpMode_Relic extends LinearOpMode {
+
+    StringBuffer out;
 
     enum Color{
         RED, BLUE, NONE
@@ -83,6 +93,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     }
 
     public void preRun() {
+        out = new StringBuffer();
 
         relicTemplate = vuforiaInitialize();
         sensorColor = hardwareMap.get(ColorSensor.class, "Color-Sensor");
@@ -97,14 +108,16 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
         wheels = new MecanumWheels(hardwareMap, telemetry, !isBlue);
 
-        while (!opModeIsActive()) {
-            telemetry.addData(ALLIANCE_PREF, allianceString);
-            telemetry.addData("isBlue", isBlue);
-            telemetry.addData(START_POSITION_PREF, startPosString);
-            telemetry.addData("isCornerPos", isCornerPos);
-            telemetry.addData("Color RGB", sensorColor.red()+" "+sensorColor.green()+" "+sensorColor.blue());
-            telemetry.update();
-        }
+        telemetry.addData(ALLIANCE_PREF, allianceString);
+        telemetry.addData("isBlue", isBlue);
+        telemetry.addData(START_POSITION_PREF, startPosString);
+        telemetry.addData("isCornerPos", isCornerPos);
+        telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
+        telemetry.update();
+
+        out.append("isBlue: "+isBlue+"\n");
+        out.append("isCornerPos: "+isCornerPos+"\n");
+        out.append("Color RGB: "+sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue()+"\n");
     }
 
     @Override
@@ -114,37 +127,67 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
         waitForStart();
 
-        autonomousStart(); //Initialize the servos
-        jewelKick.setPosition(JEWEL_KICK_CENTER);
-        moveArm(JEWEL_ARM_DOWN);
-        telemetry.addData("Color RGB", sensorColor.red()+" "+sensorColor.green()+" "+sensorColor.blue());
-        telemetry.update();
-        sleep(2000);
-        telemetry.addData("Color RGB", sensorColor.red()+" "+sensorColor.green()+" "+sensorColor.blue());
-        telemetry.update();
-        sleep(2000);
-        telemetry.addData("Color RGB", sensorColor.red()+" "+sensorColor.green()+" "+sensorColor.blue());
-        telemetry.update();
-        sleep(1000);
-        Color colour = jewelColorCheck();
-        //Assuming here that we are the blue alliance
-        if (colour == Color.RED) //Colour 1 is red
-        {
-            jewelKick.setPosition(isBlue ? JEWEL_KICK_RIGHT : JEWEL_KICK_LEFT);
-        } else if (colour == Color.BLUE) {
-            jewelKick.setPosition(isBlue ? JEWEL_KICK_LEFT : JEWEL_KICK_RIGHT);
+        try {
+            autonomousStart(); //Initialize the servos
+            jewelKick.setPosition(JEWEL_KICK_CENTER);
+            moveArm(JEWEL_ARM_DOWN);
+            telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
+            telemetry.update();
+            sleep(2000);
+            telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
+            telemetry.update();
+            sleep(2000);
+            telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
+            telemetry.update();
+            sleep(1000);
+            Color colour = jewelColorCheck();
+            out.append("Jewel Color RGB: "+sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue()+"\n");
+            out.append("Detected color: "+colour+"\n");
+            //Assuming here that we are the blue alliance
+            if (colour == Color.RED) //Colour 1 is red
+            {
+                jewelKick.setPosition(isBlue ? JEWEL_KICK_RIGHT : JEWEL_KICK_LEFT);
+            } else if (colour == Color.BLUE) {
+                jewelKick.setPosition(isBlue ? JEWEL_KICK_LEFT : JEWEL_KICK_RIGHT);
+            }
+            sleep(1000);
+            jewelKick.setPosition(JEWEL_KICK_CENTER);
+            sleep(1000);
+            moveArm(JEWEL_ARM_HOME);
+            sleep(2000);
+            jewelKick.setPosition(JEWEL_KICK_RIGHT);
+            relicTrackables.activate(); // Starts looking for VuMarks
+
+            RelicRecoveryVuMark vuMark = findVuMark();
+            out.append("Detected vuMark: "+vuMark+"\n");
+
+            goCounts(0.4, isCornerPos ? 3000 : 2900);
+
+        } finally {
+            try {
+                String name = "lastrun";
+                //log file without the time stamp to find it easier
+                File file = new File(Environment.getExternalStorageDirectory().getPath() + "/FIRST/" + name + ".txt");
+
+                //saving the log file into a file
+                OutputStreamWriter outputStreamWriter = new OutputStreamWriter(new FileOutputStream(file));
+                outputStreamWriter.write(out.toString());
+                outputStreamWriter.close();
+
+                //log file with the time stamp for history
+                String timestamp = new SimpleDateFormat("MMMdd_HHmm", Locale.US).format(new Date());
+                file = new File(Environment.getExternalStorageDirectory().getPath() + "/FIRST/" + name + "_" + timestamp + ".txt");
+                telemetry.addData("File", file.getAbsolutePath());
+
+                //saving the log file into a file
+                outputStreamWriter = new OutputStreamWriter(new FileOutputStream(file));
+                outputStreamWriter.write(out.toString());
+                outputStreamWriter.close();
+
+            } catch (Exception e) {
+                telemetry.addData("Exception", "File write failed: " + e.toString());
+            }
         }
-        sleep(1000);
-        jewelKick.setPosition(JEWEL_KICK_CENTER);
-        sleep(1000);
-        moveArm(JEWEL_ARM_HOME);
-        sleep(2000);
-        jewelKick.setPosition(JEWEL_KICK_RIGHT);
-        relicTrackables.activate(); // Starts looking for VuMarks
-
-        RelicRecoveryVuMark vuMark = findVuMark();
-
-        goCounts(0.4, isCornerPos ? 3000 : 2900);
 
         while (opModeIsActive()) {
 

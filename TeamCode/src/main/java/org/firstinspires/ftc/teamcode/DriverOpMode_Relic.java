@@ -14,11 +14,13 @@ import com.qualcomm.robotcore.hardware.Servo;
 @TeleOp(name = "DriverOpMode", group = "Main")
 public class DriverOpMode_Relic extends OpMode {
 
+    double MAX_DRIVE_POWER = 0.3;
+
     private MecanumWheels mecanumWheels;
     private boolean backButtonPressed;
 
     private DcMotor lift; //DcMotor for the lift
-    private int LIFT_COUNT_MAX = 5000;
+    private int LIFT_COUNT_MAX = 6000;
 
     private boolean touchSensorReleased;
 
@@ -100,14 +102,14 @@ public class DriverOpMode_Relic extends OpMode {
             double forward = 0;
             double right = 0;
             if (gamepad1.dpad_up) {
-                forward = 1;
+                forward = MAX_DRIVE_POWER;
             } else if (gamepad1.dpad_down) {
-                forward = -1;
+                forward = -MAX_DRIVE_POWER;
             }
             if (gamepad1.dpad_right) {
-                right = 1;
+                right = MAX_DRIVE_POWER;
             } else if (gamepad1.dpad_left) {
-                right = -1;
+                right = -MAX_DRIVE_POWER;
             }
             mecanumWheels.powerMotors(forward, right, clockwise);
         } else {
@@ -142,9 +144,9 @@ public class DriverOpMode_Relic extends OpMode {
         }
 
         if (gamepad2.y && lift.getCurrentPosition() < LIFT_COUNT_MAX) {
-            lift.setPower(0.3);
+            lift.setPower(0.6);
         } else if (gamepad2.x && !touchPressed) {
-            lift.setPower(-0.2);
+            lift.setPower(-0.35);
         } else {
             lift.setPower(0);
         }
