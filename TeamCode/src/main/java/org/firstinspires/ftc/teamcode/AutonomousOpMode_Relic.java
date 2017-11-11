@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode;
 import android.content.SharedPreferences;
 import android.os.Environment;
 
+import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.ColorSensor;
@@ -10,6 +11,10 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
+import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
+import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
 import org.firstinspires.ftc.robotcore.external.navigation.RelicRecoveryVuMark;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackable;
@@ -66,6 +71,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     boolean isBlue;
     boolean isCornerPos;
 
+    BNO055IMU imu; // gyro
+    Orientation angles; // angles from gyro
+
     public void autonomousStart() {
         leftHand = hardwareMap.servo.get("Left-Hand");
         setUpServo(leftHand, LEFT_HAND_IN_POS, LEFT_HAND_OUT_POS);
@@ -92,6 +100,58 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         }
     }
 
+    /**
+     * Save current gyro heading, roll, and pitch into angles variable
+     * angles.firstAngle is the heading
+     * angles.secondAngle is the roll
+     * angles.thirdAngle is the pitch
+     * Heading: clockwise is decreasing, counterclockwise is increasing
+     * Pitch: Lift side w/ light is decreasing, vice versa
+     * Roll: Lift side w/ mini USB port is decreasing, vice versa
+     */
+    public void setAngles(){
+        angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
+    }
+
+    public void logGyro(boolean update){
+        telemetry.addLine().
+                addData("status", imu.getSystemStatus().toShortString()).
+                addData("calib", imu.getCalibrationStatus().toString());
+
+        setAngles();
+        telemetry.addLine().
+                addData("heading", formatAngle(angles.angleUnit, angles.firstAngle)).
+                addData("roll", formatAngle(angles.angleUnit, angles.secondAngle)).
+                addData("pitch", formatAngle(angles.angleUnit, angles.thirdAngle));
+        if(update){
+            telemetry.update();
+        }
+    }
+
+    String formatAngle(AngleUnit angleUnit, double angle) {
+        return formatDegrees(AngleUnit.DEGREES.fromUnit(angleUnit, angle));
+    }
+
+    String formatDegrees(double degrees) {
+        return String.format(Locale.getDefault(), "%.1f", AngleUnit.DEGREES.normalize(degrees));
+    }
+
+    public void gyroInit(){
+
+
+        BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
+        //parameters.mode = BNO055IMU.SensorMode.GYRONLY;
+        parameters.angleUnit = BNO055IMU.AngleUnit.DEGREES;
+        //parameters.accelUnit = BNO055IMU.AccelUnit.METERS_PERSEC_PERSEC;
+        parameters.calibrationDataFile = "AdafruitIMUCalibration.json"; // see the calibration sample opmode
+        //parameters.loggingEnabled = true;
+        //parameters.loggingTag = "IMU";
+        //parameters.accelerationIntegrationAlgorithm = new JustLoggingAccelerationIntegrator();
+
+        imu = hardwareMap.get(BNO055IMU.class, "IMU");
+        imu.initialize(parameters);
+    }
+
     public void preRun() {
         out = new StringBuffer();
 
@@ -108,16 +168,23 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
         wheels = new MecanumWheels(hardwareMap, telemetry, !isBlue);
 
-        telemetry.addData(ALLIANCE_PREF, allianceString);
-        telemetry.addData("isBlue", isBlue);
-        telemetry.addData(START_POSITION_PREF, startPosString);
-        telemetry.addData("isCornerPos", isCornerPos);
-        telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
-        telemetry.update();
+        gyroInit();
 
         out.append("isBlue: "+isBlue+"\n");
         out.append("isCornerPos: "+isCornerPos+"\n");
         out.append("Color RGB: "+sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue()+"\n");
+        while(!this.isStarted() && !this.isStopRequested()) {
+            telemetry.clearAll();
+            logGyro(false);
+
+            telemetry.addData(ALLIANCE_PREF, allianceString);
+            telemetry.addData("isBlue", isBlue);
+            telemetry.addData(START_POSITION_PREF, startPosString);
+            telemetry.addData("isCornerPos", isCornerPos);
+            telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
+            telemetry.update();
+            idle();
+        }
     }
 
     @Override
@@ -140,14 +207,14 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
             telemetry.update();
             sleep(1000);
-            Color colour = jewelColorCheck();
+            Color color = jewelColorCheck();
             out.append("Jewel Color RGB: "+sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue()+"\n");
-            out.append("Detected color: "+colour+"\n");
+            out.append("Detected color: "+color+"\n");
             //Assuming here that we are the blue alliance
-            if (colour == Color.RED) //Colour 1 is red
+            if (color == Color.RED) //Colour 1 is red
             {
                 jewelKick.setPosition(isBlue ? JEWEL_KICK_RIGHT : JEWEL_KICK_LEFT);
-            } else if (colour == Color.BLUE) {
+            } else if (color == Color.BLUE) {
                 jewelKick.setPosition(isBlue ? JEWEL_KICK_LEFT : JEWEL_KICK_RIGHT);
             }
             sleep(1000);
