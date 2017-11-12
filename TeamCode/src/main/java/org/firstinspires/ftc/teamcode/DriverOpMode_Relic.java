@@ -14,6 +14,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 @TeleOp(name = "DriverOpMode", group = "Main")
 public class DriverOpMode_Relic extends OpMode {
 
+    enum LiftState {down,block1,block2,block3,block4}
+
     double MAX_DRIVE_POWER = 0.3;
 
     private MecanumWheels mecanumWheels;
@@ -21,6 +23,13 @@ public class DriverOpMode_Relic extends OpMode {
 
     private DcMotor lift; //DcMotor for the lift
     private int LIFT_COUNT_MAX = 6000;
+    private int LIFT_COUNTS_TOLERANCE = 50;
+
+    int[] LIFT_LEVEL_COUNTS = {0, 200, 2000, 4000, LIFT_COUNT_MAX};
+
+    boolean rightBumperPressed = false;
+    boolean leftBumperPressed = false;
+    int targetLiftLevel = 0; //Lift level can be 0, 1, 2, 3, and 4.
 
     private boolean touchSensorReleased;
 
@@ -150,6 +159,49 @@ public class DriverOpMode_Relic extends OpMode {
         } else {
             lift.setPower(0);
         }
+
+        if(gamepad2.right_bumper){
+            if (!rightBumperPressed) {
+                rightBumperPressed = true;
+                increaseLiftLevel();
+            }
+        } else{
+            rightBumperPressed = false;
+        }
+
+        if (gamepad2.left_bumper){
+            if (!leftBumperPressed) {
+                leftBumperPressed = true;
+                decreaseLiftLevel();
+            }
+        } else{
+            leftBumperPressed = false;
+        }
+
+        int targetCounts = getTargetCounts(targetLiftLevel);
+        int currentCounts = lift.getCurrentPosition();
+        if (Math.abs(targetCounts-currentCounts) <= LIFT_COUNTS_TOLERANCE || touchPressed || currentCounts > LIFT_COUNT_MAX) {
+            lift.setPower(0);
+        }else if (currentCounts > targetCounts) {
+            lift.setPower(-0.35);
+        }else{
+            lift.setPower(0.6);
+        }
+    }
+
+
+    void increaseLiftLevel(){
+        if (targetLiftLevel<4) {
+            targetLiftLevel++;
+        }
+    }
+    void decreaseLiftLevel(){
+        if (targetLiftLevel>0){
+            targetLiftLevel--;
+        }
+    }
+    int getTargetCounts(int liftLevel){
+        return LIFT_LEVEL_COUNTS[liftLevel];
     }
 
     /**
