@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode;
 import android.os.Environment;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.hardware.DcMotor;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -26,20 +27,40 @@ public class AutonomousTest extends AutonomousOpMode_Relic {
         autonomousStart(); //Initialize the servos
 
         //colorTest();
-        gyroTest();
+        //gyroTest();
+        rotateTest();
 
+    }
+
+    private void rotateTest() {
+        wheels.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        wheels.setRunMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        for (int i=0; i<5; i++) {
+            double power=0.3;
+            logGyro(true);
+            sleep(2000);
+            rotate(-power, 90);
+            sleep(1000);
+            logGyro(true);
+            sleep(3000);
+            rotate(power, 90);
+            sleep(1000);
+        }
+        logGyro(true);
+        sleep(5000);
     }
 
     // gyroTest(): figures out how long the gyro takes to update
     private void gyroTest(){
-        setAngles();
+        getGyroAngles();
         StringBuffer out = new StringBuffer();
         try{
             // turn clockwise, then counter alternating, 3 times each
             for (int n = 0; n < 5; n++){
                 // turn clockwise
                 out.append("Clockwise 180!\n");
-                setAngles();
+                getGyroAngles();
                 wheels.powerMotors(0,0,0.3);
                 float initialheading = parseFloat(formatAngle(angles.angleUnit, angles.firstAngle));
                 float currentheading = parseFloat(formatAngle(angles.angleUnit, angles.firstAngle));
@@ -52,14 +73,14 @@ public class AutonomousTest extends AutonomousOpMode_Relic {
                             .append(formatAngle(angles.angleUnit, angles.firstAngle) + "/" + formatAngle(angles.angleUnit, angles.secondAngle) + "/" + formatAngle(angles.angleUnit, angles.thirdAngle))
                             .append("\n");
                     idle();
-                    setAngles();
+                    getGyroAngles();
                     currentheading = parseFloat(formatAngle(angles.angleUnit, angles.firstAngle));
                 }
 
-                // turn clockwise
-                out.append("Clockwise 180!\n");
+                // turn counterclockwise
+                out.append("Counterclockwise 180!\n");
                 wheels.powerMotors(0,0,-0.3);
-                setAngles();
+                getGyroAngles();
                 initialheading = parseFloat(formatAngle(angles.angleUnit, angles.firstAngle));
                 currentheading = parseFloat(formatAngle(angles.angleUnit, angles.firstAngle));
                 while (Math.abs(currentheading - initialheading) < 90 && opModeIsActive()){
@@ -71,7 +92,7 @@ public class AutonomousTest extends AutonomousOpMode_Relic {
                             .append(formatAngle(angles.angleUnit, angles.firstAngle) + "/" + formatAngle(angles.angleUnit, angles.secondAngle) + "/" + formatAngle(angles.angleUnit, angles.thirdAngle))
                             .append("\n");
                     idle();
-                    setAngles();
+                    getGyroAngles();
                     currentheading = parseFloat(formatAngle(angles.angleUnit, angles.firstAngle));
                 }
             }

@@ -106,10 +106,10 @@ class MecanumWheels {
                 (int) (front_right * 100) + ", " +
                 (int) (rear_left * 100) + ", " +
                 (int) (rear_right * 100));
-        telemetry.update();
+        //telemetry.update();
     }
 
-    private void setRunMode(DcMotor.RunMode runMode) {
+    public void setRunMode(DcMotor.RunMode runMode) {
         motorFrontLeft.setMode(runMode);
         motorFrontRight.setMode(runMode);
         motorRearLeft.setMode(runMode);

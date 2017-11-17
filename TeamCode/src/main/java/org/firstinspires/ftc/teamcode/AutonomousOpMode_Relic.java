@@ -8,6 +8,8 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
@@ -29,7 +31,9 @@ import java.util.Locale;
 
 import static org.firstinspires.ftc.teamcode.AutonomousOptions.ALLIANCE_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptions.START_POSITION_PREF;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.setPercentOpen;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.setUpServo;
+
 
 /**
  * Created by Brandon on 10/22/2017.
@@ -67,6 +71,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     VuforiaTrackables relicTrackables;
     VuforiaTrackable relicTemplate;
 
+    private DigitalChannel touchSensor;
+    DcMotor lift;
+
     MecanumWheels wheels;
     boolean isBlue;
     boolean isCornerPos;
@@ -83,6 +90,26 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         jewelArm.setPosition(JEWEL_ARM_HOME);
         jewelKick = hardwareMap.servo.get("Jewel-Kick");
         jewelKick.setPosition(JEWEL_KICK_RIGHT);
+
+    }
+
+    public void raiseGlyph(boolean doRaise) {
+        if (doRaise) {
+            int startPos = lift.getCurrentPosition(); // Gives us encoder counts before the move
+            int currentPos = startPos;
+            lift.setPower(0.5);
+            while (Math.abs(currentPos - startPos) <= 800 &&  opModeIsActive()) {
+                currentPos = lift.getCurrentPosition();
+            }
+        } else {
+            lift.setPower(-0.3);
+            boolean touchSensorReleased = touchSensor.getState();
+            while (touchSensorReleased &&  (opModeIsActive() || (!this.isStarted() && !this.isStopRequested()))) {
+                touchSensorReleased = touchSensor.getState();
+                idle();
+            }
+        }
+        lift.setPower(0);
     }
 
     public void moveArm(double endPos) {
@@ -109,8 +136,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
      * Pitch: Lift side w/ light is decreasing, vice versa
      * Roll: Lift side w/ mini USB port is decreasing, vice versa
      */
-    public void setAngles(){
+    public Orientation getGyroAngles(){
         angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
+        return angles;
     }
 
     public void logGyro(boolean update){
@@ -118,7 +146,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 addData("status", imu.getSystemStatus().toShortString()).
                 addData("calib", imu.getCalibrationStatus().toString());
 
-        setAngles();
+        getGyroAngles();
         telemetry.addLine().
                 addData("heading", formatAngle(angles.angleUnit, angles.firstAngle)).
                 addData("roll", formatAngle(angles.angleUnit, angles.secondAngle)).
@@ -167,6 +195,19 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         isCornerPos = startPosString.equals("corner");
 
         wheels = new MecanumWheels(hardwareMap, telemetry, !isBlue);
+        lift = hardwareMap.dcMotor.get("Lift");
+        lift.setDirection(DcMotorSimple.Direction.REVERSE);
+        lift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        touchSensor = hardwareMap.digitalChannel.get("Touch-Sensor");
+        touchSensor.setMode(DigitalChannel.Mode.INPUT);
+        raiseGlyph(false);
+        boolean touchSensorReleased = touchSensor.getState();
+        if (!touchSensorReleased) {
+            lift.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        }
+        sleep(1000);
+        lift.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        lift.setPower(0);
 
         gyroInit();
 
@@ -196,11 +237,10 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
         try {
             autonomousStart(); //Initialize the servos
+            sleep(1000);
+            raiseGlyph(true);
             jewelKick.setPosition(JEWEL_KICK_CENTER);
             moveArm(JEWEL_ARM_DOWN);
-            telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
-            telemetry.update();
-            sleep(2000);
             telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
             telemetry.update();
             sleep(2000);
@@ -221,14 +261,26 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             jewelKick.setPosition(JEWEL_KICK_CENTER);
             sleep(1000);
             moveArm(JEWEL_ARM_HOME);
-            sleep(2000);
+            sleep(1000);
             jewelKick.setPosition(JEWEL_KICK_RIGHT);
             relicTrackables.activate(); // Starts looking for VuMarks
 
             RelicRecoveryVuMark vuMark = findVuMark();
             out.append("Detected vuMark: "+vuMark+"\n");
 
-            goCounts(0.4, isCornerPos ? 3000 : 2900);
+            //goCounts(0.4, isCornerPos ? 3000 : 2900);
+
+            goCounts(0.4, 2500);
+            sleep(1000);
+            rotate(-0.3, 72);
+            sleep(1000);
+            goCounts(0.4, 750);
+            sleep(1000);
+            raiseGlyph(false);
+            setPercentOpen(rightHand, 1);
+            setPercentOpen(leftHand, 1);
+            sleep(1000);
+            goCounts(-0.4, 300);
 
         } finally {
             try {
@@ -309,7 +361,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             } else if (sensorColor.red() > sensorColor.blue()) {
                 color = Color.RED;
             }
-            if (System.currentTimeMillis() - startTime > 10 * 1000) { // 10 second cutoff
+            if (System.currentTimeMillis() - startTime > 5 * 1000) { // seconds for cutoff
                 break;
             }
         }
@@ -338,5 +390,18 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         }
         wheels.powerMotors(0, 0, 0);
         wheels.logEncoders();
+    }
+
+    void rotate (double power, double angle) {
+        double originalHeading = getGyroAngles().firstAngle;
+        double currentHeading = originalHeading;
+        long start = new Date().getTime();
+        wheels.powerMotors(0, 0, power);
+        while (opModeIsActive() && Math.abs(currentHeading - originalHeading) < angle) {
+            currentHeading = getGyroAngles().firstAngle;
+        }
+        wheels.powerMotors(0,0,0);
+        long end = new Date().getTime();
+        telemetry.addData("rotate time", end-start);
     }
 }
