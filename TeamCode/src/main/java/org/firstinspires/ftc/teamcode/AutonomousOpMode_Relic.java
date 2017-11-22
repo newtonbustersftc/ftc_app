@@ -377,7 +377,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
      * @throws InterruptedException
      */
     public void goCounts(double power, int counts) throws InterruptedException {
-        wheels.resetEncoders();
+        //wheels.resetEncoders();
         wheels.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         DcMotor motor = wheels.getMotor(MecanumWheels.Wheel.FR);
         int startPos = motor.getCurrentPosition();
@@ -403,5 +403,20 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         wheels.powerMotors(0,0,0);
         long end = new Date().getTime();
         telemetry.addData("rotate time", end-start);
+    }
+
+    /**
+     * This method converts straight distance in inches
+     * into front right motor encoder counts.
+     * @param inches
+     * @param forward True: If the robot is moving forward. False: If the robot is moving backwards.
+     * @return
+     */
+    public int inchesToCounts(double inches, boolean forward){
+        if (forward) {
+            return (int) ((3000*inches)/33.75);
+        } else {
+            return (int) ((3000*inches)/35.0);
+        }
     }
 }

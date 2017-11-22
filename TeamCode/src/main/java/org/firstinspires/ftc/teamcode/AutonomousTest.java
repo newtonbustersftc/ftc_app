@@ -28,7 +28,25 @@ public class AutonomousTest extends AutonomousOpMode_Relic {
 
         //colorTest();
         //gyroTest();
-        rotateTest();
+        //rotateTest();
+        //distanceTest();
+        goCounts(0.4, inchesToCounts(27.5,true));
+        sleep(1000);
+        rotate(-0.3, 90);
+        sleep(1000);
+        goCounts(0.4, inchesToCounts(8.5,true));
+        sleep(1000);
+    }
+
+    private void distanceTest() throws InterruptedException {
+        int counts = 1000;
+        while (counts < 5000) {
+            goCounts(0.4, counts);
+            sleep(5000);
+            goCounts(-0.4, counts);
+            sleep(5000);
+            counts=counts+1000;
+        }
 
     }
 
