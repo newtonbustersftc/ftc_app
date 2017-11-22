@@ -29,7 +29,7 @@ public class DriverOpMode_Relic extends OpMode {
 
     boolean rightBumperPressed = false;
     boolean leftBumperPressed = false;
-    int targetLiftLevel = 0; //Lift level can be 0, 1, 2, 3, and 4.
+    double targetLiftLevel = 0; //Lift level can be 0, 1, 2, 3, and 4 or something inbetween.
 
     private boolean touchSensorReleased;
 
@@ -40,8 +40,8 @@ public class DriverOpMode_Relic extends OpMode {
     public static final double LEFT_HAND_OUT_POS = 0.48;
 
     Servo rightHand;
-    public static final double RIGHT_HAND_IN_POS = 0.20;
-    public static final double RIGHT_HAND_OUT_POS = 0.4;
+    public static final double RIGHT_HAND_IN_POS = 0.25;
+    public static final double RIGHT_HAND_OUT_POS = 0.5;
 
     Servo jewelArm;
     public static final double JEWEL_ARM_HOME = 0.72; // home position
@@ -152,10 +152,13 @@ public class DriverOpMode_Relic extends OpMode {
             touchSensorReleased = true;
         }
 
-        if (gamepad2.y && lift.getCurrentPosition() < LIFT_COUNT_MAX) {
+        int liftposition = lift.getCurrentPosition();
+        if (gamepad2.y && liftposition < LIFT_COUNT_MAX) {
             lift.setPower(0.6);
+            setTargetLevelFromCounts(liftposition);
         } else if (gamepad2.x && !touchPressed) {
             lift.setPower(-0.35);
+            setTargetLevelFromCounts(liftposition);
         } else {
             lift.setPower(0);
         }
@@ -178,30 +181,44 @@ public class DriverOpMode_Relic extends OpMode {
             leftBumperPressed = false;
         }
 
-        int targetCounts = getTargetCounts(targetLiftLevel);
-        int currentCounts = lift.getCurrentPosition();
-        if (Math.abs(targetCounts-currentCounts) <= LIFT_COUNTS_TOLERANCE || touchPressed || currentCounts > LIFT_COUNT_MAX) {
-            lift.setPower(0);
-        }else if (currentCounts > targetCounts) {
-            lift.setPower(-0.35);
-        }else{
-            lift.setPower(0.6);
+        double roundedTargetLiftLevel = Math.round(targetLiftLevel);
+        if(roundedTargetLiftLevel == targetLiftLevel) {
+            int targetCounts = getTargetCounts((int)roundedTargetLiftLevel);
+            int currentCounts = lift.getCurrentPosition();
+            if (Math.abs(targetCounts-currentCounts) <= LIFT_COUNTS_TOLERANCE || touchPressed || currentCounts > LIFT_COUNT_MAX) {
+                lift.setPower(0);
+            } else if (currentCounts > targetCounts) {
+                lift.setPower(-0.35);
+            } else {
+                lift.setPower(0.6);
+            }
         }
+
     }
 
 
     void increaseLiftLevel(){
+        targetLiftLevel = Math.floor(targetLiftLevel);
         if (targetLiftLevel<4) {
             targetLiftLevel++;
         }
     }
     void decreaseLiftLevel(){
+        targetLiftLevel = Math.ceil(targetLiftLevel);
         if (targetLiftLevel>0){
             targetLiftLevel--;
         }
     }
     int getTargetCounts(int liftLevel){
         return LIFT_LEVEL_COUNTS[liftLevel];
+    }
+
+    void setTargetLevelFromCounts (int counts) {
+        if (counts < LIFT_LEVEL_COUNTS[1]) {
+            targetLiftLevel = (double)counts / (double)LIFT_LEVEL_COUNTS[1];
+        } else {
+            targetLiftLevel = 1 + 3 * (counts - LIFT_LEVEL_COUNTS[1]) / (double) (LIFT_COUNT_MAX - LIFT_LEVEL_COUNTS[1]);
+        }
     }
 
     /**
