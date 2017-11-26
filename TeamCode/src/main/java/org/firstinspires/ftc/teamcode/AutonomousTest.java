@@ -5,6 +5,8 @@ import android.os.Environment;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
 
+import org.firstinspires.ftc.robotcore.external.navigation.RelicRecoveryVuMark;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
@@ -30,12 +32,14 @@ public class AutonomousTest extends AutonomousOpMode_Relic {
         //gyroTest();
         //rotateTest();
         //distanceTest();
-        goCounts(0.4, inchesToCounts(27.5,true));
-        sleep(1000);
-        rotate(-0.3, 90);
-        sleep(1000);
-        goCounts(0.4, inchesToCounts(8.5,true));
-        sleep(1000);
+
+//        goCounts(0.4, inchesToCounts(27.5,true));
+//        sleep(1000);
+//        rotate(-0.3, 90);
+//        sleep(1000);
+//        goCounts(0.4, inchesToCounts(8.5,true));
+//        sleep(1000);
+        deliverGlyph(RelicRecoveryVuMark.LEFT);
     }
 
     private void distanceTest() throws InterruptedException {

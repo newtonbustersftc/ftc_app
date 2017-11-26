@@ -67,6 +67,24 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     public static final double JEWEL_KICK_LEFT = DriverOpMode_Relic.JEWEL_KICK_LEFT;
     public static final double JEWEL_KICK_CENTER = DriverOpMode_Relic.JEWEL_KICK_CENTER;
 
+    //The wisth of the bin in inches
+    public static final double BWIDTH = 7.5;
+
+    //The length of the side of the glyph in inches
+    public static final double GSIDE = 6;
+
+    //The length of the robot in inches
+    public static final double RLENGTH = 17.75;
+
+    // The distance from the front of the glyph to the center of the robot in inches
+    public static final double GLYPH_RCENTER = RLENGTH/2 + 3;
+
+    //The distance from the center of the robot to the wall in inches
+    public static final double WALL_RCENTER = 22;
+
+    //The length of each floor tile in inches
+    public static final double TILE_LENGTH = 23.5;
+
     VuforiaLocalizer vuforia;
     VuforiaTrackables relicTrackables;
     VuforiaTrackable relicTemplate;
@@ -383,15 +401,36 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         int startPos = motor.getCurrentPosition();
         wheels.powerMotors(power, 0, 0);
         int currentPos = startPos;
+        //Detect robot being stuck: encoder count is not changing for half of a second
+        long startTime = (new Date()).getTime();
+        long msPassed = 0;
+        double previousPos = currentPos;
         while (Math.abs(currentPos - startPos) < counts && opModeIsActive()) {
             idle();
             wheels.logEncoders();
             currentPos = motor.getCurrentPosition();
+
+            // Stop if the wheel is stuck
+            msPassed = (new Date()).getTime() - startTime;
+            if (msPassed > 500) {
+                if (Math.abs(currentPos-previousPos) < 20) {
+                    break;
+                }
+                startTime = (new Date()).getTime();
+                previousPos = currentPos;
+            }
         }
         wheels.powerMotors(0, 0, 0);
         wheels.logEncoders();
+
     }
 
+    /**
+     * rotates robot the given angle, give negative power for clockwise rotation and
+     * positive power for counter-clockwise rotation
+     * @param power
+     * @param angle
+     */
     void rotate (double power, double angle) {
         double originalHeading = getGyroAngles().firstAngle;
         double currentHeading = originalHeading;
@@ -418,5 +457,33 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         } else {
             return (int) ((3000*inches)/35.0);
         }
+    }
+
+    public void deliverGlyph (RelicRecoveryVuMark pos) throws InterruptedException {
+
+        if (isBlue || !isCornerPos) {
+            return;
+        }
+
+        //For robot to get off the platform and clear the turn it needs to drive initialDistance
+        //double initialDistance = RLENGTH+((TILE_LENGTH-RLENGTH)/2)+(Math.sqrt(2)-1)*RLENGTH/2;
+
+        // red corner position
+        double totalDistance = TILE_LENGTH + GSIDE/4;
+        double distanceAfterRotation = WALL_RCENTER-GLYPH_RCENTER;
+
+        if (pos == RelicRecoveryVuMark.RIGHT) {
+        } else if (pos == RelicRecoveryVuMark.CENTER) {
+            totalDistance = totalDistance + BWIDTH;
+        } else if (pos == RelicRecoveryVuMark.LEFT) {
+            totalDistance = totalDistance + BWIDTH*2;
+        }
+        int totalCounts = inchesToCounts(totalDistance, true);
+        goCounts(0.4, totalCounts);
+        //clockwise rotation
+        rotate(-0.3, 90);
+        //Go straight to the box
+        int countsAfterRotation = inchesToCounts(distanceAfterRotation, true);
+        goCounts(0.4, countsAfterRotation);
     }
 }
