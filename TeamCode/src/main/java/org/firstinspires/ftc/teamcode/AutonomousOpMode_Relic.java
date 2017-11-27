@@ -290,7 +290,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
             goCounts(0.4, 2500);
             sleep(1000);
-            rotate(-0.3, 72);
+            rotate(0.3, 72);
             sleep(1000);
             goCounts(0.4, 750);
             sleep(1000);
@@ -392,12 +392,13 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
      *
      * @param power  power to apply to all wheel motors
      * @param counts motor encoder counts
+     * @return true if the robot travelled all the distance, false otherwise
      * @throws InterruptedException
      */
-    public void goCounts(double power, int counts) throws InterruptedException {
+    public boolean goCounts(double power, int counts) throws InterruptedException {
         //wheels.resetEncoders();
         wheels.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        DcMotor motor = wheels.getMotor(MecanumWheels.Wheel.FR);
+        DcMotor motor = wheels.getMotor(MecanumWheels.Wheel.RR);
         int startPos = motor.getCurrentPosition();
         wheels.powerMotors(power, 0, 0);
         int currentPos = startPos;
@@ -405,16 +406,23 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         long startTime = (new Date()).getTime();
         long msPassed = 0;
         double previousPos = currentPos;
-        while (Math.abs(currentPos - startPos) < counts && opModeIsActive()) {
+        boolean finished = true; //this means the robot has traveled all the distance requested
+        while (Math.abs(currentPos - startPos) < counts) {
+            if (!opModeIsActive()) {
+                finished = false;
+                break;
+            }
             idle();
             wheels.logEncoders();
             currentPos = motor.getCurrentPosition();
 
             // Stop if the wheel is stuck
             msPassed = (new Date()).getTime() - startTime;
-            if (msPassed > 500) {
-                if (Math.abs(currentPos-previousPos) < 20) {
+            if (msPassed > 400) {
+                if (Math.abs(currentPos-previousPos) < 50) {
+                    finished = false;
                     break;
+
                 }
                 startTime = (new Date()).getTime();
                 previousPos = currentPos;
@@ -422,12 +430,13 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         }
         wheels.powerMotors(0, 0, 0);
         wheels.logEncoders();
+        return finished;
 
     }
 
     /**
-     * rotates robot the given angle, give negative power for clockwise rotation and
-     * positive power for counter-clockwise rotation
+     * rotates robot the given angle, give negative power for counterclockwise rotation and
+     * positive power for clockwise rotation
      * @param power
      * @param angle
      */
@@ -481,9 +490,31 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         int totalCounts = inchesToCounts(totalDistance, true);
         goCounts(0.4, totalCounts);
         //clockwise rotation
-        rotate(-0.3, 90);
+        rotate(0.3, 90);
         //Go straight to the box
         int countsAfterRotation = inchesToCounts(distanceAfterRotation, true);
-        goCounts(0.4, countsAfterRotation);
+        boolean finished = goCounts(0.3, countsAfterRotation);
+        sleep(1000);
+        if (!finished && opModeIsActive()) {
+            forwardAndRotate(true);
+        }
+
+    }
+
+    public void forwardAndRotate(boolean clockwise) {
+
+        long startTime = (new Date()).getTime();
+        double clockwiseSpeed = clockwise ? 0.7 : -0.7;
+        wheels.powerMotors(0.1, -0.8, clockwiseSpeed);
+        while(getTime() - startTime < 400) {
+            idle();
+        }
+        wheels.powerMotors(0,0,0);
+
+
+    }
+
+    public static long getTime() {
+        return (new Date()).getTime();
     }
 }

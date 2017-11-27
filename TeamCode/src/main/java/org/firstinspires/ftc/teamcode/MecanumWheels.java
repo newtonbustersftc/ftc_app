@@ -68,10 +68,10 @@ class MecanumWheels {
         }
 
 
-        double front_left = forward + clockwise + right;
-        double front_right = forward - clockwise - right;
-        double rear_left = forward + clockwise - right;
-        double rear_right = forward - clockwise + right;
+        double front_left = forward - clockwise + right;
+        double front_right = forward + clockwise - right;
+        double rear_left = forward - clockwise - right;
+        double rear_right = forward + clockwise + right;
 
         /*this is scaling the motor power. Since our motors work on a scale between -1 and 1, and when we input
         values into the controller, they can be greater than one. We want to make sure that all values are between 1 and -1.
