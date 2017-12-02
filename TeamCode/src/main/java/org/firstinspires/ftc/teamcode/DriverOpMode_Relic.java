@@ -16,10 +16,13 @@ public class DriverOpMode_Relic extends OpMode {
 
     enum LiftState {down,block1,block2,block3,block4}
 
-    double MAX_DRIVE_POWER = 0.3;
+    double DPAD_POWER = 0.3;
 
     private MecanumWheels mecanumWheels;
     private boolean backButtonPressed;
+
+    private DcMotor relicArm;
+    private DcMotor relicScrew;
 
     private DcMotor lift; //DcMotor for the lift
     private int LIFT_COUNT_MAX = 6000;
@@ -31,17 +34,19 @@ public class DriverOpMode_Relic extends OpMode {
     boolean leftBumperPressed = false;
     double targetLiftLevel = 0; //Lift level can be 0, 1, 2, 3, and 4 or something inbetween.
 
-    private boolean touchSensorReleased;
+    private boolean liftTouchReleased;
+    private boolean relicTouchReleased;
 
-    private DigitalChannel touchSensor; //Touch sensor at lowest position on the lift
+    private DigitalChannel relicTouchSensor; //Touch sensor at farthest back position on the relic arm
+    private DigitalChannel liftTouchSensor; //Touch sensor at lowest position on the lift
 
     Servo leftHand;
-    public static final double LEFT_HAND_IN_POS = 0.63;
-    public static final double LEFT_HAND_OUT_POS = 0.48;
+    public static final double LEFT_HAND_IN_POS = 0.15; //0.63;
+    public static final double LEFT_HAND_OUT_POS = 0.80; //0.48;
 
     Servo rightHand;
-    public static final double RIGHT_HAND_IN_POS = 0.25;
-    public static final double RIGHT_HAND_OUT_POS = 0.5;
+    public static final double RIGHT_HAND_IN_POS = 0.15; //0.25;
+    public static final double RIGHT_HAND_OUT_POS = 0.80; //0.5;
 
     Servo jewelArm;
     public static final double JEWEL_ARM_HOME = 0.72; // home position
@@ -57,13 +62,29 @@ public class DriverOpMode_Relic extends OpMode {
     public void init() {
         mecanumWheels = new MecanumWheels(hardwareMap, telemetry);
         mecanumWheels.powerMotors(0, 0, 0);
+        relicArm = hardwareMap.dcMotor.get("Relic Arm");
+        relicScrew = hardwareMap.dcMotor.get("Relic Screw");
+        relicTouchSensor = hardwareMap.digitalChannel.get("Touch-Sensor Relic");
+        relicTouchSensor.setMode(DigitalChannel.Mode.INPUT);
+        relicTouchReleased = relicTouchSensor.getState();
+        if (!relicTouchReleased) {
+            resetEncoders(relicArm, true);
+
+        }
+        resetEncoders(relicScrew, true);
+
+        relicArm.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        relicArm.setPower(0);
+        relicScrew.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        relicScrew.setPower(0);
+
         lift = hardwareMap.dcMotor.get("Lift");
         lift.setDirection(DcMotorSimple.Direction.REVERSE);
         lift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        touchSensor = hardwareMap.digitalChannel.get("Touch-Sensor");
-        touchSensor.setMode(DigitalChannel.Mode.INPUT);
-        touchSensorReleased = touchSensor.getState();
-        if (!touchSensorReleased) {
+        liftTouchSensor = hardwareMap.digitalChannel.get("Touch-Sensor");
+        liftTouchSensor.setMode(DigitalChannel.Mode.INPUT);
+        liftTouchReleased = liftTouchSensor.getState();
+        if (!liftTouchReleased) {
             resetEncoders(lift, true);
 
         }
@@ -90,6 +111,7 @@ public class DriverOpMode_Relic extends OpMode {
 
         controlLift();
         controlGrip();
+        controlRelic();
         telemetry();
 
         // DRIVING
@@ -111,14 +133,14 @@ public class DriverOpMode_Relic extends OpMode {
             double forward = 0;
             double right = 0;
             if (gamepad1.dpad_up) {
-                forward = MAX_DRIVE_POWER;
+                forward = DPAD_POWER;
             } else if (gamepad1.dpad_down) {
-                forward = -MAX_DRIVE_POWER;
+                forward = -DPAD_POWER;
             }
             if (gamepad1.dpad_right) {
-                right = MAX_DRIVE_POWER;
+                right = DPAD_POWER * 2;
             } else if (gamepad1.dpad_left) {
-                right = -MAX_DRIVE_POWER;
+                right = -DPAD_POWER * 2;
             }
             mecanumWheels.powerMotors(forward, right, clockwise);
         } else {
@@ -126,6 +148,26 @@ public class DriverOpMode_Relic extends OpMode {
             double right = gamepad1.left_stick_x;
             mecanumWheels.powerMotors(forward, right, clockwise);
         }
+    }
+
+    private void controlRelic(){
+        if(gamepad2.dpad_up){
+            relicScrew.setPower(1);
+        } else if(gamepad2.dpad_down){
+            relicScrew.setPower(-1);
+        } else {
+            relicScrew.setPower(0);
+        }
+
+        boolean touchPressed = !relicTouchSensor.getState();
+        if(gamepad2.dpad_left){
+            relicArm.setPower(0.8);
+        } else if(gamepad2.dpad_right && !touchPressed){
+            relicArm.setPower(-0.8);
+        } else {
+            relicArm.setPower(0);
+        }
+
     }
 
     private void controlGrip() {
@@ -136,12 +178,12 @@ public class DriverOpMode_Relic extends OpMode {
 
     private void controlLift() {
 
-        // touchSensor.getState==true means the button is NOT PRESSED
-        boolean touchPressed = !touchSensor.getState();
+        // liftTouchSensor.getState==true means the button is NOT PRESSED
+        boolean touchPressed = !liftTouchSensor.getState();
         if (touchPressed) {
-            if (touchSensorReleased) {
+            if (liftTouchReleased) {
                 resetEncoders(lift, false);
-                touchSensorReleased = false;
+                liftTouchReleased = false;
             } else {
                 if (lift.getCurrentPosition() < 50 && !lift.getMode().equals(DcMotor.RunMode.RUN_WITHOUT_ENCODER)) {
                     lift.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -149,7 +191,7 @@ public class DriverOpMode_Relic extends OpMode {
             }
 
         } else {
-            touchSensorReleased = true;
+            liftTouchReleased = true;
         }
 
         int liftposition = lift.getCurrentPosition();
@@ -274,7 +316,9 @@ public class DriverOpMode_Relic extends OpMode {
 
     void telemetry() {
         telemetry.addData("lift", lift.getCurrentPosition());
-        telemetry.addData("touch sensor state", touchSensor.getState());
-        telemetry.addData("touch sensor released", touchSensorReleased);
+        telemetry.addData("touch sensor released", liftTouchReleased);
+        telemetry.addData("relic arm", relicArm.getCurrentPosition());
+        telemetry.addData("relic sensor released", relicTouchReleased);
+        telemetry.addData("relic screw", relicScrew.getCurrentPosition());
     }
 }
