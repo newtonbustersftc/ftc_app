@@ -11,6 +11,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
@@ -84,6 +85,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
     //The length of each floor tile in inches
     public static final double TILE_LENGTH = 23.5;
+
+    public static final double MINIMUM_POWER = 0.15;
 
     VuforiaLocalizer vuforia;
     VuforiaTrackables relicTrackables;
@@ -386,6 +389,53 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         // Return color
         return color;
     }
+
+    /**
+     * moves robot given number of inches using the gyro to keep us straight
+     */
+    public boolean moveByInchesGyro(double startPower, double heading, double inches, double endPower) throws InterruptedException {
+
+        boolean forward = startPower > 0;
+
+        wheels.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        int initialcount = wheels.getMotor(MecanumWheels.Wheel.FR).getCurrentPosition();
+        double error, steerSpeed; // counterclockwise speed
+
+        double inchesForGradient = 10;
+        double slope = (endPower - startPower) / inchesToCounts(Math.min(inchesForGradient, inches), forward);
+        double countsForGradient = (inches < inchesForGradient) ? 0 : Math.abs(inchesToCounts(inches - inchesForGradient, forward));
+
+        double kp = 0.04; //experimental coefficient for proportional correction of the direction
+        double countsSinceStart = Math.abs(wheels.getMotor(MecanumWheels.Wheel.FR).getCurrentPosition() - initialcount);
+        double motorPower = startPower;
+        while (opModeIsActive() && countsSinceStart < inchesToCounts(inches, forward)) {
+            // error CCW - negative, CW - positive
+            error = getRawHeadingError(heading);
+
+            if (Math.abs(error) < 1) {
+                steerSpeed = 0;
+            } else {
+                steerSpeed = kp * error / 4;
+            }
+            telemetry.addData("Error", error);
+            telemetry.update();
+
+            if (countsSinceStart > countsForGradient) {
+                motorPower = slope * (countsSinceStart - inchesToCounts(inches, forward)) + endPower;
+            }
+            wheels.powerMotors(motorPower, 0, Range.clip(-steerSpeed, -1.0, 1.0));
+
+            countsSinceStart = Math.abs(wheels.getMotor(MecanumWheels.Wheel.FR).getCurrentPosition() - initialcount);
+
+        }
+        wheels.powerMotors(0, 0, 0);
+
+        return opModeIsActive();
+    }
+    public double getRawHeadingError(double heading){
+        return (getGyroAngles().firstAngle - heading);
+    }
+
 
     /**
      * moves robot given number of encoder counts

@@ -33,6 +33,8 @@ public class AutonomousTest extends AutonomousOpMode_Relic {
         //rotateTest();
         //distanceTest();
 
+        //moveByInchesGyro(0.5, 0, 50, MINIMUM_POWER);
+
 //        goCounts(0.4, inchesToCounts(27.5,true));
 //        sleep(1000);
 //        rotate(-0.3, 90);
