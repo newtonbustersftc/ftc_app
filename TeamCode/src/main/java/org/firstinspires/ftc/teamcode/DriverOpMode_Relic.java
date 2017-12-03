@@ -20,6 +20,7 @@ public class DriverOpMode_Relic extends OpMode {
     private MecanumWheels mecanumWheels;
     private boolean backButtonPressed;
 
+    private DcMotor pusher;
     private DcMotor relicArm;
     private DcMotor relicScrew;
 
@@ -63,6 +64,7 @@ public class DriverOpMode_Relic extends OpMode {
     public void init() {
         mecanumWheels = new MecanumWheels(hardwareMap, telemetry);
         mecanumWheels.powerMotors(0, 0, 0);
+        pusher = hardwareMap.dcMotor.get("Pusher");
         relicArm = hardwareMap.dcMotor.get("Relic Arm");
         relicScrew = hardwareMap.dcMotor.get("Relic Screw");
         relicTouchSensor = hardwareMap.digitalChannel.get("Touch-Sensor Relic");
@@ -110,6 +112,7 @@ public class DriverOpMode_Relic extends OpMode {
     @Override
     public void loop() {
 
+        controlPush();
         controlLift();
         controlGrip();
         controlRelic();
@@ -148,6 +151,18 @@ public class DriverOpMode_Relic extends OpMode {
             double forward = -gamepad1.left_stick_y;
             double right = gamepad1.left_stick_x;
             mecanumWheels.powerMotors(forward, right, clockwise);
+        }
+    }
+
+    private void controlPush() {
+        if(gamepad2.right_trigger > 0){
+            pusher.setPower(-0.3*(gamepad2.right_trigger)-0.3);
+        }
+        else if(gamepad2.a){
+            pusher.setPower(0.3);
+        }
+        else{
+            pusher.setPower(0);
         }
     }
 
@@ -324,6 +339,7 @@ public class DriverOpMode_Relic extends OpMode {
     }
 
     void telemetry() {
+        telemetry.addData("pusher", gamepad2.right_trigger);
         telemetry.addData("lift target level", targetLiftLevel);
         telemetry.addData("lift", lift.getCurrentPosition());
         telemetry.addData("touch sensor released", liftTouchReleased);
