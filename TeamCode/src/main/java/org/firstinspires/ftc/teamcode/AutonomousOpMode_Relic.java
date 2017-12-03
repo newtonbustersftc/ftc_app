@@ -259,6 +259,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         try {
             autonomousStart(); //Initialize the servos
             sleep(1000);
+
+            // Kick the Jewels
             raiseGlyph(true);
             jewelKick.setPosition(JEWEL_KICK_CENTER);
             moveArm(JEWEL_ARM_DOWN);
@@ -284,6 +286,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             moveArm(JEWEL_ARM_HOME);
             sleep(1000);
             jewelKick.setPosition(JEWEL_KICK_RIGHT);
+
+            // Check the VuMark and Deliver the Glyphs
             relicTrackables.activate(); // Starts looking for VuMarks
 
             RelicRecoveryVuMark vuMark = findVuMark();
