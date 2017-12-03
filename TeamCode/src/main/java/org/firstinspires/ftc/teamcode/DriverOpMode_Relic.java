@@ -14,7 +14,6 @@ import com.qualcomm.robotcore.hardware.Servo;
 @TeleOp(name = "DriverOpMode", group = "Main")
 public class DriverOpMode_Relic extends OpMode {
 
-    enum LiftState {down,block1,block2,block3,block4}
 
     double DPAD_POWER = 0.3;
 
@@ -25,10 +24,12 @@ public class DriverOpMode_Relic extends OpMode {
     private DcMotor relicScrew;
 
     private DcMotor lift; //DcMotor for the lift
-    private int LIFT_COUNT_MAX = 6000;
-    private int LIFT_COUNTS_TOLERANCE = 50;
 
-    int[] LIFT_LEVEL_COUNTS = {0, 200, 2000, 4000, LIFT_COUNT_MAX};
+
+    int[] LIFT_LEVEL_COUNTS = {0, 300, 2200, 4100, 6000};
+    private int LIFT_COUNT_MAX = LIFT_LEVEL_COUNTS[4];
+    private int LIFT_COUNTS_TOLERANCE = 100;
+
 
     boolean rightBumperPressed = false;
     boolean leftBumperPressed = false;
@@ -194,17 +195,7 @@ public class DriverOpMode_Relic extends OpMode {
             liftTouchReleased = true;
         }
 
-        int liftposition = lift.getCurrentPosition();
-        if (gamepad2.y && liftposition < LIFT_COUNT_MAX) {
-            lift.setPower(0.6);
-            setTargetLevelFromCounts(liftposition);
-        } else if (gamepad2.x && !touchPressed) {
-            lift.setPower(-0.35);
-            setTargetLevelFromCounts(liftposition);
-        } else {
-            lift.setPower(0);
-        }
-
+        // right bumper increases lift level by 1, left bumper decreases lift level by 1
         if(gamepad2.right_bumper){
             if (!rightBumperPressed) {
                 rightBumperPressed = true;
@@ -223,16 +214,34 @@ public class DriverOpMode_Relic extends OpMode {
             leftBumperPressed = false;
         }
 
-        double roundedTargetLiftLevel = Math.round(targetLiftLevel);
-        if(roundedTargetLiftLevel == targetLiftLevel) {
-            int targetCounts = getTargetCounts((int)roundedTargetLiftLevel);
-            int currentCounts = lift.getCurrentPosition();
-            if (Math.abs(targetCounts-currentCounts) <= LIFT_COUNTS_TOLERANCE || touchPressed || currentCounts > LIFT_COUNT_MAX) {
-                lift.setPower(0);
-            } else if (currentCounts > targetCounts) {
-                lift.setPower(-0.35);
+        int liftposition = lift.getCurrentPosition();
+        if (gamepad2.y && liftposition < LIFT_COUNT_MAX) {
+            lift.setPower(0.6);
+            setTargetLevelFromCounts(liftposition);
+        } else if (gamepad2.x && !touchPressed) {
+            lift.setPower(-0.35);
+            setTargetLevelFromCounts(liftposition);
+        } else {
+            double roundedTargetLiftLevel = Math.round(targetLiftLevel);
+            if (roundedTargetLiftLevel == targetLiftLevel) { // discrete lift level control
+                int targetCounts = getTargetCounts((int) roundedTargetLiftLevel);
+                int currentCounts = lift.getCurrentPosition();
+
+                if(Math.abs(targetCounts - currentCounts) <= 0.5*LIFT_COUNTS_TOLERANCE) {
+                    lift.setPower(0);
+                } else if (Math.abs(targetCounts - currentCounts) > LIFT_COUNTS_TOLERANCE) {
+                    if (targetCounts > currentCounts && currentCounts <= LIFT_COUNT_MAX) {
+                        lift.setPower(0.6);
+                    } else if (targetCounts < currentCounts && !touchPressed) {
+                        lift.setPower(-0.35);
+                    } else {
+                        lift.setPower(0);
+                    }
+                } else {
+                    // let lift do whatever it is doing
+                }
             } else {
-                lift.setPower(0.6);
+                lift.setPower(0);
             }
         }
 
@@ -315,6 +324,7 @@ public class DriverOpMode_Relic extends OpMode {
     }
 
     void telemetry() {
+        telemetry.addData("lift target level", targetLiftLevel);
         telemetry.addData("lift", lift.getCurrentPosition());
         telemetry.addData("touch sensor released", liftTouchReleased);
         telemetry.addData("relic arm", relicArm.getCurrentPosition());
