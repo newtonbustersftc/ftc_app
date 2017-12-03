@@ -60,6 +60,14 @@ public class DriverOpMode_Relic extends OpMode {
     public static final double JEWEL_KICK_LEFT = 0.15; // clockwise kick
     public static final double JEWEL_KICK_CENTER = 0.47;
 
+    Servo relicRotate;
+    public static final double RELIC_ROTATE_UP = 0; //holding the relic above the arm
+    public static final double RELIC_ROTATE_DOWN = 0.6; //holding the relic in place to grab or put down
+
+    Servo relicGrab;
+    public static final double RELIC_GRAB_HOLD = 0.25; //holding the relic
+    public static final double RELIC_GRAB_RELEASE = 0.6; //letting go of the relic
+
     @Override
     public void init() {
         mecanumWheels = new MecanumWheels(hardwareMap, telemetry);
@@ -107,6 +115,10 @@ public class DriverOpMode_Relic extends OpMode {
         jewelArm.setPosition(JEWEL_ARM_HOME);
         jewelKick = hardwareMap.servo.get("Jewel-Kick");
         jewelKick.setPosition(JEWEL_KICK_RIGHT);
+        relicRotate = hardwareMap.servo.get("Relic-Rotate");
+        setUpServo(relicRotate, RELIC_ROTATE_UP, RELIC_ROTATE_DOWN);
+        relicGrab = hardwareMap.servo.get("Relic-Grab");
+        setUpServo(relicGrab, RELIC_GRAB_HOLD, RELIC_GRAB_RELEASE);
     }
 
     @Override
@@ -184,6 +196,17 @@ public class DriverOpMode_Relic extends OpMode {
             relicArm.setPower(0);
         }
 
+        // code for relic hand
+        if(gamepad1.left_trigger > 0){
+            setPercentOpen(relicRotate, gamepad1.left_trigger);
+        } else {
+            setPercentOpen(relicRotate, 0);
+        }
+        if(gamepad1.right_trigger > 0){
+            setPercentOpen(relicGrab, gamepad1.right_trigger);
+        } else {
+            setPercentOpen(relicGrab, 0);
+        }
     }
 
     private void controlGrip() {
