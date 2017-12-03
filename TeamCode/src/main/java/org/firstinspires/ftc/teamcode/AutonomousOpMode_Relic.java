@@ -86,6 +86,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     //The length of each floor tile in inches
     public static final double TILE_LENGTH = 23.5;
 
+    //The minimum distance you need to move forward from the balancing board to have enough room to rotate fully
+    public static final double MINCLEAR = 24.4;
+
     public static final double MINIMUM_POWER = 0.15;
 
     VuforiaLocalizer vuforia;
@@ -423,7 +426,6 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             countsSinceStart = Math.abs(wheels.getMotor(MecanumWheels.Wheel.FR).getCurrentPosition() - initialcount);
 
         }
-        wheels.powerMotors(0, 0, 0);
 
         return opModeIsActive();
     }
@@ -521,12 +523,17 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     }
 
     public void deliverGlyph (RelicRecoveryVuMark pos) throws InterruptedException {
-
-        if (isBlue || !isCornerPos) {
+        if (isBlue) {
             return;
         }
 
+        if (!isCornerPos){
+            moveByInchesGyro(0.3, 0, MINCLEAR, MINIMUM_POWER);
+            rotate(0.3, -90);
+        }
+
         double totalDistance = 29; //distance to the turn for the center bin
+        if (!isCornerPos) totalDistance = totalDistance-TILE_LENGTH;
         if (pos == RelicRecoveryVuMark.RIGHT) {
             totalDistance = totalDistance - BWIDTH;
         } else if (pos == RelicRecoveryVuMark.LEFT) {
@@ -538,6 +545,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         sleep(1000);
         goCounts(0.4, inchesToCounts(12, true));
         sleep(1000);
+        // put the relic down and move out
         raiseGlyph(false);
         setPercentOpen(rightHand, 1);
         setPercentOpen(leftHand, 1);
