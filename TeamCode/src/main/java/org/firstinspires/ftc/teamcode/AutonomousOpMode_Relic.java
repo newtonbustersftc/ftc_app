@@ -291,17 +291,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
             //goCounts(0.4, isCornerPos ? 3000 : 2900);
 
-            goCounts(0.4, 2500);
-            sleep(1000);
-            rotate(0.3, 72);
-            sleep(1000);
-            goCounts(0.4, 750);
-            sleep(1000);
-            raiseGlyph(false);
-            setPercentOpen(rightHand, 1);
-            setPercentOpen(leftHand, 1);
-            sleep(1000);
-            goCounts(-0.4, 300);
+            //goCounts(0.4, 2500);
+            deliverGlyph(vuMark);
 
         } finally {
             try {
@@ -511,14 +502,46 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
      * @return
      */
     public int inchesToCounts(double inches, boolean forward){
+          // FL wheel, power 0.4
+//        if (forward) {
+//            return (int) ((3000*inches)/33.75);
+//        } else {
+//            return (int) ((3000*inches)/35.0);
+//        }
+        // RR wheel, power 0.4
         if (forward) {
-            return (int) ((3000*inches)/33.75);
+            return (int) ((3000*inches)/35.00);
         } else {
-            return (int) ((3000*inches)/35.0);
+            return (int) ((3000*inches)/35.75);
         }
     }
 
     public void deliverGlyph (RelicRecoveryVuMark pos) throws InterruptedException {
+
+        if (isBlue || !isCornerPos) {
+            return;
+        }
+
+        double totalDistance = 29; //distance to the turn for the center bin
+        if (pos == RelicRecoveryVuMark.RIGHT) {
+            totalDistance = totalDistance - BWIDTH;
+        } else if (pos == RelicRecoveryVuMark.LEFT) {
+            totalDistance = totalDistance + BWIDTH;
+        }
+        goCounts(0.4, inchesToCounts(totalDistance, true));
+        sleep(1000);
+        rotate(0.3, 72);
+        sleep(1000);
+        goCounts(0.4, inchesToCounts(12, true));
+        sleep(1000);
+        raiseGlyph(false);
+        setPercentOpen(rightHand, 1);
+        setPercentOpen(leftHand, 1);
+        sleep(1000);
+        goCounts(-0.4, 300);
+    }
+
+    public void deliverGlyphV1 (RelicRecoveryVuMark pos) throws InterruptedException {
 
         if (isBlue || !isCornerPos) {
             return;

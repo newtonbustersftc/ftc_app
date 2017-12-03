@@ -41,8 +41,10 @@ public class AutonomousTest extends AutonomousOpMode_Relic {
 //        sleep(1000);
 //        goCounts(0.4, inchesToCounts(8.5,true));
 //        sleep(1000);
-        deliverGlyph(RelicRecoveryVuMark.CENTER);
+//        deliverGlyph(RelicRecoveryVuMark.CENTER);
 //        forwardAndRotate(true);
+        raiseGlyph(true);
+        deliverGlyph(RelicRecoveryVuMark.RIGHT);
     }
 
     private void distanceTest() throws InterruptedException {

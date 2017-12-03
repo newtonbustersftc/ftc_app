@@ -42,12 +42,12 @@ public class DriverOpMode_Relic extends OpMode {
     private DigitalChannel liftTouchSensor; //Touch sensor at lowest position on the lift
 
     Servo leftHand;
-    public static final double LEFT_HAND_IN_POS = 0.15; //0.63;
-    public static final double LEFT_HAND_OUT_POS = 0.80; //0.48;
+    public static final double LEFT_HAND_IN_POS = 1.0; //0.63;
+    public static final double LEFT_HAND_OUT_POS = 0.5; //0.48;
 
     Servo rightHand;
-    public static final double RIGHT_HAND_IN_POS = 0.15; //0.25;
-    public static final double RIGHT_HAND_OUT_POS = 0.80; //0.5;
+    public static final double RIGHT_HAND_IN_POS = 0.0; //0.25;
+    public static final double RIGHT_HAND_OUT_POS = 0.5; //0.5;
 
     Servo jewelArm;
     public static final double JEWEL_ARM_HOME = 0.72; // home position
