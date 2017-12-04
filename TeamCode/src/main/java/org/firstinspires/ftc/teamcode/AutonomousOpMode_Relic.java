@@ -12,6 +12,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.Range;
+import com.sun.tools.javac.tree.DCTree;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
@@ -48,6 +49,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     enum Color{
         RED, BLUE, NONE
     }
+
+    private DcMotor pusher;
 
     ColorSensor sensorColor;
     Servo leftHand;
@@ -210,6 +213,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         relicTemplate = vuforiaInitialize();
         sensorColor = hardwareMap.get(ColorSensor.class, "Color-Sensor");
 
+        pusher = hardwareMap.dcMotor.get("Pusher");
+
         SharedPreferences prefs = AutonomousOptions.getSharedPrefs(hardwareMap);
 
         String allianceString = prefs.getString(ALLIANCE_PREF, null);
@@ -296,9 +301,6 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             RelicRecoveryVuMark vuMark = findVuMark();
             out.append("Detected vuMark: "+vuMark+"\n");
 
-            //goCounts(0.4, isCornerPos ? 3000 : 2900);
-
-            //goCounts(0.4, 2500);
             deliverGlyph(vuMark);
 
         } finally {
@@ -426,6 +428,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             countsSinceStart = Math.abs(wheels.getMotor(MecanumWheels.Wheel.FR).getCurrentPosition() - initialcount);
 
         }
+        wheels.powerMotors(0, 0, 0);
 
         return opModeIsActive();
     }
@@ -523,68 +526,119 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     }
 
     public void deliverGlyph (RelicRecoveryVuMark pos) throws InterruptedException {
+        // Get in position
         if (isBlue) {
-            return;
+            // park from the platform
+            // goCounts(0.4, isCornerPos ? 3000 : 2900);
+
+            // remember that mecanum wheels are configured with the backward direction
+            // if you want to change it use  wheels.changeDirection();
+            wheels.changeDirection();
+
+            if (isCornerPos){
+                double totalDistance = 33;
+                if (pos == RelicRecoveryVuMark.RIGHT) {
+                    totalDistance = totalDistance + BWIDTH;
+                } else if (pos == RelicRecoveryVuMark.LEFT) {
+                    totalDistance = totalDistance - BWIDTH;
+                }
+
+                moveByInchesGyro(-0.3, 0, totalDistance, -MINIMUM_POWER);
+                sleep(1000);
+                rotate(0.3, 108);
+                sleep(1000);
+                goCounts(0.3, inchesToCounts(10.5, true));
+            }else{
+                moveByInchesGyro(-0.3, 0, MINCLEAR, -MINIMUM_POWER);
+                sleep(1000);
+                rotate(-0.3, 90);
+                sleep(1000);
+
+                double totalDistance = 29-TILE_LENGTH;
+                if (pos == RelicRecoveryVuMark.RIGHT) {
+                    totalDistance = totalDistance - BWIDTH;
+                } else if (pos == RelicRecoveryVuMark.LEFT) {
+                    totalDistance = totalDistance + BWIDTH;
+                }
+
+                goCounts(0.3, inchesToCounts(totalDistance, true));
+                rotate(-0.3, 72);
+                goCounts(0.3, inchesToCounts(10.5, true));
+            }
+
+        }else {
+
+            double totalDistance = 29; //distance to the turn for the center bin
+
+            if (!isCornerPos) {
+                totalDistance = totalDistance - TILE_LENGTH;
+                moveByInchesGyro(0.3, 0, MINCLEAR, MINIMUM_POWER);
+                sleep(1000);
+                rotate(-0.3, 90);
+                sleep(1000);
+            }
+
+
+            if (pos == RelicRecoveryVuMark.RIGHT) {
+                totalDistance = totalDistance - BWIDTH;
+            } else if (pos == RelicRecoveryVuMark.LEFT) {
+                totalDistance = totalDistance + BWIDTH;
+            }
+            goCounts(0.4, inchesToCounts(totalDistance, true));
+            sleep(1000);
+            rotate(0.3, 72);
+            sleep(1000);
+            goCounts(0.4, inchesToCounts(10.5, true));
+            sleep(1000);
         }
 
-        if (!isCornerPos){
-            moveByInchesGyro(0.3, 0, MINCLEAR, MINIMUM_POWER);
-            rotate(0.3, -90);
-        }
-
-        double totalDistance = 29; //distance to the turn for the center bin
-        if (!isCornerPos) totalDistance = totalDistance-TILE_LENGTH;
-        if (pos == RelicRecoveryVuMark.RIGHT) {
-            totalDistance = totalDistance - BWIDTH;
-        } else if (pos == RelicRecoveryVuMark.LEFT) {
-            totalDistance = totalDistance + BWIDTH;
-        }
-        goCounts(0.4, inchesToCounts(totalDistance, true));
-        sleep(1000);
-        rotate(0.3, 72);
-        sleep(1000);
-        goCounts(0.4, inchesToCounts(12, true));
-        sleep(1000);
         // put the relic down and move out
         raiseGlyph(false);
         setPercentOpen(rightHand, 1);
         setPercentOpen(leftHand, 1);
         sleep(1000);
+
+        // one last push
+        pusher.setPower(0.35);
+        sleep(1000);
+        pusher.setPower(-0.3);
+        sleep(1000);
+        pusher.setPower(0);
+
         goCounts(-0.4, 300);
     }
 
-    public void deliverGlyphV1 (RelicRecoveryVuMark pos) throws InterruptedException {
-
-        if (isBlue || !isCornerPos) {
-            return;
-        }
-
-        //For robot to get off the platform and clear the turn it needs to drive initialDistance
-        //double initialDistance = RLENGTH+((TILE_LENGTH-RLENGTH)/2)+(Math.sqrt(2)-1)*RLENGTH/2;
-
-        // red corner position
-        double totalDistance = TILE_LENGTH + GSIDE/4;
-        double distanceAfterRotation = WALL_RCENTER-GLYPH_RCENTER;
-
-        if (pos == RelicRecoveryVuMark.RIGHT) {
-        } else if (pos == RelicRecoveryVuMark.CENTER) {
-            totalDistance = totalDistance + BWIDTH;
-        } else if (pos == RelicRecoveryVuMark.LEFT) {
-            totalDistance = totalDistance + BWIDTH*2;
-        }
-        int totalCounts = inchesToCounts(totalDistance, true);
-        goCounts(0.4, totalCounts);
-        //clockwise rotation
-        rotate(0.3, 90);
-        //Go straight to the box
-        int countsAfterRotation = inchesToCounts(distanceAfterRotation, true);
-        boolean finished = goCounts(0.3, countsAfterRotation);
-        sleep(1000);
-        if (!finished && opModeIsActive()) {
-            forwardAndRotate(true);
-        }
-
-    }
+//    public void deliverGlyphV1 (RelicRecoveryVuMark pos) throws InterruptedException {
+//
+//        if (isBlue || !isCornerPos) {
+//            return;
+//        }
+//
+//        //For robot to get off the platform and clear the turn it needs to drive initialDistance
+//        //double initialDistance = RLENGTH+((TILE_LENGTH-RLENGTH)/2)+(Math.sqrt(2)-1)*RLENGTH/2;
+//
+//        // red corner position
+//        double totalDistance = TILE_LENGTH + GSIDE/4;
+//        double distanceAfterRotation = WALL_RCENTER-GLYPH_RCENTER;
+//
+//        if (pos == RelicRecoveryVuMark.RIGHT) {
+//        } else if (pos == RelicRecoveryVuMark.CENTER) {
+//            totalDistance = totalDistance + BWIDTH;
+//        } else if (pos == RelicRecoveryVuMark.LEFT) {
+//            totalDistance = totalDistance + BWIDTH*2;
+//        }
+//        int totalCounts = inchesToCounts(totalDistance, true);
+//        goCounts(0.4, totalCounts);
+//        //clockwise rotation
+//        rotate(0.3, 90);
+//        //Go straight to the box
+//        int countsAfterRotation = inchesToCounts(distanceAfterRotation, true);
+//        boolean finished = goCounts(0.3, countsAfterRotation);
+//        sleep(1000);
+//        if (!finished && opModeIsActive()) {
+//            forwardAndRotate(true);
+//        }
+//    }
 
     public void forwardAndRotate(boolean clockwise) {
 
