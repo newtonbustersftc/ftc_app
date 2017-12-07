@@ -12,7 +12,6 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.Range;
-import com.sun.tools.javac.tree.DCTree;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
@@ -536,7 +535,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             wheels.changeDirection();
 
             if (isCornerPos){
-                double totalDistance = 33;
+                double totalDistance = 33.5;
                 if (pos == RelicRecoveryVuMark.RIGHT) {
                     totalDistance = totalDistance + BWIDTH;
                 } else if (pos == RelicRecoveryVuMark.LEFT) {
@@ -547,18 +546,18 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 sleep(1000);
                 rotate(0.3, 108);
                 sleep(1000);
-                goCounts(0.3, inchesToCounts(10.5, true));
+                goCounts(0.3, inchesToCounts(11.5, true));
             }else{
                 moveByInchesGyro(-0.3, 0, MINCLEAR, -MINIMUM_POWER);
                 sleep(1000);
                 rotate(-0.3, 90);
                 sleep(1000);
 
-                double totalDistance = 29-TILE_LENGTH;
+                double totalDistance = 33-TILE_LENGTH;
                 if (pos == RelicRecoveryVuMark.RIGHT) {
-                    totalDistance = totalDistance - BWIDTH;
-                } else if (pos == RelicRecoveryVuMark.LEFT) {
                     totalDistance = totalDistance + BWIDTH;
+                } else if (pos == RelicRecoveryVuMark.LEFT) {
+                    totalDistance = totalDistance - BWIDTH;
                 }
 
                 goCounts(0.3, inchesToCounts(totalDistance, true));
@@ -574,7 +573,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 totalDistance = totalDistance - TILE_LENGTH;
                 moveByInchesGyro(0.3, 0, MINCLEAR, MINIMUM_POWER);
                 sleep(1000);
-                rotate(-0.3, 90);
+                rotate(-0.3, 93);
                 sleep(1000);
             }
 
