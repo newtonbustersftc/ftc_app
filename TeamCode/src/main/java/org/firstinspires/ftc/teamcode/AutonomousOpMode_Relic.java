@@ -357,7 +357,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             telemetry.addData("VuMark", "not visible");
             telemetry.update();
             // If the seeing takes too long (10 seconds here), then just go with putting a block in the left one.
-            if (System.currentTimeMillis() - vuStartTime > 10 * 1000) {
+            if (System.currentTimeMillis() - vuStartTime > 5 * 1000) {
                 vuMark = RelicRecoveryVuMark.LEFT;
             }
         }
@@ -546,7 +546,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 sleep(1000);
                 rotate(0.3, 108);
                 sleep(1000);
-                goCounts(0.3, inchesToCounts(11.5, true));
+                goCounts(0.3, inchesToCounts(12, true));
             }else{
                 moveByInchesGyro(-0.3, 0, MINCLEAR, -MINIMUM_POWER);
                 sleep(1000);
@@ -562,7 +562,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
                 goCounts(0.3, inchesToCounts(totalDistance, true));
                 rotate(-0.3, 72);
-                goCounts(0.3, inchesToCounts(10.5, true));
+                goCounts(0.3, inchesToCounts(11, true));
             }
 
         }else {
@@ -587,7 +587,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             sleep(1000);
             rotate(0.3, 72);
             sleep(1000);
-            goCounts(0.4, inchesToCounts(10.5, true));
+            goCounts(0.4, inchesToCounts(11, true));
             sleep(1000);
         }
 
@@ -595,13 +595,19 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         raiseGlyph(false);
         setPercentOpen(rightHand, 1);
         setPercentOpen(leftHand, 1);
-        sleep(1000);
+        sleep(800);
 
         // one last push
-        pusher.setPower(0.35);
-        sleep(1000);
-        pusher.setPower(-0.3);
-        sleep(1000);
+        wheels.powerMotors(0.3, 0, 0);
+        sleep(750);
+        wheels.powerMotors(0, 0, 0);
+        sleep(800);
+
+        // jk another push
+        pusher.setPower(0.4);
+        sleep(800);
+        pusher.setPower(-0.35);
+        sleep(800);
         pusher.setPower(0);
 
         goCounts(-0.4, 300);
