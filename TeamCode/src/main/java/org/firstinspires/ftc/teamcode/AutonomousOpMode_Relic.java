@@ -124,7 +124,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             int startPos = lift.getCurrentPosition(); // Gives us encoder counts before the move
             int currentPos = startPos;
             lift.setPower(0.5);
-            while (Math.abs(currentPos - startPos) <= 800 &&  opModeIsActive()) {
+            while (Math.abs(currentPos - startPos) <= 1300 &&  opModeIsActive()) {
                 currentPos = lift.getCurrentPosition();
             }
         } else {
@@ -547,8 +547,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 rotate(0.3, 108);
                 sleep(1000);
                 goCounts(0.3, inchesToCounts(12, true));
-            }else{
-                moveByInchesGyro(-0.3, 0, MINCLEAR, -MINIMUM_POWER);
+            } else {
+                moveByInchesGyro(-0.3, 0, MINCLEAR+2, -MINIMUM_POWER);
                 sleep(1000);
                 rotate(-0.3, 90);
                 sleep(1000);
@@ -560,7 +560,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                     totalDistance = totalDistance - BWIDTH;
                 }
 
-                goCounts(0.3, inchesToCounts(totalDistance, true));
+                if(totalDistance > 0) {
+                    goCounts(0.3, inchesToCounts(totalDistance, true));
+                }
                 rotate(-0.3, 72);
                 goCounts(0.3, inchesToCounts(11, true));
             }
@@ -606,8 +608,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         // jk another push
         pusher.setPower(0.4);
         sleep(800);
-        pusher.setPower(-0.35);
-        sleep(800);
+        pusher.setPower(-0.4);
+        sleep(1000);
         pusher.setPower(0);
 
         goCounts(-0.4, 300);
