@@ -68,6 +68,9 @@ public class DriverOpMode_Relic extends OpMode {
     public static final double RELIC_GRAB_HOLD = 0.25; //holding the relic
     public static final double RELIC_GRAB_RELEASE = 0.6; //letting go of the relic
 
+    //difference in counts between lowest and delivery (highest) arm positions
+    public static final int ARM_SCREW_UP = 2400;
+
     @Override
     public void init() {
         mecanumWheels = new MecanumWheels(hardwareMap, telemetry);
@@ -346,7 +349,7 @@ public class DriverOpMode_Relic extends OpMode {
         servo.setPosition(percentOpen);
     }
 
-    void resetEncoders(DcMotor motor, boolean wait) {
+    public static void resetEncoders(DcMotor motor, boolean wait) {
         motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         if (wait) {
             while (motor.getCurrentPosition() > 10) {

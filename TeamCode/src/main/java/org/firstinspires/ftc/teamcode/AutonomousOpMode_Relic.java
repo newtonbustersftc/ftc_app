@@ -32,10 +32,9 @@ import java.util.Locale;
 
 import static org.firstinspires.ftc.teamcode.AutonomousOptions.ALLIANCE_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptions.START_POSITION_PREF;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.resetEncoders;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.setPercentOpen;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.setUpServo;
-
-
 /**
  * Created by Brandon on 10/22/2017.
  */
@@ -48,6 +47,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     enum Color{
         RED, BLUE, NONE
     }
+    private DcMotor relicScrew;
+    private DcMotor relicArm;
 
     private DcMotor pusher;
 
@@ -69,6 +70,16 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     public static final double JEWEL_KICK_RIGHT = DriverOpMode_Relic.JEWEL_KICK_RIGHT;
     public static final double JEWEL_KICK_LEFT = DriverOpMode_Relic.JEWEL_KICK_LEFT;
     public static final double JEWEL_KICK_CENTER = DriverOpMode_Relic.JEWEL_KICK_CENTER;
+
+    Servo relicRotate;
+    public static final double RELIC_ROTATE_UP = DriverOpMode_Relic.RELIC_ROTATE_UP; //holding the relic above the arm
+    public static final double RELIC_ROTATE_DOWN = DriverOpMode_Relic.RELIC_ROTATE_DOWN; //holding the relic in place to grab or put down
+
+    Servo relicGrab;
+    public static final double RELIC_GRAB_HOLD = DriverOpMode_Relic.RELIC_GRAB_HOLD; //holding the relic
+    public static final double RELIC_GRAB_RELEASE = DriverOpMode_Relic.RELIC_GRAB_RELEASE; //letting go of the relic
+
+    public static final int ARM_SCREW_UP = DriverOpMode_Relic.ARM_SCREW_UP;
 
     //The wisth of the bin in inches
     public static final double BWIDTH = 7.5;
@@ -97,6 +108,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     VuforiaTrackables relicTrackables;
     VuforiaTrackable relicTemplate;
 
+    private DigitalChannel relicTouchSensor; //Touch sensor at farthest back position on the relic arm
     private DigitalChannel touchSensor;
     DcMotor lift;
 
@@ -116,7 +128,10 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         jewelArm.setPosition(JEWEL_ARM_HOME);
         jewelKick = hardwareMap.servo.get("Jewel-Kick");
         jewelKick.setPosition(JEWEL_KICK_RIGHT);
-
+        relicRotate = hardwareMap.servo.get("Relic-Rotate");
+        relicRotate.setPosition(RELIC_ROTATE_DOWN);
+        relicGrab = hardwareMap.servo.get("Relic-Grab");
+        relicGrab.setPosition(RELIC_GRAB_RELEASE);
     }
 
     public void raiseGlyph(boolean doRaise) {
@@ -212,6 +227,17 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         relicTemplate = vuforiaInitialize();
         sensorColor = hardwareMap.get(ColorSensor.class, "Color-Sensor");
 
+        relicScrew = hardwareMap.dcMotor.get("Relic Screw");
+        relicArm = hardwareMap.dcMotor.get("Relic Arm");
+
+        resetEncoders(relicScrew, true);
+        resetEncoders(relicArm, true);
+
+        relicArm.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        relicArm.setPower(0);
+        relicScrew.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        relicScrew.setPower(0);
+
         pusher = hardwareMap.dcMotor.get("Pusher");
 
         SharedPreferences prefs = AutonomousOptions.getSharedPrefs(hardwareMap);
@@ -236,6 +262,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         sleep(1000);
         lift.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         lift.setPower(0);
+
+        relicTouchSensor = hardwareMap.digitalChannel.get("Touch-Sensor Relic");
+        relicTouchSensor.setMode(DigitalChannel.Mode.INPUT);
 
         gyroInit();
 
@@ -663,4 +692,77 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     public static long getTime() {
         return (new Date()).getTime();
     }
+
+//    1. Lower hand, use relicRotate.setPosition(RELIC_ROTATE_DOWN)
+//            2. Open hand, use relicGrab.setPosition(RELIC_GRAB_RELEASE)
+//            3. Extend arm, use relicArm, go 1040 counts
+//4. Close hand, use relicGrab.setPosition(RELIC_GRAB_HOLD)
+//            5. Retract arm, use relicArm, go back 1040 counts/or until touch button is pressed
+//6. Raise hand, use relicRotate.setPosition(RELIC_ROTATE_UP)
+
+    public void grabRelic() {
+        relicRotate.setPosition(RELIC_ROTATE_DOWN);
+        relicGrab.setPosition(RELIC_GRAB_RELEASE);
+
+        //extending arm to relic
+        moveArm(1, 1040);
+
+        relicGrab.setPosition(RELIC_GRAB_HOLD);
+
+        //retract relic arm, halfway there rotates relic upward
+        moveArm(-1, 1040);
+    }
+
+    public void moveArm(double armPower, int counts) {
+        boolean relicScrewMoving = false;
+        boolean armMoving = false;
+        boolean up = false;
+        int startPosArm = relicArm.getCurrentPosition();
+        int startPosScrew = relicScrew.getCurrentPosition();
+        // if we are retracting arm, we also want to move the arm up
+        if (armPower < 0) {
+            relicScrew.setPower(1);
+            relicScrewMoving = true;
+        }
+        relicArm.setPower(armPower);
+        armMoving = true;
+        while (opModeIsActive() && (armMoving || relicScrewMoving)) {
+
+            if (armPower < 0) { // arm retracting
+
+                // we need to stop when touch button is pressed
+                // relicTouchSensor.getState==true means the button is  NOT PRESSED
+                boolean relicTouchPressed = !relicTouchSensor.getState();
+                if (relicTouchPressed) {
+                    relicArm.setPower(0);
+                    armMoving = false;
+                }
+
+                //halfway point while retracting, we start rotating the relic up
+                if (!up && (Math.abs(relicArm.getCurrentPosition() - startPosArm) > 0.5 * counts)) {
+                    relicRotate.setPosition(RELIC_ROTATE_UP);
+                    up = true;
+                }
+
+                // arm should stop moving up if it reached the delivery position
+                if (relicScrewMoving && Math.abs(relicScrew.getCurrentPosition() - startPosScrew) >= ARM_SCREW_UP) {
+                    relicScrew.setPower(0);
+                    relicScrewMoving = false;
+                }
+            }
+
+            //when desired arm position is reached, the arm should stop moving
+            if (armMoving && Math.abs(relicArm.getCurrentPosition() - startPosArm) >= counts) {
+                relicArm.setPower(0);
+                armMoving = false;
+            }
+
+            idle();
+        }
+
+        //precaution to make sure relicArm and relicScrew all stop
+        relicArm.setPower(0);
+        relicScrew.setPower(0);
+    }
+
 }
