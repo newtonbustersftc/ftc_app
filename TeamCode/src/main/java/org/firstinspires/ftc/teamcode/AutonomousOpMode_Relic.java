@@ -108,6 +108,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     VuforiaTrackables relicTrackables;
     VuforiaTrackable relicTemplate;
 
+    long vuMarkTime;
+
     private DigitalChannel relicTouchSensor; //Touch sensor at farthest back position on the relic arm
     private DigitalChannel touchSensor;
     DcMotor lift;
@@ -221,7 +223,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         imu.initialize(parameters);
     }
 
-    public void preRun() {
+    public RelicRecoveryVuMark preRun() {
         out = new StringBuffer();
 
         relicTemplate = vuforiaInitialize();
@@ -271,6 +273,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         out.append("isBlue: "+isBlue+"\n");
         out.append("isCornerPos: "+isCornerPos+"\n");
         out.append("Color RGB: "+sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue()+"\n");
+        RelicRecoveryVuMark vuMark = RelicRecoveryVuMark.UNKNOWN;
+        // Check the VuMark and Deliver the Glyphs
+        relicTrackables.activate(); // Starts looking for VuMarks
         while(!this.isStarted() && !this.isStopRequested()) {
             telemetry.clearAll();
             logGyro(false);
@@ -280,17 +285,33 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             telemetry.addData(START_POSITION_PREF, startPosString);
             telemetry.addData("isCornerPos", isCornerPos);
             telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
+
+
+            vuMark = findVuMark();
+            telemetry.addData("vuMark", vuMark);
+            telemetry.addData("vuMarkTime", vuMarkTime);
             telemetry.update();
             idle();
+
         }
+
+        relicTrackables.deactivate(); // Stop looking for VuMarks
+
+        return vuMark;
     }
 
     @Override
     public void runOpMode() throws InterruptedException {
 
-        preRun();
+        RelicRecoveryVuMark vuMark = preRun();
+
+
 
         waitForStart();
+
+        if (vuMark == RelicRecoveryVuMark.UNKNOWN) {
+            vuMark = RelicRecoveryVuMark.CENTER;
+        }
 
         try {
             autonomousStart(); //Initialize the servos
@@ -322,12 +343,6 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             moveArm(JEWEL_ARM_HOME);
             sleep(1000);
             jewelKick.setPosition(JEWEL_KICK_RIGHT);
-
-            // Check the VuMark and Deliver the Glyphs
-            relicTrackables.activate(); // Starts looking for VuMarks
-
-            RelicRecoveryVuMark vuMark = findVuMark();
-            out.append("Detected vuMark: "+vuMark+"\n");
 
             deliverGlyph(vuMark);
 
@@ -378,21 +393,29 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         return relicTemplate;
     }
 
+
     private RelicRecoveryVuMark findVuMark() {
+        //vuMark will be the previously discovered vuMark if it can not detect anything
         RelicRecoveryVuMark vuMark = RelicRecoveryVuMark.from(relicTemplate);
         long vuStartTime = System.currentTimeMillis();
-        while (vuMark == RelicRecoveryVuMark.UNKNOWN && opModeIsActive()) {
+        boolean opModeStarted = this.isStarted();
+        boolean opModeActive = this.opModeIsActive();
+        boolean isStopRequested = this.isStopRequested();
+        while (vuMark == RelicRecoveryVuMark.UNKNOWN &&
+                ((opModeStarted && opModeActive) || (!isStopRequested && !opModeStarted))) {
+
             vuMark = RelicRecoveryVuMark.from(relicTemplate);
-            telemetry.addData("VuMark", "not visible");
-            telemetry.update();
-            // If the seeing takes too long (10 seconds here), then just go with putting a block in the left one.
+            // If the seeing takes too long, then just go with putting a block in the left one.
             if (System.currentTimeMillis() - vuStartTime > 5 * 1000) {
-                vuMark = RelicRecoveryVuMark.LEFT;
+                break;
             }
         }
-        telemetry.addData("VuMark", "%s visible", vuMark);
-        telemetry.update();
+        long vuEndTime = System.currentTimeMillis();
+        vuMarkTime = (vuEndTime - vuStartTime);
+        //telemetry.addData("VuMark", "%s visible", vuMark);
+
         return vuMark;
+
     }
 
     /**
