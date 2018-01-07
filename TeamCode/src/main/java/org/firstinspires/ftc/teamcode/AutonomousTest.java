@@ -139,7 +139,7 @@ public class AutonomousTest extends AutonomousOpMode_Relic {
 
     private void colorTest() {
         jewelKick.setPosition(JEWEL_KICK_CENTER);
-        moveArm(JEWEL_ARM_DOWN);
+        moveJewelArm(JEWEL_ARM_DOWN);
         StringBuffer out = new StringBuffer(); //String Buffer
         try {
             for (int n = 0; n < 5; n++) {
@@ -150,9 +150,9 @@ public class AutonomousTest extends AutonomousOpMode_Relic {
                             .append(sensorColor.red() + "/" + sensorColor.green() + "/" + sensorColor.blue());
                     idle();
                 }
-                moveArm(JEWEL_ARM_HOME);
+                moveJewelArm(JEWEL_ARM_HOME);
                 sleep(2000);
-                moveArm(JEWEL_ARM_DOWN);
+                moveJewelArm(JEWEL_ARM_DOWN);
                 sleep(2000);
 
                 out.append("\n\n\n\n\n");

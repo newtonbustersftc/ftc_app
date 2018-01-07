@@ -117,7 +117,7 @@ public class DriverOpMode_Relic extends OpMode {
         jewelArm = hardwareMap.servo.get("Jewel-Arm");
         jewelArm.setPosition(JEWEL_ARM_HOME);
         jewelKick = hardwareMap.servo.get("Jewel-Kick");
-        jewelKick.setPosition(JEWEL_KICK_RIGHT);
+        jewelKick.setPosition(JEWEL_KICK_CENTER); // to prevent the relic arm from getting stuck
         relicRotate = hardwareMap.servo.get("Relic-Rotate");
         setUpServo(relicRotate, RELIC_ROTATE_UP, RELIC_ROTATE_DOWN);
         relicGrab = hardwareMap.servo.get("Relic-Grab");

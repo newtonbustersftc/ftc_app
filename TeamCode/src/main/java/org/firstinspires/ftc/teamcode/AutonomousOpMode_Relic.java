@@ -44,6 +44,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
     StringBuffer out;
 
+    RelicRecoveryVuMark vuMark;
+
     enum Color{
         RED, BLUE, NONE
     }
@@ -80,6 +82,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     public static final double RELIC_GRAB_RELEASE = DriverOpMode_Relic.RELIC_GRAB_RELEASE; //letting go of the relic
 
     public static final int ARM_SCREW_UP = DriverOpMode_Relic.ARM_SCREW_UP;
+    public static final int ARM_SCREW_UP_BLUE_INIT = ARM_SCREW_UP/4;
 
     //The wisth of the bin in inches
     public static final double BWIDTH = 7.5;
@@ -137,15 +140,16 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     }
 
     public void raiseGlyph(boolean doRaise) {
+        int raisecounts = isBlue ? 950 : 650;
         if (doRaise) {
             int startPos = lift.getCurrentPosition(); // Gives us encoder counts before the move
             int currentPos = startPos;
-            lift.setPower(0.5);
-            while (Math.abs(currentPos - startPos) <= 1300 &&  opModeIsActive()) {
+            lift.setPower(0.6);
+            while (Math.abs(currentPos - startPos) <= raisecounts &&  opModeIsActive()) {
                 currentPos = lift.getCurrentPosition();
             }
         } else {
-            lift.setPower(-0.3);
+            lift.setPower(-0.5);
             boolean touchSensorReleased = touchSensor.getState();
             while (touchSensorReleased &&  (opModeIsActive() || (!this.isStarted() && !this.isStopRequested()))) {
                 touchSensorReleased = touchSensor.getState();
@@ -155,7 +159,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         lift.setPower(0);
     }
 
-    public void moveArm(double endPos) {
+    public void moveJewelArm(double endPos) {
         double currentPos = jewelArm.getPosition();
         int c = 1;
         if (endPos < currentPos) {
@@ -273,7 +277,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         out.append("isBlue: "+isBlue+"\n");
         out.append("isCornerPos: "+isCornerPos+"\n");
         out.append("Color RGB: "+sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue()+"\n");
-        RelicRecoveryVuMark vuMark = RelicRecoveryVuMark.UNKNOWN;
+        vuMark = RelicRecoveryVuMark.UNKNOWN;
         // Check the VuMark and Deliver the Glyphs
         relicTrackables.activate(); // Starts looking for VuMarks
         while(!this.isStarted() && !this.isStopRequested()) {
@@ -305,9 +309,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
         RelicRecoveryVuMark vuMark = preRun();
 
-
-
         waitForStart();
+
+        long startTime = (new Date()).getTime();
 
         if (vuMark == RelicRecoveryVuMark.UNKNOWN) {
             vuMark = RelicRecoveryVuMark.CENTER;
@@ -315,22 +319,40 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
         try {
             autonomousStart(); //Initialize the servos
-            sleep(1000);
+            sleep(800);
 
             // Kick the Jewels
             raiseGlyph(true);
             jewelKick.setPosition(JEWEL_KICK_CENTER);
-            moveArm(JEWEL_ARM_DOWN);
-            telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
-            telemetry.update();
-            sleep(2000);
-            telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
-            telemetry.update();
-            sleep(1000);
+            moveJewelArm(JEWEL_ARM_DOWN);
+            if (!isBlue && isCornerPos) {
+                grabRelic();
+            } else {
+                if (isBlue && !isCornerPos){
+                    relicScrew.setPower(1);
+                    int startpos = relicScrew.getCurrentPosition();
+                    while (Math.abs(relicScrew.getCurrentPosition() - startpos) < ARM_SCREW_UP_BLUE_INIT){
+                        idle();
+                    }
+                    relicScrew.setPower(0);
+                }else {
+                    relicScrew.setPower(1);
+                    int startpos = relicScrew.getCurrentPosition();
+                    while (Math.abs(relicScrew.getCurrentPosition() - startpos) < ARM_SCREW_UP){
+                        idle();
+                    }
+//                    telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
+//                    telemetry.update();
+//                    sleep(2000);
+//                    telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
+//                    telemetry.update();
+//                    sleep(1000);
+                }
+            }
+
             Color color = jewelColorCheck();
             out.append("Jewel Color RGB: "+sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue()+"\n");
             out.append("Detected color: "+color+"\n");
-            //Assuming here that we are the blue alliance
             if (color == Color.RED) //Colour 1 is red
             {
                 jewelKick.setPosition(isBlue ? JEWEL_KICK_RIGHT : JEWEL_KICK_LEFT);
@@ -339,12 +361,15 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             }
             sleep(1000);
             jewelKick.setPosition(JEWEL_KICK_CENTER);
-            sleep(1000);
-            moveArm(JEWEL_ARM_HOME);
-            sleep(1000);
-            jewelKick.setPosition(JEWEL_KICK_RIGHT);
+            moveJewelArm(JEWEL_ARM_HOME);
+            sleep(500);
 
             deliverGlyph(vuMark);
+
+            long endTime = (new Date()).getTime();
+            long timeSpentMs = endTime - startTime;
+            out.append("Time spent (ms): "+ timeSpentMs +"\n");
+            telemetry.addData("Time spent(ms)", timeSpentMs);
 
         } finally {
             try {
@@ -423,7 +448,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
      *
      * @return Color.RED, Color.BLUE, and Color.NONE if cannot be determined
      */
-    private Color jewelColorCheck() {
+    public Color jewelColorCheck() {
         // Check for determinable color
         long startTime = System.currentTimeMillis();
         Color color = Color.NONE;
@@ -595,15 +620,16 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 }
 
                 moveByInchesGyro(-0.3, 0, totalDistance, -MINIMUM_POWER);
-                sleep(1000);
+                sleep(800);
                 rotate(0.3, 108);
-                sleep(1000);
-                goCounts(0.3, inchesToCounts(12, true));
+                sleep(800);
+                goCounts(0.3, inchesToCounts(10.5, true));
             } else {
-                moveByInchesGyro(-0.3, 0, MINCLEAR+2, -MINIMUM_POWER);
-                sleep(1000);
+                moveByInchesGyro(-0.3, 0, TILE_LENGTH, -MINIMUM_POWER);
+                grabRelic();
+                moveByInchesGyro(-0.3, 0, MINCLEAR+2-TILE_LENGTH, -MINIMUM_POWER);
                 rotate(-0.3, 90);
-                sleep(1000);
+                sleep(800);
 
                 double totalDistance = 33-TILE_LENGTH;
                 if (pos == RelicRecoveryVuMark.RIGHT) {
@@ -616,19 +642,21 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                     goCounts(0.3, inchesToCounts(totalDistance, true));
                 }
                 rotate(-0.3, 72);
-                goCounts(0.3, inchesToCounts(11, true));
+                goCounts(0.3, inchesToCounts(10.5, true));
             }
 
-        }else {
+        } else { // red
 
             double totalDistance = 29; //distance to the turn for the center bin
 
             if (!isCornerPos) {
                 totalDistance = totalDistance - TILE_LENGTH;
                 moveByInchesGyro(0.3, 0, MINCLEAR, MINIMUM_POWER);
-                sleep(1000);
-                rotate(-0.3, 93);
-                sleep(1000);
+                sleep(800);
+                if (vuMark != RelicRecoveryVuMark.RIGHT) {
+                    rotate(-0.3, 93);
+                    sleep(800);
+                }
             }
 
 
@@ -637,12 +665,17 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             } else if (pos == RelicRecoveryVuMark.LEFT) {
                 totalDistance = totalDistance + BWIDTH;
             }
-            goCounts(0.4, inchesToCounts(totalDistance, true));
-            sleep(1000);
-            rotate(0.3, 72);
-            sleep(1000);
-            goCounts(0.4, inchesToCounts(11, true));
-            sleep(1000);
+            if (isCornerPos || vuMark != RelicRecoveryVuMark.RIGHT) {
+                goCounts(0.4, inchesToCounts(totalDistance, true));
+                sleep(800);
+                rotate(0.3, 72);
+                sleep(800);
+            } else { // optimization for red other going to right bin
+                rotate(-0.3, 19);
+                sleep(800);
+            }
+            goCounts(0.4, inchesToCounts(9, true));
+            sleep(800);
         }
 
         // put the relic down and move out
@@ -661,10 +694,10 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         pusher.setPower(0.4);
         sleep(800);
         pusher.setPower(-0.4);
-        sleep(1000);
-        pusher.setPower(0);
 
         goCounts(-0.4, 300);
+        sleep(500);
+        pusher.setPower(0);
     }
 
 //    public void deliverGlyphV1 (RelicRecoveryVuMark pos) throws InterruptedException {
@@ -717,26 +750,29 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     }
 
 //    1. Lower hand, use relicRotate.setPosition(RELIC_ROTATE_DOWN)
-//            2. Open hand, use relicGrab.setPosition(RELIC_GRAB_RELEASE)
-//            3. Extend arm, use relicArm, go 1040 counts
-//4. Close hand, use relicGrab.setPosition(RELIC_GRAB_HOLD)
-//            5. Retract arm, use relicArm, go back 1040 counts/or until touch button is pressed
-//6. Raise hand, use relicRotate.setPosition(RELIC_ROTATE_UP)
+//    2. Open hand, use relicGrab.setPosition(RELIC_GRAB_RELEASE)
+//    3. Extend arm, use relicArm, go 1040 counts
+//    4. Close hand, use relicGrab.setPosition(RELIC_GRAB_HOLD)
+//    5. Retract arm, use relicArm, go back 1040 counts/or until touch button is pressed
+//    6. Raise hand, use relicRotate.setPosition(RELIC_ROTATE_UP)
 
     public void grabRelic() {
         relicRotate.setPosition(RELIC_ROTATE_DOWN);
         relicGrab.setPosition(RELIC_GRAB_RELEASE);
 
+        int extendcounts = isBlue ? 1040 : 1040;
+
         //extending arm to relic
-        moveArm(1, 1040);
+        moveRelicArm(1, extendcounts);
 
         relicGrab.setPosition(RELIC_GRAB_HOLD);
+        sleep(800);
 
         //retract relic arm, halfway there rotates relic upward
-        moveArm(-1, 1040);
+        moveRelicArm(-1, extendcounts);
     }
 
-    public void moveArm(double armPower, int counts) {
+    public void moveRelicArm(double armPower, int counts) {
         boolean relicScrewMoving = false;
         boolean armMoving = false;
         boolean up = false;
@@ -768,7 +804,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 }
 
                 // arm should stop moving up if it reached the delivery position
-                if (relicScrewMoving && Math.abs(relicScrew.getCurrentPosition() - startPosScrew) >= ARM_SCREW_UP) {
+                int armscrewup = isBlue ? ARM_SCREW_UP - ARM_SCREW_UP_BLUE_INIT : ARM_SCREW_UP;
+                if (relicScrewMoving && Math.abs(relicScrew.getCurrentPosition() - startPosScrew) >= armscrewup) {
                     relicScrew.setPower(0);
                     relicScrewMoving = false;
                 }
