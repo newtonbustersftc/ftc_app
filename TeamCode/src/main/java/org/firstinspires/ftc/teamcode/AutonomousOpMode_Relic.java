@@ -364,6 +364,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             moveJewelArm(JEWEL_ARM_HOME);
             sleep(500);
 
+            out.append("Heading on platform: " + getGyroAngles().firstAngle + "\n");
             deliverGlyph(vuMark);
 
             long endTime = (new Date()).getTime();
@@ -625,10 +626,15 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 sleep(800);
                 goCounts(0.3, inchesToCounts(10.5, true));
             } else {
-                moveByInchesGyro(-0.3, 0, TILE_LENGTH, -MINIMUM_POWER);
+                double distanceToRelicPicking = TILE_LENGTH - 1;
+                moveByInchesGyro(-0.3, 0, distanceToRelicPicking, -MINIMUM_POWER);
+                out.append("Heading before relic pick up: " + getGyroAngles().firstAngle + "\n");
                 grabRelic();
-                moveByInchesGyro(-0.3, 0, MINCLEAR+2-TILE_LENGTH, -MINIMUM_POWER);
+                out.append("Heading after relic pick up: " + getGyroAngles().firstAngle + "\n");
+                moveByInchesGyro(-0.3, 0, MINCLEAR+2-distanceToRelicPicking, -MINIMUM_POWER);
+                out.append("Heading before rotating 90 degrees: " + getGyroAngles().firstAngle + "\n");
                 rotate(-0.3, 90);
+                out.append("Heading after rotating 90 degrees: " + getGyroAngles().firstAngle + "\n");
                 sleep(800);
 
                 double totalDistance = 33-TILE_LENGTH;
@@ -641,7 +647,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 if(totalDistance > 0) {
                     goCounts(0.3, inchesToCounts(totalDistance, true));
                 }
+                out.append("Heading before rotating to cryptobox: " + getGyroAngles().firstAngle + "\n");
                 rotate(-0.3, 72);
+                out.append("Heading after rotating to cryptobox: " + getGyroAngles().firstAngle + "\n");
                 goCounts(0.3, inchesToCounts(10.5, true));
             }
 

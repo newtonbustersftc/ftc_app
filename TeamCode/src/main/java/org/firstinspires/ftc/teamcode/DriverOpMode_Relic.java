@@ -41,6 +41,7 @@ public class DriverOpMode_Relic extends OpMode {
 
     private DigitalChannel relicTouchSensor; //Touch sensor at farthest back position on the relic arm
     private DigitalChannel liftTouchSensor; //Touch sensor at lowest position on the lift
+    private DigitalChannel screwTouchSensor; //Touch sensor at lowest position on Relic arm screw
 
     Servo leftHand;
     public static final double LEFT_HAND_IN_POS = 1.0; //0.63;
@@ -83,12 +84,14 @@ public class DriverOpMode_Relic extends OpMode {
         relicTouchReleased = relicTouchSensor.getState();
         if (!relicTouchReleased) {
             resetEncoders(relicArm, true);
-
         }
         resetEncoders(relicScrew, true);
 
         relicArm.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         relicArm.setPower(0);
+        screwTouchSensor = hardwareMap.digitalChannel.get("Touch-Screw");
+        screwTouchSensor.setMode(DigitalChannel.Mode.INPUT);
+
         relicScrew.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         relicScrew.setPower(0);
 
@@ -182,9 +185,10 @@ public class DriverOpMode_Relic extends OpMode {
     }
 
     private void controlRelic(){
+        boolean screwTouchPressed = !screwTouchSensor.getState();
         if(gamepad2.dpad_up){
             relicScrew.setPower(1);
-        } else if(gamepad2.dpad_down){
+        } else if(gamepad2.dpad_down && !screwTouchPressed){
             relicScrew.setPower(-1);
         } else {
             relicScrew.setPower(0);
