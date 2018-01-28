@@ -97,7 +97,7 @@ public class DriverOpMode_Relic extends OpMode {
 
         lift = hardwareMap.dcMotor.get("Lift");
         lift.setDirection(DcMotorSimple.Direction.REVERSE);
-        lift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        lift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         liftTouchSensor = hardwareMap.digitalChannel.get("Touch-Sensor");
         liftTouchSensor.setMode(DigitalChannel.Mode.INPUT);
         liftTouchReleased = liftTouchSensor.getState();
@@ -174,10 +174,10 @@ public class DriverOpMode_Relic extends OpMode {
 
     private void controlPush() {
         if(gamepad2.right_trigger > 0){
-            pusher.setPower(-0.3*(gamepad2.right_trigger)-0.3);
+            pusher.setPower(-0.3*(gamepad2.right_trigger)-0.4);
         }
         else if(gamepad2.a){
-            pusher.setPower(0.3);
+            pusher.setPower(0.4);
         }
         else{
             pusher.setPower(0);

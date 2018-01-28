@@ -341,12 +341,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                     while (Math.abs(relicScrew.getCurrentPosition() - startpos) < ARM_SCREW_UP){
                         idle();
                     }
-//                    telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
-//                    telemetry.update();
-//                    sleep(2000);
-//                    telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
-//                    telemetry.update();
-//                    sleep(1000);
+                    relicScrew.setPower(0);
                 }
             }
 
@@ -612,7 +607,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             // if you want to change it use  wheels.changeDirection();
             wheels.changeDirection();
 
-            if (isCornerPos){
+            if (isCornerPos) {
                 double totalDistance = 33.5;
                 if (pos == RelicRecoveryVuMark.RIGHT) {
                     totalDistance = totalDistance + BWIDTH;
@@ -631,20 +626,20 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 out.append("Heading before relic pick up: " + getGyroAngles().firstAngle + "\n");
                 grabRelic();
                 out.append("Heading after relic pick up: " + getGyroAngles().firstAngle + "\n");
-                moveByInchesGyro(-0.3, 0, MINCLEAR+2-distanceToRelicPicking, -MINIMUM_POWER);
+                moveByInchesGyro(-0.3, 0, MINCLEAR + 2 - distanceToRelicPicking, -MINIMUM_POWER);
                 out.append("Heading before rotating 90 degrees: " + getGyroAngles().firstAngle + "\n");
                 rotate(-0.3, 90);
                 out.append("Heading after rotating 90 degrees: " + getGyroAngles().firstAngle + "\n");
                 sleep(800);
 
-                double totalDistance = 33-TILE_LENGTH;
+                double totalDistance = 33 - TILE_LENGTH;
                 if (pos == RelicRecoveryVuMark.RIGHT) {
                     totalDistance = totalDistance + BWIDTH;
                 } else if (pos == RelicRecoveryVuMark.LEFT) {
                     totalDistance = totalDistance - BWIDTH;
                 }
 
-                if(totalDistance > 0) {
+                if (totalDistance > 0) {
                     goCounts(0.3, inchesToCounts(totalDistance, true));
                 }
                 out.append("Heading before rotating to cryptobox: " + getGyroAngles().firstAngle + "\n");
@@ -707,38 +702,6 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         sleep(500);
         pusher.setPower(0);
     }
-
-//    public void deliverGlyphV1 (RelicRecoveryVuMark pos) throws InterruptedException {
-//
-//        if (isBlue || !isCornerPos) {
-//            return;
-//        }
-//
-//        //For robot to get off the platform and clear the turn it needs to drive initialDistance
-//        //double initialDistance = RLENGTH+((TILE_LENGTH-RLENGTH)/2)+(Math.sqrt(2)-1)*RLENGTH/2;
-//
-//        // red corner position
-//        double totalDistance = TILE_LENGTH + GSIDE/4;
-//        double distanceAfterRotation = WALL_RCENTER-GLYPH_RCENTER;
-//
-//        if (pos == RelicRecoveryVuMark.RIGHT) {
-//        } else if (pos == RelicRecoveryVuMark.CENTER) {
-//            totalDistance = totalDistance + BWIDTH;
-//        } else if (pos == RelicRecoveryVuMark.LEFT) {
-//            totalDistance = totalDistance + BWIDTH*2;
-//        }
-//        int totalCounts = inchesToCounts(totalDistance, true);
-//        goCounts(0.4, totalCounts);
-//        //clockwise rotation
-//        rotate(0.3, 90);
-//        //Go straight to the box
-//        int countsAfterRotation = inchesToCounts(distanceAfterRotation, true);
-//        boolean finished = goCounts(0.3, countsAfterRotation);
-//        sleep(1000);
-//        if (!finished && opModeIsActive()) {
-//            forwardAndRotate(true);
-//        }
-//    }
 
     public void forwardAndRotate(boolean clockwise) {
 
