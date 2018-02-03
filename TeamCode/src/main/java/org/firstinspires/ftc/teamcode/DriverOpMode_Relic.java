@@ -15,7 +15,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 public class DriverOpMode_Relic extends OpMode {
 
 
-    double DPAD_POWER = 0.3;
+    double DPAD_POWER = 0.2;
 
     private MecanumWheels mecanumWheels;
     private boolean backButtonPressed;

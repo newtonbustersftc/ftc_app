@@ -15,6 +15,10 @@ class MecanumWheels {
 
     public enum Wheel {FL, FR, RL, RR};
 
+    private double MIN_FORWARD = 0.2; //minimum power to move the robot forward
+    private double MIN_RIGHT = 0.4; //minimum power to strafe
+    private double MIN_CLOCKWISE = 0.25; //minimum power to rotate
+
     //defining the 4 motors
     private DcMotor motorFrontLeft;
     private DcMotor motorFrontRight;
@@ -54,13 +58,30 @@ class MecanumWheels {
 
 
     void powerMotors(double forward, double right, double clockwise) {
-
         //add deadband so you don't strafe when you don't want to. A deadband is essentially if you want to go to the right,
         //and the joystick is 7 degrees short of 90 degrees, instead of having the robot slowly creep forward, the robot will
         //ignore the small degrees and just go to the right.
         //todo adjust the deadband
-        if ((right > -0.1) && (right < 0.1)) right = 0;
-        if ((forward > -0.1) && (forward < 0.1)) forward = 0;
+        double rightSignFactor = right > 0 ?  1:-1;
+        double forwardSignFactor = forward > 0 ? 1:-1;
+        double clockwiseSignFactor = clockwise > 0 ? 1:-1;
+
+        if (Math.abs(right) < 0.05) {
+            right = 0;
+        } else if (Math.abs(right) < MIN_RIGHT) {
+            right = MIN_RIGHT * rightSignFactor;
+        }
+
+        if (Math.abs(forward) < 0.05) {
+            forward = 0;
+        } else if (Math.abs(forward) < MIN_FORWARD) {
+            forward = MIN_FORWARD * forwardSignFactor;
+        }
+        if (Math.abs(clockwise) < 0.05){
+            clockwise = 0;
+        } else if (Math.abs(clockwise) < MIN_CLOCKWISE) {
+            clockwise = MIN_CLOCKWISE * clockwiseSignFactor;
+        }
 
         if (this.forward){
             forward = - forward;
@@ -97,15 +118,16 @@ class MecanumWheels {
         motorRearRight.setPower(rear_right);
 
         // Telemetry - all doubles are scaled to (-100, 100)
-        /*
+
         telemetry.addData("Robot Forward,Right,Clockwise", (int) (forward * 100) +
                 ", " + (int) (right * 100)+
                 ", " + (int) (clockwise * 100));
-        */
+
         telemetry.addData("DC1,2,3,4", (int) (front_left * 100) + ", " +
                 (int) (front_right * 100) + ", " +
                 (int) (rear_left * 100) + ", " +
                 (int) (rear_right * 100));
+
         //telemetry.update();
     }
 
