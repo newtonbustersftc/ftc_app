@@ -7,6 +7,11 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Servo;
 
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicDelivery.ExtendingToRotate;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicDelivery.Lowering;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicDelivery.Retracting;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicDelivery.Wall;
+
 /**
  * Created by JASMINE on 10/22/17.
  * This class has the code for our driver controlled mode.
@@ -72,6 +77,34 @@ public class DriverOpMode_Relic extends OpMode {
     //difference in counts between lowest and delivery (highest) arm positions
     public static final int ARM_SCREW_UP = 2400;
 
+    //the height of relic screw to clear the wall with the relic
+    public static final int ARM_SCREW_LOADED_UP = 2900;
+
+    //the height of relic screw to place relic in the far zone
+    public static final int ARM_SCREW_PLACE_RELIC = 2300;
+
+    //the length of the relic arm to place relic in far zone
+    public static final int RELIC_ARM_PLACE_RELIC = 2300;
+
+    //safe length to rotate relic grabber up or down
+    public static final int RELIC_ARM_ROTATE = 1900;
+
+    enum RelicDelivery {
+        Wall,
+        ExtendingToRotate,
+        ExtendingForPlacement,
+        Lowering,
+        Release,
+        RetractingToRotate,
+        Retracting
+    }
+
+    private RelicDelivery relicDeliveryState = Wall;
+
+    public long relicGrabStartTime = 0;
+
+    public long relicRotateStartTime = 0;
+
     @Override
     public void init() {
         mecanumWheels = new MecanumWheels(hardwareMap, telemetry);
@@ -85,12 +118,15 @@ public class DriverOpMode_Relic extends OpMode {
         if (!relicTouchReleased) {
             resetEncoders(relicArm, true);
         }
-        resetEncoders(relicScrew, true);
-
-        relicArm.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        relicArm.setPower(0);
         screwTouchSensor = hardwareMap.digitalChannel.get("Touch-Screw");
         screwTouchSensor.setMode(DigitalChannel.Mode.INPUT);
+        boolean screwTouchReleased = screwTouchSensor.getState();
+        if (!screwTouchReleased) {
+            resetEncoders(relicScrew, true);
+        }
+        relicArm.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        relicArm.setPower(0);
+        relicDeliveryState = RelicDelivery.Wall;
 
         relicScrew.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         relicScrew.setPower(0);
@@ -163,9 +199,9 @@ public class DriverOpMode_Relic extends OpMode {
                 forward = -DPAD_POWER;
             }
             if (gamepad1.dpad_right) {
-                right = DPAD_POWER * 2;
+                right = DPAD_POWER * 1.5;
             } else if (gamepad1.dpad_left) {
-                right = -DPAD_POWER * 2;
+                right = -DPAD_POWER * 1.5;
             }
             mecanumWheels.powerMotors(forward, right, clockwise);
         } else {
@@ -176,46 +212,51 @@ public class DriverOpMode_Relic extends OpMode {
     }
 
     private void controlPush() {
-        if(gamepad2.right_trigger > 0){
-            pusher.setPower(-0.3*(gamepad2.right_trigger)-0.4);
-        }
-        else if(gamepad2.a){
+        if (gamepad2.right_trigger > 0) {
+            pusher.setPower(-0.3 * (gamepad2.right_trigger) - 0.4);
+        } else if (gamepad2.a) {
             pusher.setPower(0.4);
-        }
-        else{
+        } else {
             pusher.setPower(0);
         }
     }
 
-    private void controlRelic(){
+    private void controlRelic() {
+        if (gamepad1.left_bumper) {
+            deliverRelic();
+            return;
+        }
+
         boolean screwTouchPressed = !screwTouchSensor.getState();
-        if(gamepad2.dpad_up){
+        if (gamepad2.dpad_up) {
             relicScrew.setPower(1);
-        } else if(gamepad2.dpad_down && !screwTouchPressed){
+        } else if (gamepad2.dpad_down && !screwTouchPressed) {
             relicScrew.setPower(-1);
         } else {
             relicScrew.setPower(0);
         }
 
         boolean touchPressed = !relicTouchSensor.getState();
-        if(gamepad2.dpad_left){
+        if (gamepad2.dpad_left) {
             relicArm.setPower(0.8);
-        } else if(gamepad2.dpad_right && !touchPressed){
+        } else if (gamepad2.dpad_right && !touchPressed) {
             relicArm.setPower(-0.8);
         } else {
             relicArm.setPower(0);
+            relicDeliveryState = RelicDelivery.Wall;
         }
 
         // code for relic hand
-        if(gamepad1.left_trigger > 0){
+        if (gamepad1.left_trigger > 0) {
             setPercentOpen(relicRotate, gamepad1.left_trigger);
         } else {
             setPercentOpen(relicRotate, 0);
         }
-        if(gamepad1.right_trigger > 0){
+        if (gamepad1.right_trigger > 0) {
             setPercentOpen(relicGrab, gamepad1.right_trigger);
         } else {
             setPercentOpen(relicGrab, 0);
+            relicDeliveryState = RelicDelivery.Wall;
         }
     }
 
@@ -244,21 +285,21 @@ public class DriverOpMode_Relic extends OpMode {
         }
 
         // right bumper increases lift level by 1, left bumper decreases lift level by 1
-        if(gamepad2.right_bumper){
+        if (gamepad2.right_bumper) {
             if (!rightBumperPressed) {
                 rightBumperPressed = true;
                 increaseLiftLevel();
             }
-        } else{
+        } else {
             rightBumperPressed = false;
         }
 
-        if (gamepad2.left_bumper){
+        if (gamepad2.left_bumper) {
             if (!leftBumperPressed) {
                 leftBumperPressed = true;
                 decreaseLiftLevel();
             }
-        } else{
+        } else {
             leftBumperPressed = false;
         }
 
@@ -275,7 +316,7 @@ public class DriverOpMode_Relic extends OpMode {
                 int targetCounts = getTargetCounts((int) roundedTargetLiftLevel);
                 int currentCounts = lift.getCurrentPosition();
 
-                if(Math.abs(targetCounts - currentCounts) <= 0.5*LIFT_COUNTS_TOLERANCE) {
+                if (Math.abs(targetCounts - currentCounts) <= 0.5 * LIFT_COUNTS_TOLERANCE) {
                     lift.setPower(0);
                 } else if (Math.abs(targetCounts - currentCounts) > LIFT_COUNTS_TOLERANCE) {
                     if (targetCounts > currentCounts && currentCounts <= LIFT_COUNT_MAX) {
@@ -296,25 +337,27 @@ public class DriverOpMode_Relic extends OpMode {
     }
 
 
-    void increaseLiftLevel(){
+    void increaseLiftLevel() {
         targetLiftLevel = Math.floor(targetLiftLevel);
-        if (targetLiftLevel<4) {
+        if (targetLiftLevel < 4) {
             targetLiftLevel++;
         }
     }
-    void decreaseLiftLevel(){
+
+    void decreaseLiftLevel() {
         targetLiftLevel = Math.ceil(targetLiftLevel);
-        if (targetLiftLevel>0){
+        if (targetLiftLevel > 0) {
             targetLiftLevel--;
         }
     }
-    int getTargetCounts(int liftLevel){
+
+    int getTargetCounts(int liftLevel) {
         return LIFT_LEVEL_COUNTS[liftLevel];
     }
 
-    void setTargetLevelFromCounts (int counts) {
+    void setTargetLevelFromCounts(int counts) {
         if (counts < LIFT_LEVEL_COUNTS[1]) {
-            targetLiftLevel = (double)counts / (double)LIFT_LEVEL_COUNTS[1];
+            targetLiftLevel = (double) counts / (double) LIFT_LEVEL_COUNTS[1];
         } else {
             targetLiftLevel = 1 + 3 * (counts - LIFT_LEVEL_COUNTS[1]) / (double) (LIFT_COUNT_MAX - LIFT_LEVEL_COUNTS[1]);
         }
@@ -369,6 +412,72 @@ public class DriverOpMode_Relic extends OpMode {
             }
         }
 
+    }
+
+    public void deliverRelic() {
+
+        switch (relicDeliveryState) {
+
+            case Wall:
+                if (relicScrew.getCurrentPosition() < ARM_SCREW_LOADED_UP) {
+                    relicScrew.setPower(1);
+                } else {
+                    relicScrew.setPower(0);
+                    relicDeliveryState = ExtendingToRotate;
+                    relicArm.setPower(1);
+                }
+                break;
+            case ExtendingToRotate:
+                if (relicArm.getCurrentPosition() > RELIC_ARM_ROTATE) {
+                    setPercentOpen(relicRotate, 1);
+                    relicRotateStartTime = System.currentTimeMillis();
+                    relicDeliveryState = RelicDelivery.ExtendingForPlacement;
+                }
+                break;
+            case ExtendingForPlacement:
+
+                if (relicArm.getCurrentPosition() > RELIC_ARM_PLACE_RELIC) {
+                    relicArm.setPower(0);
+
+                }
+                if (System.currentTimeMillis() - relicRotateStartTime > 800) {
+                    relicScrew.setPower(-1);
+                    relicDeliveryState = Lowering;
+                }
+                break;
+            case Lowering:
+                if (relicScrew.getCurrentPosition() < ARM_SCREW_PLACE_RELIC) {
+                    relicScrew.setPower(0);
+                    setPercentOpen(relicGrab, 1);
+                    relicGrabStartTime = System.currentTimeMillis();
+                    relicDeliveryState = RelicDelivery.Release;
+                }
+                break;
+            case Release:
+                if (System.currentTimeMillis() - relicGrabStartTime > 800) {
+                    relicArm.setPower(-1);
+                    relicScrew.setPower(1);
+                    relicDeliveryState = RelicDelivery.RetractingToRotate;
+                }
+                break;
+            case RetractingToRotate:
+                if (relicScrew.getCurrentPosition() >= ARM_SCREW_UP){
+                    relicScrew.setPower(0);
+                }
+                if (relicArm.getCurrentPosition() < RELIC_ARM_ROTATE) {
+                    setPercentOpen(relicRotate, 0);
+                    setPercentOpen(relicGrab, 0);
+                    relicDeliveryState = Retracting;
+                }
+                break;
+            case Retracting:
+                boolean touchPressed = !relicTouchSensor.getState();
+                if (touchPressed) {
+                    relicArm.setPower(0);
+                    relicDeliveryState = RelicDelivery.Wall;
+                }
+                break;
+        }
     }
 
     void telemetry() {
