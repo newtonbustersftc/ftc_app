@@ -15,9 +15,9 @@ class MecanumWheels {
 
     public enum Wheel {FL, FR, RL, RR};
 
-    private double MIN_FORWARD = 0.2; //minimum power to move the robot forward
-    private double MIN_RIGHT = 0.4; //minimum power to strafe
-    private double MIN_CLOCKWISE = 0.25; //minimum power to rotate
+    public static final double MIN_FORWARD = 0.2; //minimum power to move the robot forward
+    public static final double MIN_RIGHT = 0.4; //minimum power to strafe
+    public static final double MIN_CLOCKWISE = 0.25; //minimum power to rotate
 
     //defining the 4 motors
     private DcMotor motorFrontLeft;
@@ -58,6 +58,12 @@ class MecanumWheels {
 
 
     void powerMotors(double forward, double right, double clockwise) {
+
+
+        telemetry.addData("Gamepad Forward,Right,Clockwise", (int) (forward * 100) +
+                ", " + (int) (right * 100)+
+                ", " + (int) (clockwise * 100));
+
         //add deadband so you don't strafe when you don't want to. A deadband is essentially if you want to go to the right,
         //and the joystick is 7 degrees short of 90 degrees, instead of having the robot slowly creep forward, the robot will
         //ignore the small degrees and just go to the right.
@@ -66,22 +72,9 @@ class MecanumWheels {
         double forwardSignFactor = forward > 0 ? 1:-1;
         double clockwiseSignFactor = clockwise > 0 ? 1:-1;
 
-        if (Math.abs(right) < 0.05) {
-            right = 0;
-        } else if (Math.abs(right) < MIN_RIGHT) {
-            right = MIN_RIGHT * rightSignFactor;
-        }
-
-        if (Math.abs(forward) < 0.05) {
-            forward = 0;
-        } else if (Math.abs(forward) < MIN_FORWARD) {
-            forward = MIN_FORWARD * forwardSignFactor;
-        }
-        if (Math.abs(clockwise) < 0.05){
-            clockwise = 0;
-        } else if (Math.abs(clockwise) < MIN_CLOCKWISE) {
-            clockwise = MIN_CLOCKWISE * clockwiseSignFactor;
-        }
+        right = adjustpower(right, MIN_RIGHT) * rightSignFactor;
+        forward = adjustpower(forward, MIN_FORWARD) * forwardSignFactor;
+        clockwise = adjustpower(clockwise, MIN_CLOCKWISE) * clockwiseSignFactor;
 
         if (this.forward){
             forward = - forward;
@@ -119,9 +112,6 @@ class MecanumWheels {
 
         // Telemetry - all doubles are scaled to (-100, 100)
 
-        telemetry.addData("Robot Forward,Right,Clockwise", (int) (forward * 100) +
-                ", " + (int) (right * 100)+
-                ", " + (int) (clockwise * 100));
 
         telemetry.addData("DC1,2,3,4", (int) (front_left * 100) + ", " +
                 (int) (front_right * 100) + ", " +
@@ -129,6 +119,14 @@ class MecanumWheels {
                 (int) (rear_right * 100));
 
         //telemetry.update();
+    }
+
+    double MIN_POWER_GAMEPAD = 0.3;
+    public double adjustpower (double padPower, double minPower){
+        if (Math.abs(padPower) < 0.05) return 0;
+        if (Math.abs(padPower) < MIN_POWER_GAMEPAD) return minPower;
+        // linear for rest, from minPower to 1.0
+        return ((1-minPower)/(1-MIN_POWER_GAMEPAD)*(Math.abs(padPower) - 1)+1);
     }
 
     public void setRunMode(DcMotor.RunMode runMode) {

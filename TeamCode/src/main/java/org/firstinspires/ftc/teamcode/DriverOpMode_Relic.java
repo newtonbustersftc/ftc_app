@@ -148,8 +148,11 @@ public class DriverOpMode_Relic extends OpMode {
             //todo: add lights
         }
 
-
         double clockwise = gamepad1.right_stick_x;
+        // fine control with up and down overrides coarse control left and right
+        // up - clockwise, down - counterclockwise
+        if (Math.abs(gamepad1.right_stick_y) > 0.4) clockwise = (-gamepad1.right_stick_y/Math.abs(gamepad1.right_stick_y)) * MecanumWheels.MIN_CLOCKWISE;
+
         //We are using robot coordinates
         if (gamepad1.dpad_up || gamepad1.dpad_down || gamepad1.dpad_left || gamepad1.dpad_right) {
             double forward = 0;
