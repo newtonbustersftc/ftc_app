@@ -20,7 +20,7 @@ import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicDelivery.Wa
 public class DriverOpMode_Relic extends OpMode {
 
 
-    double DPAD_POWER = 0.2;
+    private double DPAD_POWER = 0.2; // slow move power
 
     private MecanumWheels mecanumWheels; //Controls mecanum wheel motors.
     private boolean backButtonPressed; //True when the button for changing direction is pressed.
@@ -32,14 +32,14 @@ public class DriverOpMode_Relic extends OpMode {
     private DcMotor lift; //DcMotor for the lift
 
     //5 discrete lift levels: on the ground, slightly above the ground, the second, third, and fourth cryptobox levels.
-    int[] LIFT_LEVEL_COUNTS = {0, 300, 2200, 4100, 6000}; //The lift motor counts for the discrete lift levels.
+    private int[] LIFT_LEVEL_COUNTS = {0, 300, 2200, 4100, 6000}; //The lift motor counts for the discrete lift levels.
     private int LIFT_COUNT_MAX = LIFT_LEVEL_COUNTS[4]; // Maximum lift height.
     private int LIFT_COUNTS_TOLERANCE = 100; // The allowed tolerance above and below the desired level.
 
 
-    boolean rightBumperPressed = false; // True when pressed. Raises the discrete lift level by one level.
-    boolean leftBumperPressed = false; // True when pressed. Lowers the discrete lift level by one level.
-    double targetLiftLevel = 0; //Lift level can be 0, 1, 2, 3, and 4 or something in between.
+    private boolean rightBumperPressed = false; // True when pressed. Raises the discrete lift level by one level.
+    private boolean leftBumperPressed = false; // True when pressed. Lowers the discrete lift level by one level.
+    private double targetLiftLevel = 0; //Lift level can be 0, 1, 2, 3, and 4 or something in between.
 
     /*
         True when the lift touch button isn't pressed.
@@ -58,46 +58,49 @@ public class DriverOpMode_Relic extends OpMode {
     private DigitalChannel liftTouchSensor; //Touch sensor at lowest position on the lift
     private DigitalChannel screwTouchSensor; //Touch sensor at lowest position on Relic arm screw
 
-    Servo leftHand; // The servo controlling the left lift grabber.
-    public static final double LEFT_HAND_IN_POS = 1.0; // Holding position.
-    public static final double LEFT_HAND_OUT_POS = 0.5; // Release position.
+    private Servo leftHand; // The servo controlling the left lift grabber.
+    static final double LEFT_HAND_IN_POS = 1.0; // Holding position.
+    static final double LEFT_HAND_OUT_POS = 0.5; // Release position.
 
-    Servo rightHand; // The servo controlling the right lift grabber.
-    public static final double RIGHT_HAND_IN_POS = 0.0; // Holding position.
-    public static final double RIGHT_HAND_OUT_POS = 0.5; // Release position.
+    private Servo rightHand; // The servo controlling the right lift grabber.
+    static final double RIGHT_HAND_IN_POS = 0.0; // Holding position.
+    static final double RIGHT_HAND_OUT_POS = 0.5; // Release position.
 
-    Servo jewelArm; // The servo controlling the jewel arm with a color sensor and kicker at the end.
-    public static final double JEWEL_ARM_HOME = 0.72; // Initial position
-    public static final double JEWEL_ARM_DOWN = 0.02; // Down position
-    public static final double JEWEL_ARM_VERTICAL = 0.55; // Up position
+    private Servo jewelArm; // The servo controlling the jewel arm with a color sensor and kicker at the end.
+    static final double JEWEL_ARM_HOME = 0.72; // Initial position
+    static final double JEWEL_ARM_DOWN = 0.02; // Down position
+    static final double JEWEL_ARM_VERTICAL = 0.55; // Up position
 
-    Servo jewelKick; // The servo controlling the jewel kicker.
-    public static final double JEWEL_KICK_RIGHT = 0.8; // start (rest) position and counterclockwise kick
-    public static final double JEWEL_KICK_LEFT = 0.15; // clockwise kick
-    public static final double JEWEL_KICK_CENTER = 0.47; // The middle position.
+    private Servo jewelKick; // The servo controlling the jewel kicker.
+    static final double JEWEL_KICK_RIGHT = 0.8; // start (rest) position and counterclockwise kick
+    static final double JEWEL_KICK_LEFT = 0.15; // clockwise kick
+    static final double JEWEL_KICK_CENTER = 0.47; // The middle position.
 
-    Servo relicRotate; // The servo that rotates the relic grabber up and down.
-    public static final double RELIC_ROTATE_UP = 0; //holding the relic above the arm
-    public static final double RELIC_ROTATE_DOWN = 0.6; //holding the relic in place to grab or put down
+    private Servo relicRotate; // The servo that rotates the relic grabber up and down.
+    static final double RELIC_ROTATE_UP = 0; //holding the relic above the arm
+    static final double RELIC_ROTATE_DOWN = 0.6; //holding the relic in place to grab or put down
 
-    Servo relicGrab; // The servo controlling the relic hand grabber.
-    public static final double RELIC_GRAB_HOLD = 0.25; //holding the relic
-    public static final double RELIC_GRAB_RELEASE = 0.6; //letting go of the relic
+    private Servo relicGrab; // The servo controlling the relic hand grabber.
+    static final double RELIC_GRAB_HOLD = 0.25; //holding the relic
+    static final double RELIC_GRAB_RELEASE = 0.6; //letting go of the relic
 
     //difference in counts between lowest and delivery (highest) arm positions
-    public static final int ARM_SCREW_UP = 2400;
+    static final int ARM_SCREW_UP = 2400;
 
     //the height of relic screw to clear the wall with the relic
-    public static final int ARM_SCREW_LOADED_UP = 2900;
+    private static final int ARM_SCREW_LOADED_UP = 2900;
 
     //the height of relic screw to place relic in the far zone
-    public static final int ARM_SCREW_PLACE_RELIC = 2300;
+    private static final int ARM_SCREW_PLACE_RELIC = 2300;
 
     //the length of the relic arm to place relic in far zone
-    public static final int RELIC_ARM_PLACE_RELIC = 2300;
+    private static final int RELIC_ARM_PLACE_RELIC = 2300;
 
     //safe length to rotate relic grabber up or down
-    public static final int RELIC_ARM_ROTATE = 1900;
+    private static final int RELIC_ARM_ROTATE = 1900;
+
+    //length of relic arm completely extended
+    private static final int RELIC_ARM_LENGTH = 2300;
 
     // The relic delivery states.
     enum RelicDelivery {
@@ -110,11 +113,21 @@ public class DriverOpMode_Relic extends OpMode {
         Retracting
     }
 
-    private RelicDelivery relicDeliveryState = Wall; // The current state of the relic delivery.
+    private RelicDelivery relicDeliveryState = Wall; //The current state of the relic delivery.
+
+    enum RelicPickup {
+        Init,
+        ExtendingToRelic,
+        Grabbing,
+        RetractingToRotate,
+        Retreacting
+    }
+
+    private RelicPickup relicPickupState = RelicPickup.Init; //The current state of relic pickup
 
     //Need to allow time for the servos to reach their positions.
-    public long relicGrabStartTime = 0; // The timer for the grabber.
-    public long relicRotateStartTime = 0; // The timer for the relic rotation.
+    private long relicGrabStartTime = 0; // The timer for the grabber.
+    private long relicRotateStartTime = 0; // The timer for the relic rotation.
 
     @Override
     public void init() {
@@ -203,7 +216,8 @@ public class DriverOpMode_Relic extends OpMode {
         double clockwise = gamepad1.right_stick_x;
         // fine control with up and down overrides coarse control left and right
         // up - clockwise, down - counterclockwise
-        if (Math.abs(gamepad1.right_stick_y) > 0.4) clockwise = (-gamepad1.right_stick_y/Math.abs(gamepad1.right_stick_y)) * MecanumWheels.MIN_CLOCKWISE;
+        if (Math.abs(gamepad1.right_stick_y) > 0.4)
+            clockwise = (-gamepad1.right_stick_y / Math.abs(gamepad1.right_stick_y)) * MecanumWheels.MIN_CLOCKWISE;
 
         //We are using robot coordinates
         //D-pad is used for slow speed movements.
@@ -359,9 +373,7 @@ public class DriverOpMode_Relic extends OpMode {
                     } else {
                         lift.setPower(0);
                     }
-                } else {
-                    // let lift do whatever it is doing
-                }
+                } // else let lift do whatever it is doing
             } else {
                 lift.setPower(0);
             }
@@ -370,25 +382,25 @@ public class DriverOpMode_Relic extends OpMode {
     }
 
 
-    void increaseLiftLevel() {
+    private void increaseLiftLevel() {
         targetLiftLevel = Math.floor(targetLiftLevel);
         if (targetLiftLevel < 4) {
             targetLiftLevel++;
         }
     }
 
-    void decreaseLiftLevel() {
+    private void decreaseLiftLevel() {
         targetLiftLevel = Math.ceil(targetLiftLevel);
         if (targetLiftLevel > 0) {
             targetLiftLevel--;
         }
     }
 
-    int getTargetCounts(int liftLevel) {
+    private int getTargetCounts(int liftLevel) {
         return LIFT_LEVEL_COUNTS[liftLevel];
     }
 
-    void setTargetLevelFromCounts(int counts) {
+    private void setTargetLevelFromCounts(int counts) {
         if (counts < LIFT_LEVEL_COUNTS[1]) {
             targetLiftLevel = (double) counts / (double) LIFT_LEVEL_COUNTS[1];
         } else {
@@ -406,7 +418,7 @@ public class DriverOpMode_Relic extends OpMode {
      * @param inPos  - holding position between 0 and 1
      * @param outPos - releasing position between 0 and 1
      */
-    public static void setUpServo(Servo servo, double inPos, double outPos) {
+    static void setUpServo(Servo servo, double inPos, double outPos) {
         // scale t0 the range between inPos and outPos
         double min = Math.min(inPos, outPos);
         double max = Math.max(inPos, outPos);
@@ -428,11 +440,11 @@ public class DriverOpMode_Relic extends OpMode {
      * @param servo       - servo motor to use
      * @param percentOpen is the number between 0 and 1
      */
-    public static void setPercentOpen(Servo servo, double percentOpen) {
+    static void setPercentOpen(Servo servo, double percentOpen) {
         servo.setPosition(percentOpen);
     }
 
-    public static void resetEncoders(DcMotor motor, boolean wait) {
+    static void resetEncoders(DcMotor motor, boolean wait) {
         motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         if (wait) {
             while (motor.getCurrentPosition() > 10) {
@@ -447,7 +459,55 @@ public class DriverOpMode_Relic extends OpMode {
 
     }
 
-    public void deliverRelic() {
+
+    private void pickupRelic() {
+
+        switch (relicPickupState) {
+
+            case Init:
+                setPercentOpen(relicRotate, 1); //rotate down
+                setPercentOpen(relicGrab, 1); //open relic grabber
+                relicArm.setPower(1);
+                relicPickupState = RelicPickup.ExtendingToRelic;
+                break;
+            case ExtendingToRelic:
+                if (relicArm.getCurrentPosition() > RELIC_ARM_LENGTH) {
+                    relicArm.setPower(0);
+                    setPercentOpen(relicGrab, 0); //close relic grabber
+                    relicGrabStartTime = System.currentTimeMillis();
+                    relicPickupState = RelicPickup.Grabbing;
+                }
+                break;
+            case Grabbing:
+                if (System.currentTimeMillis() - relicGrabStartTime > 800) {
+                    relicArm.setPower(-1);
+                    relicScrew.setPower(1);
+                    relicPickupState = RelicPickup.RetractingToRotate;
+                }
+                    break;
+            case RetractingToRotate:
+                if (relicArm.getCurrentPosition() < RELIC_ARM_ROTATE) {
+                    setPercentOpen(relicRotate, 0); // rotate up
+                    relicPickupState = RelicPickup.Retreacting;
+                }
+                break;
+            case Retreacting:
+                boolean touchPressed = !relicTouchSensor.getState();
+                if (touchPressed) {
+                    relicArm.setPower(0);
+                }
+                if (relicScrew.getCurrentPosition() > ARM_SCREW_UP) {
+                    relicScrew.setPower(0);
+                }
+                if (relicArm.getPower() < 0.1 && relicScrew.getPower() < 0.1) {
+                    relicPickupState = RelicPickup.Init;
+                }
+                break;
+        }
+
+    }
+
+    private void deliverRelic() {
 
         switch (relicDeliveryState) {
 
@@ -494,7 +554,7 @@ public class DriverOpMode_Relic extends OpMode {
                 }
                 break;
             case RetractingToRotate:
-                if (relicScrew.getCurrentPosition() >= ARM_SCREW_UP){
+                if (relicScrew.getCurrentPosition() >= ARM_SCREW_UP) {
                     relicScrew.setPower(0);
                 }
                 if (relicArm.getCurrentPosition() < RELIC_ARM_ROTATE) {
@@ -513,7 +573,7 @@ public class DriverOpMode_Relic extends OpMode {
         }
     }
 
-    void telemetry() {
+    private void telemetry() {
         telemetry.addData("pusher", gamepad2.right_trigger);
         telemetry.addData("lift target level", targetLiftLevel);
         telemetry.addData("lift", lift.getCurrentPosition());
