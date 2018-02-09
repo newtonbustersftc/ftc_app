@@ -22,55 +22,65 @@ public class DriverOpMode_Relic extends OpMode {
 
     double DPAD_POWER = 0.2;
 
-    private MecanumWheels mecanumWheels;
-    private boolean backButtonPressed;
+    private MecanumWheels mecanumWheels; //Controls mecanum wheel motors.
+    private boolean backButtonPressed; //True when the button for changing direction is pressed.
 
-    private DcMotor pusher;
-    private DcMotor relicArm;
-    private DcMotor relicScrew;
+    private DcMotor pusher; //The motor controling the glyph pusher.
+    private DcMotor relicArm; //The motor that extends the relic arm.
+    private DcMotor relicScrew; //The motor that raises/lowers the relic arm.
 
     private DcMotor lift; //DcMotor for the lift
 
+    //5 discrete lift levels: on the ground, slightly above the ground, the second, third, and fourth cryptobox levels.
+    int[] LIFT_LEVEL_COUNTS = {0, 300, 2200, 4100, 6000}; //The lift motor counts for the discrete lift levels.
+    private int LIFT_COUNT_MAX = LIFT_LEVEL_COUNTS[4]; // Maximum lift height.
+    private int LIFT_COUNTS_TOLERANCE = 100; // The allowed tolerance above and below the desired level.
 
-    int[] LIFT_LEVEL_COUNTS = {0, 300, 2200, 4100, 6000};
-    private int LIFT_COUNT_MAX = LIFT_LEVEL_COUNTS[4];
-    private int LIFT_COUNTS_TOLERANCE = 100;
 
+    boolean rightBumperPressed = false; // True when pressed. Raises the discrete lift level by one level.
+    boolean leftBumperPressed = false; // True when pressed. Lowers the discrete lift level by one level.
+    double targetLiftLevel = 0; //Lift level can be 0, 1, 2, 3, and 4 or something in between.
 
-    boolean rightBumperPressed = false;
-    boolean leftBumperPressed = false;
-    double targetLiftLevel = 0; //Lift level can be 0, 1, 2, 3, and 4 or something inbetween.
-
+    /*
+        True when the lift touch button isn't pressed.
+        The touch button at the lowest lift position is like a safety for the lift.
+        When pressed, the lift should stop.
+     */
     private boolean liftTouchReleased;
+    /*
+    True when the relic arm touch button isn't pressed.
+    The touch button at the most retracted point of the relic arm.
+    When pressed, the relic arm should stop retracting.
+     */
     private boolean relicTouchReleased;
 
     private DigitalChannel relicTouchSensor; //Touch sensor at farthest back position on the relic arm
     private DigitalChannel liftTouchSensor; //Touch sensor at lowest position on the lift
     private DigitalChannel screwTouchSensor; //Touch sensor at lowest position on Relic arm screw
 
-    Servo leftHand;
-    public static final double LEFT_HAND_IN_POS = 1.0; //0.63;
-    public static final double LEFT_HAND_OUT_POS = 0.5; //0.48;
+    Servo leftHand; // The servo controlling the left lift grabber.
+    public static final double LEFT_HAND_IN_POS = 1.0; // Holding position.
+    public static final double LEFT_HAND_OUT_POS = 0.5; // Release position.
 
-    Servo rightHand;
-    public static final double RIGHT_HAND_IN_POS = 0.0; //0.25;
-    public static final double RIGHT_HAND_OUT_POS = 0.5; //0.5;
+    Servo rightHand; // The servo controlling the right lift grabber.
+    public static final double RIGHT_HAND_IN_POS = 0.0; // Holding position.
+    public static final double RIGHT_HAND_OUT_POS = 0.5; // Release position.
 
-    Servo jewelArm;
-    public static final double JEWEL_ARM_HOME = 0.72; // home position
-    public static final double JEWEL_ARM_DOWN = 0.02; // down position
-    public static final double JEWEL_ARM_VERTICAL = 0.55; // down position
+    Servo jewelArm; // The servo controlling the jewel arm with a color sensor and kicker at the end.
+    public static final double JEWEL_ARM_HOME = 0.72; // Initial position
+    public static final double JEWEL_ARM_DOWN = 0.02; // Down position
+    public static final double JEWEL_ARM_VERTICAL = 0.55; // Up position
 
-    Servo jewelKick;
+    Servo jewelKick; // The servo controlling the jewel kicker.
     public static final double JEWEL_KICK_RIGHT = 0.8; // start (rest) position and counterclockwise kick
     public static final double JEWEL_KICK_LEFT = 0.15; // clockwise kick
-    public static final double JEWEL_KICK_CENTER = 0.47;
+    public static final double JEWEL_KICK_CENTER = 0.47; // The middle position.
 
-    Servo relicRotate;
+    Servo relicRotate; // The servo that rotates the relic grabber up and down.
     public static final double RELIC_ROTATE_UP = 0; //holding the relic above the arm
     public static final double RELIC_ROTATE_DOWN = 0.6; //holding the relic in place to grab or put down
 
-    Servo relicGrab;
+    Servo relicGrab; // The servo controlling the relic hand grabber.
     public static final double RELIC_GRAB_HOLD = 0.25; //holding the relic
     public static final double RELIC_GRAB_RELEASE = 0.6; //letting go of the relic
 
@@ -89,6 +99,7 @@ public class DriverOpMode_Relic extends OpMode {
     //safe length to rotate relic grabber up or down
     public static final int RELIC_ARM_ROTATE = 1900;
 
+    // The relic delivery states.
     enum RelicDelivery {
         Wall,
         ExtendingToRotate,
@@ -99,14 +110,15 @@ public class DriverOpMode_Relic extends OpMode {
         Retracting
     }
 
-    private RelicDelivery relicDeliveryState = Wall;
+    private RelicDelivery relicDeliveryState = Wall; // The current state of the relic delivery.
 
-    public long relicGrabStartTime = 0;
-
-    public long relicRotateStartTime = 0;
+    //Need to allow time for the servos to reach their positions.
+    public long relicGrabStartTime = 0; // The timer for the grabber.
+    public long relicRotateStartTime = 0; // The timer for the relic rotation.
 
     @Override
     public void init() {
+        //Initializing motors and sensors.
         mecanumWheels = new MecanumWheels(hardwareMap, telemetry);
         mecanumWheels.powerMotors(0, 0, 0);
         pusher = hardwareMap.dcMotor.get("Pusher");
@@ -115,12 +127,14 @@ public class DriverOpMode_Relic extends OpMode {
         relicTouchSensor = hardwareMap.digitalChannel.get("Touch-Sensor Relic");
         relicTouchSensor.setMode(DigitalChannel.Mode.INPUT);
         relicTouchReleased = relicTouchSensor.getState();
+        // When the relic arm touch button is pressed, we want the motor encoder counts to be 0.
         if (!relicTouchReleased) {
             resetEncoders(relicArm, true);
         }
         screwTouchSensor = hardwareMap.digitalChannel.get("Touch-Screw");
         screwTouchSensor.setMode(DigitalChannel.Mode.INPUT);
         boolean screwTouchReleased = screwTouchSensor.getState();
+        // We want the lowest arm position to have encoder counts of 0.
         if (!screwTouchReleased) {
             resetEncoders(relicScrew, true);
         }
@@ -132,8 +146,8 @@ public class DriverOpMode_Relic extends OpMode {
         relicScrew.setPower(0);
 
         lift = hardwareMap.dcMotor.get("Lift");
-        lift.setDirection(DcMotorSimple.Direction.REVERSE);
-        lift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        lift.setDirection(DcMotorSimple.Direction.REVERSE); // Positive power brings the lift up and negative power brings it down.
+        lift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE); // We brake when no power is being applied.
         liftTouchSensor = hardwareMap.digitalChannel.get("Touch-Sensor");
         liftTouchSensor.setMode(DigitalChannel.Mode.INPUT);
         liftTouchReleased = liftTouchSensor.getState();
@@ -149,6 +163,8 @@ public class DriverOpMode_Relic extends OpMode {
     @Override
     public void start() {
         backButtonPressed = false;
+        // Initializes the position of all of the servos after the start button is pressed
+        // so the robot doesn't move during intitialization.
         leftHand = hardwareMap.servo.get("Left-Hand");
         setUpServo(leftHand, LEFT_HAND_IN_POS, LEFT_HAND_OUT_POS);
         rightHand = hardwareMap.servo.get("Right-Hand");
@@ -166,10 +182,10 @@ public class DriverOpMode_Relic extends OpMode {
     @Override
     public void loop() {
 
-        controlPush();
-        controlLift();
-        controlGrip();
-        controlRelic();
+        controlPush(); // Glyph pusher controls.
+        controlLift(); // Glyph lift controls.
+        controlGrip(); // Glyph grabber controls.
+        controlRelic(); // Controls all motors and servos for the relic.
         telemetry();
 
         // DRIVING
@@ -190,6 +206,7 @@ public class DriverOpMode_Relic extends OpMode {
         if (Math.abs(gamepad1.right_stick_y) > 0.4) clockwise = (-gamepad1.right_stick_y/Math.abs(gamepad1.right_stick_y)) * MecanumWheels.MIN_CLOCKWISE;
 
         //We are using robot coordinates
+        //D-pad is used for slow speed movements.
         if (gamepad1.dpad_up || gamepad1.dpad_down || gamepad1.dpad_left || gamepad1.dpad_right) {
             double forward = 0;
             double right = 0;
@@ -211,6 +228,10 @@ public class DriverOpMode_Relic extends OpMode {
         }
     }
 
+    /**
+     * Use second game pad right trigger to push the glyph out.
+     * Use second game pad "A" button to retract the pushing plate.
+     */
     private void controlPush() {
         if (gamepad2.right_trigger > 0) {
             pusher.setPower(-0.3 * (gamepad2.right_trigger) - 0.4);
@@ -221,6 +242,11 @@ public class DriverOpMode_Relic extends OpMode {
         }
     }
 
+    /**
+     * Use first game pad left bumper for automatic glyph delivery.
+     * Use second game pad D-pad for relic arm control.
+     * Use first game pad triggers to grab and rotate the relic.
+     */
     private void controlRelic() {
         if (gamepad1.left_bumper) {
             deliverRelic();
@@ -260,12 +286,19 @@ public class DriverOpMode_Relic extends OpMode {
         }
     }
 
+    /**
+     * Use game pad two left trigger to grab and release the glyph.
+     */
     private void controlGrip() {
         float percentOpen = gamepad2.left_trigger;
         setPercentOpen(rightHand, percentOpen);
         setPercentOpen(leftHand, percentOpen);
     }
 
+    /**
+     * Use game pad 2 right and left bumpers for discrete lift control.
+     * Use game pad 2 "X" and "Y" buttons for continuous glyph height control.
+     */
     private void controlLift() {
 
         // liftTouchSensor.getState==true means the button is NOT PRESSED
