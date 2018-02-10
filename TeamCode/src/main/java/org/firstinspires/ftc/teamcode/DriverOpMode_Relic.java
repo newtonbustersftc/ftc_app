@@ -59,12 +59,12 @@ public class DriverOpMode_Relic extends OpMode {
     private DigitalChannel screwTouchSensor; //Touch sensor at lowest position on Relic arm screw
 
     private Servo leftHand; // The servo controlling the left lift grabber.
-    static final double LEFT_HAND_IN_POS = 1.0; // Holding position.
-    static final double LEFT_HAND_OUT_POS = 0.5; // Release position.
+    static final double LEFT_HAND_IN_POS = 0.45; // Holding position.
+    static final double LEFT_HAND_OUT_POS = 0.2; // Release position.
 
     private Servo rightHand; // The servo controlling the right lift grabber.
-    static final double RIGHT_HAND_IN_POS = 0.0; // Holding position.
-    static final double RIGHT_HAND_OUT_POS = 0.5; // Release position.
+    static final double RIGHT_HAND_IN_POS = 0.55; // Holding position.
+    static final double RIGHT_HAND_OUT_POS = 0.8; // Release position.
 
     private Servo jewelArm; // The servo controlling the jewel arm with a color sensor and kicker at the end.
     static final double JEWEL_ARM_HOME = 0.72; // Initial position
@@ -581,5 +581,10 @@ public class DriverOpMode_Relic extends OpMode {
         telemetry.addData("relic arm", relicArm.getCurrentPosition());
         telemetry.addData("relic sensor released", relicTouchReleased);
         telemetry.addData("relic screw", relicScrew.getCurrentPosition());
+        if(leftHand != null && rightHand != null) {
+
+            telemetry.addData("grip trigger", gamepad2.left_trigger);
+            telemetry.addData("grip", leftHand.getPosition() + " " + rightHand.getPosition());
+        }
     }
 }
