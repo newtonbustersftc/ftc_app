@@ -10,7 +10,6 @@
             <Servo name="Right-Hand" port="1" />
             <Servo name="Relic-Rotate" port="2" />
             <Servo name="Jewel-Kick" port="3" />
-            <Servo name="Jewel-Arm" port="4" />
             <Servo name="Relic-Grab" port="5" />
             <DigitalDevice name="Touch-Sensor" port="1" />
             <DigitalDevice name="Touch-Screw" port="7" />
@@ -22,6 +21,7 @@
             <RevRoboticsCoreHexMotor name="Relic Arm" port="1" />
             <RevRoboticsCoreHexMotor name="Relic Screw" port="2" />
             <RevRoboticsCoreHexMotor name="Pusher" port="3" />
+            <Servo name="Jewel-Arm" port="4" />
             <DigitalDevice name="Touch-Sensor Relic" port="1" />
             <LynxEmbeddedIMU name="imu 1" port="0" bus="0" />
         </LynxModule>

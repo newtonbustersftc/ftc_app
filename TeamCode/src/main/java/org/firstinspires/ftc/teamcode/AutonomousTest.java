@@ -12,6 +12,9 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import static java.lang.Float.parseFloat;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_ARM_DOWN;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_ARM_HOME;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_KICK_CENTER;
 
 /**
  * Created by NBTeam on 10/27/2017.
@@ -29,7 +32,7 @@ public class AutonomousTest extends AutonomousOpMode_Relic {
         //colorTest();
         //gyroTest();
         //rotateTest();
-        //distanceTest();
+        distanceTest();
 
         //moveByInchesGyro(0.5, 0, 50, MINIMUM_POWER);
 
@@ -37,7 +40,7 @@ public class AutonomousTest extends AutonomousOpMode_Relic {
 //        raiseGlyph(true);
 //        deliverGlyph(RelicRecoveryVuMark.LEFT);
 
-        grabRelic();
+        //grabRelic();
 
         sleep(3000);
     }
@@ -45,9 +48,9 @@ public class AutonomousTest extends AutonomousOpMode_Relic {
     private void distanceTest() throws InterruptedException {
         int counts = 1000;
         while (counts < 5000) {
-            goCounts(0.4, counts);
-            sleep(5000);
             goCounts(-0.4, counts);
+            sleep(5000);
+            goCounts( 0.4, counts);
             sleep(5000);
             counts=counts+1000;
         }

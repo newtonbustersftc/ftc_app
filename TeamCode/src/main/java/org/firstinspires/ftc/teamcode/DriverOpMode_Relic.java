@@ -8,9 +8,9 @@ import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicDelivery.ExtendingToRotate;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicDelivery.Lowering;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicDelivery.Retracting;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicDelivery.Wall;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicPickup.ExtendingToRelic;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicPickup.Grabbing;
 
 /**
  * Created by JASMINE on 10/22/17.
@@ -28,6 +28,9 @@ public class DriverOpMode_Relic extends OpMode {
     private DcMotor pusher; //The motor controling the glyph pusher.
     private DcMotor relicArm; //The motor that extends the relic arm.
     private DcMotor relicScrew; //The motor that raises/lowers the relic arm.
+
+    private boolean armMoving = false;
+    private boolean screwMoving = false;
 
     private DcMotor lift; //DcMotor for the lift
 
@@ -59,11 +62,11 @@ public class DriverOpMode_Relic extends OpMode {
     private DigitalChannel screwTouchSensor; //Touch sensor at lowest position on Relic arm screw
 
     private Servo leftHand; // The servo controlling the left lift grabber.
-    static final double LEFT_HAND_IN_POS = 0.45; // Holding position.
+    static final double LEFT_HAND_IN_POS = 0.5; // Holding position.
     static final double LEFT_HAND_OUT_POS = 0.2; // Release position.
 
     private Servo rightHand; // The servo controlling the right lift grabber.
-    static final double RIGHT_HAND_IN_POS = 0.55; // Holding position.
+    static final double RIGHT_HAND_IN_POS = 0.5; // Holding position.
     static final double RIGHT_HAND_OUT_POS = 0.8; // Release position.
 
     private Servo jewelArm; // The servo controlling the jewel arm with a color sensor and kicker at the end.
@@ -87,11 +90,17 @@ public class DriverOpMode_Relic extends OpMode {
     //difference in counts between lowest and delivery (highest) arm positions
     static final int ARM_SCREW_UP = 2400;
 
+    //height of the arm to clear the wall with the arm extended
+    static final int ARM_SCREW_CLEAR_WALL = 3000;
+
+    //height of arm when picking up relic at fully extended legth
+    private static final int ARM_SCREW_PICKUP = 2250;
+
     //the height of relic screw to clear the wall with the relic
     private static final int ARM_SCREW_LOADED_UP = 2900;
 
     //the height of relic screw to place relic in the far zone
-    private static final int ARM_SCREW_PLACE_RELIC = 2300;
+    private static final int ARM_SCREW_PLACE_RELIC = 2200;
 
     //the length of the relic arm to place relic in far zone
     private static final int RELIC_ARM_PLACE_RELIC = 2300;
@@ -107,10 +116,10 @@ public class DriverOpMode_Relic extends OpMode {
         Wall,
         ExtendingToRotate,
         ExtendingForPlacement,
-        Lowering,
         Release,
         RetractingToRotate,
-        Retracting
+        Retracting,
+        Done
     }
 
     private RelicDelivery relicDeliveryState = Wall; //The current state of the relic delivery.
@@ -120,7 +129,8 @@ public class DriverOpMode_Relic extends OpMode {
         ExtendingToRelic,
         Grabbing,
         RetractingToRotate,
-        Retreacting
+        Retracting,
+        Done
     }
 
     private RelicPickup relicPickupState = RelicPickup.Init; //The current state of relic pickup
@@ -152,6 +162,7 @@ public class DriverOpMode_Relic extends OpMode {
             resetEncoders(relicScrew, true);
         }
         relicArm.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        relicArm.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         relicArm.setPower(0);
         relicDeliveryState = RelicDelivery.Wall;
 
@@ -267,6 +278,11 @@ public class DriverOpMode_Relic extends OpMode {
             return;
         }
 
+        if (gamepad1.right_bumper) {
+            pickupRelic();
+            return;
+        }
+
         boolean screwTouchPressed = !screwTouchSensor.getState();
         if (gamepad2.dpad_up) {
             relicScrew.setPower(1);
@@ -283,20 +299,28 @@ public class DriverOpMode_Relic extends OpMode {
             relicArm.setPower(-0.8);
         } else {
             relicArm.setPower(0);
-            relicDeliveryState = RelicDelivery.Wall;
+            //relicDeliveryState = RelicDelivery.Wall;
         }
 
         // code for relic hand
-        if (gamepad1.left_trigger > 0) {
-            setPercentOpen(relicRotate, gamepad1.left_trigger);
+        if (relicPickupState == RelicPickup.ExtendingToRelic) {
+            setPercentOpen(relicRotate, 1);
+            setPercentOpen(relicGrab, 1);
+            if(gamepad1.left_trigger > 0.5) {
+                relicGrab(true);
+                relicPickupState = Grabbing;
+            }
         } else {
-            setPercentOpen(relicRotate, 0);
-        }
-        if (gamepad1.right_trigger > 0) {
-            setPercentOpen(relicGrab, gamepad1.right_trigger);
-        } else {
-            setPercentOpen(relicGrab, 0);
-            relicDeliveryState = RelicDelivery.Wall;
+            if (gamepad1.left_trigger > 0) {
+                setPercentOpen(relicRotate, gamepad1.left_trigger);
+            } else {
+                setPercentOpen(relicRotate, 0);
+            }
+            if (gamepad1.right_trigger > 0) {
+                relicRelease(gamepad1.right_trigger, true); //reset relic pickup state
+            } else {
+                relicGrab(true); //reset relic delivery state
+            }
         }
     }
 
@@ -409,6 +433,35 @@ public class DriverOpMode_Relic extends OpMode {
     }
 
     /**
+     * Command relic grabber to close and optionally reset relic delivery state
+     * @param resetState when true reset relic delivery state
+     */
+    private void relicGrab(boolean resetState){
+        setPercentOpen(relicGrab, 0);
+        relicGrabStartTime = System.currentTimeMillis();
+        if (resetState) {
+            // when grabbing we want to reset relic delivery state
+            relicDeliveryState = RelicDelivery.Wall;
+        }
+    }
+
+
+    /**
+     * Command relic grabber to open and reset relic pickup state
+     * @param percentOpen A number from 0 to 1
+     * @param resetState when true reset relic pickup state
+     */
+    private void relicRelease (double percentOpen, boolean resetState){
+        setPercentOpen(relicGrab, percentOpen);
+        relicGrabStartTime = System.currentTimeMillis();
+        if (resetState) {
+            //when releasing we want to reset relic pickup state
+            relicPickupState = RelicPickup.Init;
+        }
+    }
+
+
+    /**
      * Takes the holding position and release position,
      * Makes them the minimum and maximum servo positions
      * After this method, you can pass percentOpen as the servo position.
@@ -447,7 +500,7 @@ public class DriverOpMode_Relic extends OpMode {
     static void resetEncoders(DcMotor motor, boolean wait) {
         motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         if (wait) {
-            while (motor.getCurrentPosition() > 10) {
+            while (motor.getCurrentPosition() > 20) {
 
                 try {
                     Thread.sleep(50);
@@ -456,9 +509,66 @@ public class DriverOpMode_Relic extends OpMode {
                 }
             }
         }
-
     }
 
+    /**
+     * Adjust the position of the relic screw
+     * @param targetPos - target position of the relic screw
+     */
+    private void relicScrewToPosition(int targetPos) {
+        boolean touchReleased = relicTouchSensor.getState();
+        if (Math.abs(relicScrew.getCurrentPosition()- targetPos) > 50 && touchReleased) {
+            if (relicScrew.getCurrentPosition()> targetPos) {
+                relicScrew.setPower(-1);
+                screwMoving = true;
+            } else {
+                relicScrew.setPower(1);
+                screwMoving = true;
+            }
+        } else {
+            relicScrew.setPower(0);
+            screwMoving = false;
+        }
+    }
+
+    /**
+     * Extend or retract arm to the given position
+     * @param power between -1 or 1, extending if positive, retracting if negative
+     * @param targetPos target position of the relic arm
+     */
+    private void relicArmToPosition(double power, int targetPos) {
+        if (power > 0) {
+            //extending
+            if (relicArm.getCurrentPosition() < targetPos) {
+                relicArm.setPower(1);
+                armMoving = true;
+            } else {
+                relicArm.setPower(0);
+                armMoving = false;
+            }
+        } else {
+            //retracting
+            boolean touchReleased = relicTouchSensor.getState();
+            if (relicArm.getCurrentPosition() > targetPos && touchReleased) {
+                relicArm.setPower(-1);
+                armMoving = true;
+            } else {
+                relicArm.setPower(0);
+                armMoving = false;
+            }
+        }
+    }
+
+    /**
+     * returns screw height depending on arm length
+     * @param relicArmPos relic arm length in relic arm motor encoder counts
+     * @return screw height in relic screw motor encoder counts
+     */
+    private int pickupScrewPosition(int relicArmPos) {
+        //for relic arm 1600, screw height is 1700
+        //for arm length 2300, screw height is 2250
+        return (int)(550.0*(relicArmPos - 1600)/700.0 + 1700);
+    }
 
     private void pickupRelic() {
 
@@ -466,45 +576,46 @@ public class DriverOpMode_Relic extends OpMode {
 
             case Init:
                 setPercentOpen(relicRotate, 1); //rotate down
-                setPercentOpen(relicGrab, 1); //open relic grabber
-                relicArm.setPower(1);
-                relicPickupState = RelicPickup.ExtendingToRelic;
+                relicRelease(1, false); //Don't reset relic pickup state
+                relicArmToPosition(1, RELIC_ARM_LENGTH);
+                relicScrewToPosition(pickupScrewPosition(relicArm.getCurrentPosition()));
+                relicPickupState = ExtendingToRelic;
                 break;
             case ExtendingToRelic:
-                if (relicArm.getCurrentPosition() > RELIC_ARM_LENGTH) {
-                    relicArm.setPower(0);
-                    setPercentOpen(relicGrab, 0); //close relic grabber
-                    relicGrabStartTime = System.currentTimeMillis();
-                    relicPickupState = RelicPickup.Grabbing;
-                }
+                setPercentOpen(relicRotate, 1); //rotate down
+                relicRelease(1, false); //Don't reset relic pickup state
+                relicArmToPosition(1, RELIC_ARM_LENGTH);
+                relicScrewToPosition(pickupScrewPosition(relicArm.getCurrentPosition()));
+                // since we don't know how much the arm should extend
+                // let the driver to grab relic manually
                 break;
             case Grabbing:
+                setPercentOpen(relicRotate, 1); //keep relic rotated down
                 if (System.currentTimeMillis() - relicGrabStartTime > 800) {
-                    relicArm.setPower(-1);
-                    relicScrew.setPower(1);
+                    relicArmToPosition(-1, 0);
+                    relicScrewToPosition(ARM_SCREW_CLEAR_WALL);
                     relicPickupState = RelicPickup.RetractingToRotate;
                 }
                     break;
             case RetractingToRotate:
+                setPercentOpen(relicRotate, 1); //rotate down
+                relicArmToPosition(-1, 0);
+                relicScrewToPosition(ARM_SCREW_CLEAR_WALL);
                 if (relicArm.getCurrentPosition() < RELIC_ARM_ROTATE) {
                     setPercentOpen(relicRotate, 0); // rotate up
-                    relicPickupState = RelicPickup.Retreacting;
+                    relicPickupState = RelicPickup.Retracting;
                 }
                 break;
-            case Retreacting:
-                boolean touchPressed = !relicTouchSensor.getState();
-                if (touchPressed) {
-                    relicArm.setPower(0);
+            case Retracting:
+                relicArmToPosition(-1, 0);
+                relicScrewToPosition(ARM_SCREW_CLEAR_WALL);
+                if (!armMoving && !screwMoving) {
+                    relicPickupState = RelicPickup.Done;
                 }
-                if (relicScrew.getCurrentPosition() > ARM_SCREW_UP) {
-                    relicScrew.setPower(0);
-                }
-                if (relicArm.getPower() < 0.1 && relicScrew.getPower() < 0.1) {
-                    relicPickupState = RelicPickup.Init;
-                }
+                break;
+            case Done:
                 break;
         }
-
     }
 
     private void deliverRelic() {
@@ -517,10 +628,10 @@ public class DriverOpMode_Relic extends OpMode {
                 } else {
                     relicScrew.setPower(0);
                     relicDeliveryState = ExtendingToRotate;
-                    relicArm.setPower(1);
                 }
                 break;
             case ExtendingToRotate:
+                relicArmToPosition(1, RELIC_ARM_PLACE_RELIC);
                 if (relicArm.getCurrentPosition() > RELIC_ARM_ROTATE) {
                     setPercentOpen(relicRotate, 1);
                     relicRotateStartTime = System.currentTimeMillis();
@@ -528,52 +639,43 @@ public class DriverOpMode_Relic extends OpMode {
                 }
                 break;
             case ExtendingForPlacement:
-
-                if (relicArm.getCurrentPosition() > RELIC_ARM_PLACE_RELIC) {
-                    relicArm.setPower(0);
-
-                }
-                if (System.currentTimeMillis() - relicRotateStartTime > 800) {
-                    relicScrew.setPower(-1);
-                    relicDeliveryState = Lowering;
-                }
-                break;
-            case Lowering:
-                if (relicScrew.getCurrentPosition() < ARM_SCREW_PLACE_RELIC) {
-                    relicScrew.setPower(0);
-                    setPercentOpen(relicGrab, 1);
-                    relicGrabStartTime = System.currentTimeMillis();
+                setPercentOpen(relicRotate, 1);
+                relicArmToPosition(1, RELIC_ARM_PLACE_RELIC);
+                relicScrewToPosition(ARM_SCREW_PLACE_RELIC);
+                if (!armMoving && !screwMoving && (System.currentTimeMillis() - relicRotateStartTime) > 1500) {
+                    relicRelease(1, true);
                     relicDeliveryState = RelicDelivery.Release;
                 }
                 break;
             case Release:
                 if (System.currentTimeMillis() - relicGrabStartTime > 800) {
-                    relicArm.setPower(-1);
-                    relicScrew.setPower(1);
                     relicDeliveryState = RelicDelivery.RetractingToRotate;
                 }
                 break;
             case RetractingToRotate:
-                if (relicScrew.getCurrentPosition() >= ARM_SCREW_UP) {
-                    relicScrew.setPower(0);
-                }
+                relicArmToPosition(-1, 0);
+                relicScrewToPosition(ARM_SCREW_UP);
                 if (relicArm.getCurrentPosition() < RELIC_ARM_ROTATE) {
                     setPercentOpen(relicRotate, 0);
-                    setPercentOpen(relicGrab, 0);
-                    relicDeliveryState = Retracting;
+                    relicGrab(false); //don't reset relicDeliveryState
+                    relicDeliveryState = RelicDelivery.Retracting;
                 }
                 break;
             case Retracting:
-                boolean touchPressed = !relicTouchSensor.getState();
-                if (touchPressed) {
-                    relicArm.setPower(0);
-                    relicDeliveryState = RelicDelivery.Wall;
+                relicArmToPosition(-1, 0);
+                relicScrewToPosition(ARM_SCREW_UP);
+                if (!armMoving && !screwMoving) {
+                    relicDeliveryState = RelicDelivery.Done;
                 }
+                break;
+            case Done:
                 break;
         }
     }
 
     private void telemetry() {
+        telemetry.addData("Pickup State", relicPickupState);
+        telemetry.addData("Delivery State", relicDeliveryState);
         telemetry.addData("pusher", gamepad2.right_trigger);
         telemetry.addData("lift target level", targetLiftLevel);
         telemetry.addData("lift", lift.getCurrentPosition());
@@ -582,7 +684,6 @@ public class DriverOpMode_Relic extends OpMode {
         telemetry.addData("relic sensor released", relicTouchReleased);
         telemetry.addData("relic screw", relicScrew.getCurrentPosition());
         if(leftHand != null && rightHand != null) {
-
             telemetry.addData("grip trigger", gamepad2.left_trigger);
             telemetry.addData("grip", leftHand.getPosition() + " " + rightHand.getPosition());
         }

@@ -649,9 +649,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     int inchesToCounts(double inches, boolean forward) {
         // RR wheel, power 0.4
         if (forward) {
-            return (int) ((3000 * inches) / 35.00);
+            return (int) ((3000 * inches) / 34.5);
         } else {
-            return (int) ((3000 * inches) / 35.75);
+            return (int) ((3000 * inches) / 35.0);
         }
     }
 
@@ -717,9 +717,10 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 moveByInchesGyro(0.3, 0, MINCLEAR, MINIMUM_POWER);
                 sleep(800);
                 if (vuMark != RelicRecoveryVuMark.RIGHT) {
-                    rotate(-0.3, 93);
+                    rotate(-0.3, 92);
                     sleep(800);
                 }
+                grabRelic();
             }
 
 
@@ -776,7 +777,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         relicRotate.setPosition(RELIC_ROTATE_DOWN);
         relicGrab.setPosition(RELIC_GRAB_RELEASE);
 
-        int extendcounts = isBlue ? 1040 : 1040;
+        int extendcounts = isBlue || isCornerPos ? 1040 : 750;
 
         //extending arm to relic
         moveRelicArm(1, extendcounts);
