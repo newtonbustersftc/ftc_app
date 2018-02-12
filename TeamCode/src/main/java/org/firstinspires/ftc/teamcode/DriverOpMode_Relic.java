@@ -61,6 +61,9 @@ public class DriverOpMode_Relic extends OpMode {
     private DigitalChannel liftTouchSensor; //Touch sensor at lowest position on the lift
     private DigitalChannel screwTouchSensor; //Touch sensor at lowest position on Relic arm screw
 
+    private Servo leftWheel;
+    private Servo rightWheel;
+
     private Servo leftHand; // The servo controlling the left lift grabber.
     static final double LEFT_HAND_IN_POS = 0.5; // Holding position.
     static final double LEFT_HAND_OUT_POS = 0.2; // Release position.
@@ -88,10 +91,10 @@ public class DriverOpMode_Relic extends OpMode {
     static final double RELIC_GRAB_RELEASE = 0.6; //letting go of the relic
 
     //difference in counts between lowest and delivery (highest) arm positions
-    static final int ARM_SCREW_UP = 2400;
+    static final int ARM_SCREW_UP = 3200;
 
     //height of the arm to clear the wall with the arm extended
-    static final int ARM_SCREW_CLEAR_WALL = 3000;
+    static final int ARM_SCREW_CLEAR_WALL = 3200;
 
     //height of arm when picking up relic at fully extended legth
     private static final int ARM_SCREW_PICKUP = 2250;
@@ -193,6 +196,10 @@ public class DriverOpMode_Relic extends OpMode {
         setUpServo(leftHand, LEFT_HAND_IN_POS, LEFT_HAND_OUT_POS);
         rightHand = hardwareMap.servo.get("Right-Hand");
         setUpServo(rightHand, RIGHT_HAND_IN_POS, RIGHT_HAND_OUT_POS);
+        leftWheel = hardwareMap.servo.get("Wheel-Left");
+        leftWheel.setPosition(0);
+        rightWheel = hardwareMap.servo.get("Wheel-Right");
+        rightWheel.setPosition(1);
         jewelArm = hardwareMap.servo.get("Jewel-Arm");
         jewelArm.setPosition(JEWEL_ARM_HOME);
         jewelKick = hardwareMap.servo.get("Jewel-Kick");
@@ -252,6 +259,18 @@ public class DriverOpMode_Relic extends OpMode {
             mecanumWheels.powerMotors(forward, right, clockwise);
         }
     }
+
+    public void stop() {
+        if (rightHand != null && leftHand != null) {
+            setPercentOpen(rightHand, 1);
+            setPercentOpen(leftHand, 1);
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                //e.printStackTrace();
+            }
+        }
+    };
 
     /**
      * Use second game pad right trigger to push the glyph out.

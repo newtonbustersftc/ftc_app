@@ -22,6 +22,8 @@
             <RevRoboticsCoreHexMotor name="Relic Screw" port="2" />
             <RevRoboticsCoreHexMotor name="Pusher" port="3" />
             <Servo name="Jewel-Arm" port="4" />
+            <Servo name="Wheel-Left" port="0" />
+            <Servo name="Wheel-Right" port="1" />
             <DigitalDevice name="Touch-Sensor Relic" port="1" />
             <LynxEmbeddedIMU name="imu 1" port="0" bus="0" />
         </LynxModule>

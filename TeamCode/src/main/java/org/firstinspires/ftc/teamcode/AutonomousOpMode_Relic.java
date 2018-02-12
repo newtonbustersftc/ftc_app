@@ -32,24 +32,23 @@ import java.util.Locale;
 
 import static org.firstinspires.ftc.teamcode.AutonomousOptions.ALLIANCE_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptions.START_POSITION_PREF;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.ARM_SCREW_UP;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_ARM_DOWN;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_ARM_HOME;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_KICK_CENTER;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_KICK_LEFT;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_KICK_RIGHT;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.LEFT_HAND_IN_POS;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.LEFT_HAND_OUT_POS;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_GRAB_HOLD;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_GRAB_RELEASE;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_ROTATE_DOWN;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_ROTATE_UP;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RIGHT_HAND_IN_POS;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RIGHT_HAND_OUT_POS;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.resetEncoders;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.setPercentOpen;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.setUpServo;
-
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.LEFT_HAND_IN_POS;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.LEFT_HAND_OUT_POS;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RIGHT_HAND_IN_POS;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RIGHT_HAND_OUT_POS;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_ARM_HOME;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_ARM_DOWN;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_KICK_RIGHT;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_KICK_LEFT;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_KICK_CENTER;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_ROTATE_UP; //holding the relic above the arm
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_ROTATE_DOWN; //holding the relic in place to grab or put down
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_GRAB_HOLD; //holding the relic
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_GRAB_RELEASE; //letting go of the relic
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.ARM_SCREW_UP;
 
 /**
  * Created by Brandon on 10/22/2017.
@@ -83,7 +82,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     Servo relicGrab; //releases/grabs relic
 
     //height of relic screw to pickup relic from floor (red/blue other position)
-    static final int ARM_SCREW_GRAB_FROM_FLOOR = ARM_SCREW_UP / 4;
+    static final int ARM_SCREW_GRAB_FROM_FLOOR_BLUE = 600;
+    static final int ARM_SCREW_GRAB_FROM_FLOOR_RED = 350;
 
     //The width of the bin in inches
     static final double BWIDTH = 7.5;
@@ -118,6 +118,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     private long vuMarkTime; //last time to detect VuMark image (for telemetry)
 
     private DigitalChannel relicTouchSensor; //Touch sensor at farthest back position on the relic arm
+    private DigitalChannel screwTouchSensor; //Touch sensor at lowest position on relic arm screw
     private DigitalChannel liftTouchSensor; //Touch sensor at bottom position of glyph lift
     private DcMotor lift; //controls height of glyph lift
 
@@ -281,9 +282,31 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         relicScrew = hardwareMap.dcMotor.get("Relic Screw");
         relicArm = hardwareMap.dcMotor.get("Relic Arm");
 
+        screwTouchSensor = hardwareMap.digitalChannel.get("Touch-Screw");
+        screwTouchSensor.setMode(DigitalChannel.Mode.INPUT);
+        relicTouchSensor = hardwareMap.digitalChannel.get("Touch-Sensor Relic");
+        relicTouchSensor.setMode(DigitalChannel.Mode.INPUT);
+        boolean screwTouchReleased = screwTouchSensor.getState();
+        if(screwTouchReleased) {
+            telemetry.addLine("WARNING! ARM IS NOT DOWN!");
+            relicScrew.setPower(-1);
+            while (screwTouchReleased && !this.isStopRequested()) {
+                idle();
+                screwTouchReleased = screwTouchSensor.getState();
+            }
+        }
+        boolean relicTouchReleased = screwTouchSensor.getState();
+        if(relicTouchReleased) {
+            telemetry.addLine("WARNING! ARM IS NOT RETRACTED!");
+            relicArm.setPower(-1);
+            while (relicTouchReleased && !this.isStopRequested()) {
+                idle();
+                relicTouchReleased = relicTouchSensor.getState();
+            }
+        }
+        if (this.isStopRequested()) return RelicRecoveryVuMark.UNKNOWN;
         resetEncoders(relicScrew, true);
         resetEncoders(relicArm, true);
-
         relicArm.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         relicArm.setPower(0);
         relicScrew.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -302,7 +325,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         wheels = new MecanumWheels(hardwareMap, telemetry, !isBlue);
         lift = hardwareMap.dcMotor.get("Lift");
         lift.setDirection(DcMotorSimple.Direction.REVERSE);
-        lift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        lift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         liftTouchSensor = hardwareMap.digitalChannel.get("Touch-Sensor");
         liftTouchSensor.setMode(DigitalChannel.Mode.INPUT);
         raiseGlyph(false);
@@ -313,9 +336,6 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         sleep(1000);
         lift.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         lift.setPower(0);
-
-        relicTouchSensor = hardwareMap.digitalChannel.get("Touch-Sensor Relic");
-        relicTouchSensor.setMode(DigitalChannel.Mode.INPUT);
 
         gyroInit();
 
@@ -380,7 +400,15 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             if (!isBlue && isCornerPos) {
                 grabRelic();
             } else {
-                int armScrewHeight = !isCornerPos ? ARM_SCREW_GRAB_FROM_FLOOR : ARM_SCREW_UP;
+                int armScrewHeight;
+                if (isBlue) {
+                    armScrewHeight = ARM_SCREW_GRAB_FROM_FLOOR_BLUE;
+                } else if (isCornerPos) {
+                    armScrewHeight = ARM_SCREW_UP;
+                } else {
+                    armScrewHeight = ARM_SCREW_GRAB_FROM_FLOOR_RED;
+                }
+
                 relicScrew.setPower(1);
                 int startpos = relicScrew.getCurrentPosition();
                 while (Math.abs(relicScrew.getCurrentPosition() - startpos) < armScrewHeight) {
@@ -415,6 +443,12 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
         } finally {
             try {
+                // digital servos will keep the last position
+                // wish to leave hands in the open position
+                setPercentOpen(rightHand, 1);
+                setPercentOpen(leftHand, 1);
+                sleep(200); // to let servos move
+
                 String name = "lastrun";
                 //log file without the time stamp to find it easier
                 File file = new File(Environment.getExternalStorageDirectory().getPath() + "/FIRST/" + name + ".txt");
@@ -472,11 +506,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         //vuMark will be the previously discovered vuMark if it can not detect anything
         RelicRecoveryVuMark vuMark = RelicRecoveryVuMark.from(relicTemplate);
         long vuStartTime = System.currentTimeMillis();
-        boolean opModeStarted = this.isStarted();
-        boolean opModeActive = this.opModeIsActive();
-        boolean isStopRequested = this.isStopRequested();
+
         while (vuMark == RelicRecoveryVuMark.UNKNOWN &&
-                ((opModeStarted && opModeActive) || (!isStopRequested && !opModeStarted))) {
+                ((this.isStarted() && this.opModeIsActive()) || (!this.isStopRequested() && !this.isStarted()))) {
 
             vuMark = RelicRecoveryVuMark.from(relicTemplate);
             // If the seeing takes too long, then just go with putting a block in the left one.
@@ -717,10 +749,15 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 moveByInchesGyro(0.3, 0, MINCLEAR, MINIMUM_POWER);
                 sleep(800);
                 if (vuMark != RelicRecoveryVuMark.RIGHT) {
+                    out.append("Heading before rotating 92 degrees: " + getGyroAngles().firstAngle + "\n");
                     rotate(-0.3, 92);
+                    out.append("Heading after rotating 92 degrees: " + getGyroAngles().firstAngle + "\n");
+
                     sleep(800);
                 }
+                out.append("Heading before relic pick up: " + getGyroAngles().firstAngle + "\n");
                 grabRelic();
+                out.append("Heading after relic pick up: " + getGyroAngles().firstAngle + "\n");
             }
 
 
@@ -732,10 +769,14 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             if (isCornerPos || vuMark != RelicRecoveryVuMark.RIGHT) {
                 goCounts(0.4, inchesToCounts(totalDistance, true));
                 sleep(800);
+                out.append("Heading before rotating to cryptobox: " + getGyroAngles().firstAngle + "\n");
                 rotate(0.3, 72);
+                out.append("Heading after rotating to cryptobox: " + getGyroAngles().firstAngle + "\n");
                 sleep(800);
             } else { // optimization for red other going to right bin
+                out.append("Heading before rotating to cryptobox: " + getGyroAngles().firstAngle + "\n");
                 rotate(-0.3, 19);
+                out.append("Heading after rotating to cryptobox: " + getGyroAngles().firstAngle + "\n");
                 sleep(800);
             }
             goCounts(0.4, inchesToCounts(9, true));
@@ -777,7 +818,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         relicRotate.setPosition(RELIC_ROTATE_DOWN);
         relicGrab.setPosition(RELIC_GRAB_RELEASE);
 
-        int extendcounts = isBlue || isCornerPos ? 1040 : 750;
+        int extendcounts = isBlue || isCornerPos ? 1040 : 725; //750
 
         //extending arm to relic
         moveRelicArm(1, extendcounts);
@@ -827,7 +868,14 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 }
 
                 // arm should stop moving up if it reached the delivery position
-                int armscrewup = isBlue ? ARM_SCREW_UP - ARM_SCREW_GRAB_FROM_FLOOR : ARM_SCREW_UP;
+                int armscrewup;
+                if (isBlue) {
+                    armscrewup = ARM_SCREW_UP - ARM_SCREW_GRAB_FROM_FLOOR_BLUE;
+                } else if (isCornerPos) {
+                    armscrewup = ARM_SCREW_UP;
+                } else {
+                    armscrewup = ARM_SCREW_UP - ARM_SCREW_GRAB_FROM_FLOOR_RED;
+                }
                 if (relicScrewMoving && Math.abs(relicScrew.getCurrentPosition() - startPosScrew) >= armscrewup) {
                     relicScrew.setPower(0);
                     relicScrewMoving = false;
