@@ -13,7 +13,9 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 class MecanumWheels {
 
-    public enum Wheel {FL, FR, RL, RR};
+    public enum Wheel {FL, FR, RL, RR}
+
+    ;
 
     public static final double MIN_FORWARD = 0.2; //minimum power to move the robot forward
     public static final double MIN_RIGHT = 0.4; //minimum power to strafe
@@ -46,12 +48,12 @@ class MecanumWheels {
 
     }
 
-    MecanumWheels(HardwareMap hardwareMap, Telemetry telemetry){
+    MecanumWheels(HardwareMap hardwareMap, Telemetry telemetry) {
         this(hardwareMap, telemetry, true);
 
     }
 
-    void changeDirection(){
+    void changeDirection() {
         forward = !forward;
 
     }
@@ -61,24 +63,24 @@ class MecanumWheels {
 
 
         telemetry.addData("Gamepad Forward,Right,Clockwise", (int) (forward * 100) +
-                ", " + (int) (right * 100)+
+                ", " + (int) (right * 100) +
                 ", " + (int) (clockwise * 100));
 
         //add deadband so you don't strafe when you don't want to. A deadband is essentially if you want to go to the right,
         //and the joystick is 7 degrees short of 90 degrees, instead of having the robot slowly creep forward, the robot will
         //ignore the small degrees and just go to the right.
         //todo adjust the deadband
-        double rightSignFactor = right > 0 ?  1:-1;
-        double forwardSignFactor = forward > 0 ? 1:-1;
-        double clockwiseSignFactor = clockwise > 0 ? 1:-1;
+        double rightSignFactor = right > 0 ? 1 : -1;
+        double forwardSignFactor = forward > 0 ? 1 : -1;
+        double clockwiseSignFactor = clockwise > 0 ? 1 : -1;
 
         right = adjustpower(right, MIN_RIGHT) * rightSignFactor;
         forward = adjustpower(forward, MIN_FORWARD) * forwardSignFactor;
         clockwise = adjustpower(clockwise, MIN_CLOCKWISE) * clockwiseSignFactor;
 
-        if (this.forward){
-            forward = - forward;
-            right =  - right;
+        if (this.forward) {
+            forward = -forward;
+            right = -right;
         }
 
 
@@ -122,11 +124,12 @@ class MecanumWheels {
     }
 
     double MIN_POWER_GAMEPAD = 0.3;
-    public double adjustpower (double padPower, double minPower){
+
+    public double adjustpower(double padPower, double minPower) {
         if (Math.abs(padPower) < 0.05) return 0;
         if (Math.abs(padPower) < MIN_POWER_GAMEPAD) return minPower;
         // linear for rest, from minPower to 1.0
-        return ((1-minPower)/(1-MIN_POWER_GAMEPAD)*(Math.abs(padPower) - 1)+1);
+        return ((1 - minPower) / (1 - MIN_POWER_GAMEPAD) * (Math.abs(padPower) - 1) + 1);
     }
 
     public void setRunMode(DcMotor.RunMode runMode) {
@@ -150,13 +153,12 @@ class MecanumWheels {
     //-----------------------
 
 
-
     public void resetEncoders() {
         setRunMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-
+        long startMillis = System.currentTimeMillis();
 
         String message = "Reset encoders did not complete";
-
+        int tolerance = 10;
         try {
             Thread.sleep(50);
         } catch (InterruptedException e) {
@@ -164,16 +166,19 @@ class MecanumWheels {
             telemetry.addData("ERROR", message);
         }
 
-        while (Math.abs(motorFrontLeft.getCurrentPosition()) > 0 ||
-                Math.abs(motorFrontRight.getCurrentPosition()) > 0 ||
-                Math.abs(motorRearLeft.getCurrentPosition()) > 0 ||
-                Math.abs(motorRearRight.getCurrentPosition()) > 0) {
+        while (Math.abs(motorFrontLeft.getCurrentPosition()) > tolerance ||
+                Math.abs(motorFrontRight.getCurrentPosition()) > tolerance ||
+                Math.abs(motorRearLeft.getCurrentPosition()) > tolerance ||
+                Math.abs(motorRearRight.getCurrentPosition()) > tolerance) {
             telemetry.addData("-PosFL,FR,RL,RR ",
                     motorFrontLeft.getCurrentPosition() + "," +
-                    motorFrontRight.getCurrentPosition() + "," +
-                    motorRearLeft.getCurrentPosition() + "," +
-                    motorRearRight.getCurrentPosition());
+                            motorFrontRight.getCurrentPosition() + "," +
+                            motorRearLeft.getCurrentPosition() + "," +
+                            motorRearRight.getCurrentPosition());
             telemetry.update();
+            if (System.currentTimeMillis() - startMillis > 2000) {
+                break; // time out
+            }
             try {
                 Thread.sleep(50);
             } catch (InterruptedException e) {
@@ -182,7 +187,6 @@ class MecanumWheels {
             }
 
         }
-
         logEncoders();
         setRunMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     }
@@ -196,12 +200,17 @@ class MecanumWheels {
     }
 
     public DcMotor getMotor(Wheel wheel) {
-        switch(wheel){
-            case FR: return motorFrontRight;
-            case FL: return motorFrontLeft;
-            case RR: return motorRearRight;
-            case RL: return motorRearLeft;
-            default: return null;
+        switch (wheel) {
+            case FR:
+                return motorFrontRight;
+            case FL:
+                return motorFrontLeft;
+            case RR:
+                return motorRearRight;
+            case RL:
+                return motorRearLeft;
+            default:
+                return null;
         }
     }
 

@@ -30,6 +30,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
+import static java.lang.System.currentTimeMillis;
 import static org.firstinspires.ftc.teamcode.AutonomousOptions.ALLIANCE_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptions.START_POSITION_PREF;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.ARM_SCREW_UP;
@@ -57,7 +58,7 @@ import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.setUpServo;
 @Autonomous(name = "AutonomousOpMode", group = "Main")
 public class AutonomousOpMode_Relic extends LinearOpMode {
 
-    StringBuffer out; //variable holds information for logs
+    StringBuffer out = null; //variable holds information for logs
 
     RelicRecoveryVuMark vuMark; //holds the detected vuMark image
 
@@ -83,7 +84,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
     //height of relic screw to pickup relic from floor (red/blue other position)
     static final int ARM_SCREW_GRAB_FROM_FLOOR_BLUE = 600;
-    static final int ARM_SCREW_GRAB_FROM_FLOOR_RED = 350;
+    static final int ARM_SCREW_GRAB_FROM_FLOOR_RED = 325;
 
     //The width of the bin in inches
     static final double BWIDTH = 7.5;
@@ -130,6 +131,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
     private BNO055IMU imu; // gyro
     Orientation angles; // angles from gyro
+
+    long startMillis;
 
     /**
      * initialized servos and sets them to start positions
@@ -242,9 +245,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
     /**
      * formats angles to one decimal point precision
-     *
-     * @param degrees
-     * @return
+     * @param degrees angle in degrees
+     * @return a string
      */
     String formatDegrees(double degrees) {
         return String.format(Locale.getDefault(), "%.1f", AngleUnit.DEGREES.normalize(degrees));
@@ -253,7 +255,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     /**
      * initializes gyro
      */
-    void gyroInit() {
+    private void gyroInit() {
         // see the calibration sample opmode;
         BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
         parameters.angleUnit = BNO055IMU.AngleUnit.DEGREES;
@@ -274,42 +276,45 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
      * @return last detected VuMark
      */
     RelicRecoveryVuMark preRun() {
-        out = new StringBuffer();
 
         relicTemplate = vuforiaInitialize();
         sensorColor = hardwareMap.get(ColorSensor.class, "Color-Sensor");
 
         relicScrew = hardwareMap.dcMotor.get("Relic Screw");
         relicArm = hardwareMap.dcMotor.get("Relic Arm");
+        relicArm.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         screwTouchSensor = hardwareMap.digitalChannel.get("Touch-Screw");
         screwTouchSensor.setMode(DigitalChannel.Mode.INPUT);
         relicTouchSensor = hardwareMap.digitalChannel.get("Touch-Sensor Relic");
         relicTouchSensor.setMode(DigitalChannel.Mode.INPUT);
         boolean screwTouchReleased = screwTouchSensor.getState();
-        if(screwTouchReleased) {
+        if (screwTouchReleased) {
             telemetry.addLine("WARNING! ARM IS NOT DOWN!");
+            relicScrew.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             relicScrew.setPower(-1);
             while (screwTouchReleased && !this.isStopRequested()) {
                 idle();
                 screwTouchReleased = screwTouchSensor.getState();
             }
+            relicScrew.setPower(0);
         }
-        boolean relicTouchReleased = screwTouchSensor.getState();
-        if(relicTouchReleased) {
+        boolean relicTouchReleased = relicTouchSensor.getState();
+        if (relicTouchReleased) {
             telemetry.addLine("WARNING! ARM IS NOT RETRACTED!");
-            relicArm.setPower(-1);
+            relicArm.setPower(-0.7);
             while (relicTouchReleased && !this.isStopRequested()) {
                 idle();
                 relicTouchReleased = relicTouchSensor.getState();
             }
+            relicArm.setPower(0);
         }
         if (this.isStopRequested()) return RelicRecoveryVuMark.UNKNOWN;
         resetEncoders(relicScrew, true);
         resetEncoders(relicArm, true);
         relicArm.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         relicArm.setPower(0);
-        relicScrew.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        relicScrew.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         relicScrew.setPower(0);
 
         pusher = hardwareMap.dcMotor.get("Pusher");
@@ -339,9 +344,6 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
         gyroInit();
 
-        out.append("isBlue: " + isBlue + "\n");
-        out.append("isCornerPos: " + isCornerPos + "\n");
-        out.append("Color RGB: " + sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue() + "\n");
         vuMark = RelicRecoveryVuMark.UNKNOWN;
         // Check the VuMark and Deliver the Glyphs
         relicTrackables.activate(); // Starts looking for VuMarks
@@ -349,13 +351,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             telemetry.clearAll();
             logGyro(false);
 
-            telemetry.addData(ALLIANCE_PREF, allianceString);
-            telemetry.addData("isBlue", isBlue);
-            telemetry.addData(START_POSITION_PREF, startPosString);
-            telemetry.addData("isCornerPos", isCornerPos);
+            telemetry.addData(ALLIANCE_PREF, allianceString + " " + startPosString);
             telemetry.addData("Color RGB", sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue());
-
-
             vuMark = findVuMark();
             telemetry.addData("vuMark", vuMark);
             telemetry.addData("vuMarkTime", vuMarkTime);
@@ -383,8 +380,10 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         waitForStart();
 
         long startTime = (new Date()).getTime();
+        startMillis = currentTimeMillis();
 
         //if the VuMark is undetected, just use center
+        log("Start VuMark "+vuMark);
         if (vuMark == RelicRecoveryVuMark.UNKNOWN) {
             vuMark = RelicRecoveryVuMark.CENTER;
         }
@@ -397,6 +396,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             raiseGlyph(true);
             jewelKick.setPosition(JEWEL_KICK_CENTER);
             moveJewelArm(JEWEL_ARM_DOWN);
+            log("Jewel Arm Down"+colorString());
             if (!isBlue && isCornerPos) {
                 grabRelic();
             } else {
@@ -409,18 +409,13 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                     armScrewHeight = ARM_SCREW_GRAB_FROM_FLOOR_RED;
                 }
 
+                relicScrew.setTargetPosition(armScrewHeight);
                 relicScrew.setPower(1);
-                int startpos = relicScrew.getCurrentPosition();
-                while (Math.abs(relicScrew.getCurrentPosition() - startpos) < armScrewHeight) {
-                    idle();
-                }
-                relicScrew.setPower(0);
             }
 
             //detect jewel color and remove opposite color ball from platform
             Color color = jewelColorCheck();
-            out.append("Jewel Color RGB: " + sensorColor.red() + " " + sensorColor.green() + " " + sensorColor.blue() + "\n");
-            out.append("Detected color: " + color + "\n");
+            log("Detected " + color + " Jewel"+colorString());
             if (color == Color.RED) //Colour 1 is red
             {
                 jewelKick.setPosition(isBlue ? JEWEL_KICK_RIGHT : JEWEL_KICK_LEFT);
@@ -432,22 +427,30 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             moveJewelArm(JEWEL_ARM_HOME);
             sleep(500);
 
+            if (!relicScrew.isBusy()){
+                relicScrew.setPower(0);
+            }
+
             //deliver glyph to cryptobox
-            out.append("Heading on platform: " + getGyroAngles().firstAngle + "\n");
+            log("On platform");
             deliverGlyph(vuMark);
 
-            long endTime = (new Date()).getTime();
-            long timeSpentMs = endTime - startTime;
-            out.append("Time spent (ms): " + timeSpentMs + "\n");
+            log("End");
+            long timeSpentMs = currentTimeMillis() - startMillis;
             telemetry.addData("Time spent(ms)", timeSpentMs);
 
         } finally {
             try {
-                // digital servos will keep the last position
-                // wish to leave hands in the open position
-                setPercentOpen(rightHand, 1);
-                setPercentOpen(leftHand, 1);
-                sleep(200); // to let servos move
+                try {
+                    // make sure no power is applied to the screw
+                    relicScrew.setPower(0);
+                    relicScrew.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+                    // digital servos will keep the last position
+                    // wish to leave hands in the open position
+                    setPercentOpen(rightHand, 1);
+                    setPercentOpen(leftHand, 1);
+                    sleep(100); // to let servos move
+                } catch (Exception e) {}
 
                 String name = "lastrun";
                 //log file without the time stamp to find it easier
@@ -481,6 +484,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
     /**
      * Vuforia initialization
+     *
      * @return
      */
     private VuforiaTrackable vuforiaInitialize() {
@@ -500,23 +504,24 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
     /**
      * VuMark detection
+     *
      * @return the detected VuMark
      */
     private RelicRecoveryVuMark findVuMark() {
         //vuMark will be the previously discovered vuMark if it can not detect anything
         RelicRecoveryVuMark vuMark = RelicRecoveryVuMark.from(relicTemplate);
-        long vuStartTime = System.currentTimeMillis();
+        long vuStartTime = currentTimeMillis();
 
         while (vuMark == RelicRecoveryVuMark.UNKNOWN &&
                 ((this.isStarted() && this.opModeIsActive()) || (!this.isStopRequested() && !this.isStarted()))) {
 
             vuMark = RelicRecoveryVuMark.from(relicTemplate);
             // If the seeing takes too long, then just go with putting a block in the left one.
-            if (System.currentTimeMillis() - vuStartTime > 5 * 1000) {
+            if (currentTimeMillis() - vuStartTime > 5 * 1000) {
                 break;
             }
         }
-        long vuEndTime = System.currentTimeMillis();
+        long vuEndTime = currentTimeMillis();
         vuMarkTime = (vuEndTime - vuStartTime);
         //telemetry.addData("VuMark", "%s visible", vuMark);
 
@@ -531,7 +536,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
      */
     public Color jewelColorCheck() {
         // Check for determinable color
-        long startTime = System.currentTimeMillis();
+        long startTime = currentTimeMillis();
         Color color = Color.NONE;
         while (color == Color.NONE && opModeIsActive()) {
             if (sensorColor.blue() > sensorColor.red()) {
@@ -539,7 +544,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             } else if (sensorColor.red() > sensorColor.blue()) {
                 color = Color.RED;
             }
-            if (System.currentTimeMillis() - startTime > 5 * 1000) { // seconds for cutoff
+            if (currentTimeMillis() - startTime > 5 * 1000) { // seconds for cutoff
                 break;
             }
         }
@@ -549,10 +554,11 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
     /**
      * moves robot given number of inches using the gyro to keep us straight
+     *
      * @param startPower starting forward power
-     * @param heading gyro heading
-     * @param inches distance forward
-     * @param endPower ending forward power
+     * @param heading    gyro heading
+     * @param inches     distance forward
+     * @param endPower   ending forward power
      * @return true if distance required was travelled, false otherwise
      * @throws InterruptedException
      */
@@ -561,7 +567,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         boolean forward = startPower > 0;
 
         wheels.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        int initialcount = wheels.getMotor(MecanumWheels.Wheel.FR).getCurrentPosition();
+        int initialcount = wheels.getMotor(MecanumWheels.Wheel.RR).getCurrentPosition();
         double error, steerSpeed; // counterclockwise speed
 
         double inchesForGradient = 10;
@@ -569,7 +575,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         double countsForGradient = (inches < inchesForGradient) ? 0 : Math.abs(inchesToCounts(inches - inchesForGradient, forward));
 
         double kp = 0.04; //experimental coefficient for proportional correction of the direction
-        double countsSinceStart = Math.abs(wheels.getMotor(MecanumWheels.Wheel.FR).getCurrentPosition() - initialcount);
+        double countsSinceStart = Math.abs(wheels.getMotor(MecanumWheels.Wheel.RR).getCurrentPosition() - initialcount);
         double motorPower = startPower;
         while (opModeIsActive() && countsSinceStart < inchesToCounts(inches, forward)) {
             // error CCW - negative, CW - positive
@@ -588,7 +594,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             }
             wheels.powerMotors(motorPower, 0, Range.clip(-steerSpeed, -1.0, 1.0));
 
-            countsSinceStart = Math.abs(wheels.getMotor(MecanumWheels.Wheel.FR).getCurrentPosition() - initialcount);
+            countsSinceStart = Math.abs(wheels.getMotor(MecanumWheels.Wheel.RR).getCurrentPosition() - initialcount);
 
         }
         wheels.powerMotors(0, 0, 0);
@@ -598,6 +604,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
     /**
      * error for java detection
+     *
      * @param heading desired heading
      * @return the error (difference between desired heading and actual heading)
      */
@@ -608,6 +615,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
     /**
      * moves robot given number of encoder counts
+     *
      * @param power  power to apply to all wheel motors
      * @param counts motor encoder counts
      * @return true if the robot travelled all the distance, false otherwise
@@ -655,6 +663,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     /**
      * rotates robot the given angle, give negative power for counterclockwise rotation and
      * positive power for clockwise rotation
+     *
      * @param power
      * @param angle
      */
@@ -674,6 +683,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     /**
      * This method converts straight distance in inches
      * into front right motor encoder counts.
+     *
      * @param inches
      * @param forward True: If the robot is moving forward. False: If the robot is moving backwards.
      * @return
@@ -689,6 +699,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
     /**
      * delivers glyph to cryptobox
+     *
      * @param pos tells which cryptobox column to deliver to
      * @throws InterruptedException
      */
@@ -748,16 +759,14 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 totalDistance = totalDistance - TILE_LENGTH;
                 moveByInchesGyro(0.3, 0, MINCLEAR, MINIMUM_POWER);
                 sleep(800);
-                if (vuMark != RelicRecoveryVuMark.RIGHT) {
-                    out.append("Heading before rotating 92 degrees: " + getGyroAngles().firstAngle + "\n");
-                    rotate(-0.3, 92);
-                    out.append("Heading after rotating 92 degrees: " + getGyroAngles().firstAngle + "\n");
-
-                    sleep(800);
-                }
-                out.append("Heading before relic pick up: " + getGyroAngles().firstAngle + "\n");
+                //Rotate to relic grabbing position.
+                log("Heading before rotating 90 degrees");
+                rotate(-0.3, 90);
+                log("Heading after rotating 90 degrees");
+                sleep(800);
+                log("Heading before relic pick up");
                 grabRelic();
-                out.append("Heading after relic pick up: " + getGyroAngles().firstAngle + "\n");
+                log("Heading after relic pick up");
             }
 
 
@@ -766,24 +775,23 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             } else if (pos == RelicRecoveryVuMark.LEFT) {
                 totalDistance = totalDistance + BWIDTH;
             }
-            if (isCornerPos || vuMark != RelicRecoveryVuMark.RIGHT) {
-                goCounts(0.4, inchesToCounts(totalDistance, true));
-                sleep(800);
-                out.append("Heading before rotating to cryptobox: " + getGyroAngles().firstAngle + "\n");
-                rotate(0.3, 72);
-                out.append("Heading after rotating to cryptobox: " + getGyroAngles().firstAngle + "\n");
-                sleep(800);
-            } else { // optimization for red other going to right bin
-                out.append("Heading before rotating to cryptobox: " + getGyroAngles().firstAngle + "\n");
-                rotate(-0.3, 19);
-                out.append("Heading after rotating to cryptobox: " + getGyroAngles().firstAngle + "\n");
-                sleep(800);
-            }
+            // Rotate to cryptobox.
+            goCounts(0.4, inchesToCounts(totalDistance, true));
+            sleep(800);
+            log("Heading before rotating to cryptobox");
+            rotate(0.3, 72);
+            log("Heading after rotating to cryptobox");
+            sleep(800);
+
             goCounts(0.4, inchesToCounts(9, true));
             sleep(800);
         }
 
-        // put the relic down and move out
+        if (!relicScrew.isBusy()){
+            relicScrew.setPower(0);
+        }
+
+        // put the relic down and open hands
         raiseGlyph(false);
         setPercentOpen(rightHand, 1);
         setPercentOpen(leftHand, 1);
@@ -791,16 +799,18 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
         // one last push
         wheels.powerMotors(0.3, 0, 0);
-        sleep(750);
+        sleep(700);
         wheels.powerMotors(0, 0, 0);
-        sleep(800);
+        sleep(200);
 
         // jk another push
-        pusher.setPower(0.4);
-        sleep(800);
         pusher.setPower(-0.4);
+        sleep(800);
+        pusher.setPower(0.4);
 
         goCounts(-0.4, 300);
+        setPercentOpen(rightHand, 1);
+        setPercentOpen(leftHand, 1);
         sleep(500);
         pusher.setPower(0);
     }
@@ -818,13 +828,14 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         relicRotate.setPosition(RELIC_ROTATE_DOWN);
         relicGrab.setPosition(RELIC_GRAB_RELEASE);
 
-        int extendcounts = isBlue || isCornerPos ? 1040 : 725; //750
+        int extendcounts = isBlue || isCornerPos ? 1040 : 825;
 
         //extending arm to relic
         moveRelicArm(1, extendcounts);
 
         relicGrab.setPosition(RELIC_GRAB_HOLD);
         sleep(800);
+        log("Grabbed relic");
 
         //retract relic arm, halfway there rotates relic upward
         moveRelicArm(-1, extendcounts);
@@ -833,23 +844,22 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
     /**
      * extend/retract relic arm
      * when retracting, halfway through, rotates relic up, also raises arm to optimal height
+     *
      * @param armPower positive = extending, negative = retracting
-     * @param counts extension/retraction distance in encoder counts
+     * @param counts   extension/retraction distance in encoder counts
      */
     void moveRelicArm(double armPower, int counts) {
-        boolean relicScrewMoving = false;
         boolean armMoving;
         boolean up = false;
         int startPosArm = relicArm.getCurrentPosition();
-        int startPosScrew = relicScrew.getCurrentPosition();
         // if we are retracting arm, we also want to move the arm up
         if (armPower < 0) {
+            relicScrew.setTargetPosition(ARM_SCREW_UP);
             relicScrew.setPower(1);
-            relicScrewMoving = true;
         }
         relicArm.setPower(armPower);
         armMoving = true;
-        while (opModeIsActive() && (armMoving || relicScrewMoving)) {
+        while (opModeIsActive() && armMoving) {
 
             if (armPower < 0) { // arm retracting
 
@@ -866,20 +876,6 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                     relicRotate.setPosition(RELIC_ROTATE_UP);
                     up = true;
                 }
-
-                // arm should stop moving up if it reached the delivery position
-                int armscrewup;
-                if (isBlue) {
-                    armscrewup = ARM_SCREW_UP - ARM_SCREW_GRAB_FROM_FLOOR_BLUE;
-                } else if (isCornerPos) {
-                    armscrewup = ARM_SCREW_UP;
-                } else {
-                    armscrewup = ARM_SCREW_UP - ARM_SCREW_GRAB_FROM_FLOOR_RED;
-                }
-                if (relicScrewMoving && Math.abs(relicScrew.getCurrentPosition() - startPosScrew) >= armscrewup) {
-                    relicScrew.setPower(0);
-                    relicScrewMoving = false;
-                }
             }
 
             //when desired arm position is reached, the arm should stop moving
@@ -890,10 +886,40 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
             idle();
         }
-
-        //precaution to make sure relicArm and relicScrew all stop
+        String action = armPower > 0 ? "Extended " : "Retracted ";
+        log(action+counts+" counts");
+        //precaution to make sure relicArm all stop
         relicArm.setPower(0);
-        relicScrew.setPower(0);
     }
 
+    /**
+     * Add a log row to comma delimited table of steps
+     * @param step make sure there is no commas in step string
+     */
+    void log(String step) {
+        if (out == null) {
+            out = new StringBuffer();
+            out.append("# "); // start of the comment
+            out.append(isBlue ? "BLUE" : "RED");
+            out.append(isCornerPos ? " Corner" : " Other");
+            out.append(colorString());
+            out.append("\n"); // end of comment
+            // table header followed by new line
+            out.append("Time,Step,Gyro,Arm,Screw,FL,FR,RL,RR,\n");
+        }
+        out.append(currentTimeMillis()-startMillis).append(",");
+        out.append(step).append(",");
+        out.append(getGyroAngles().firstAngle).append(",");
+        out.append(relicArm.getCurrentPosition()).append(",");
+        out.append(relicScrew.getCurrentPosition()).append(",");
+        out.append(wheels.getMotor(MecanumWheels.Wheel.FL).getCurrentPosition()).append(",");
+        out.append(wheels.getMotor(MecanumWheels.Wheel.FR).getCurrentPosition()).append(",");
+        out.append(wheels.getMotor(MecanumWheels.Wheel.RL).getCurrentPosition()).append(",");
+        out.append(wheels.getMotor(MecanumWheels.Wheel.RR).getCurrentPosition()).append(",");
+        out.append("\n"); // new line
+    }
+
+    String colorString() {
+        return " Color RGB: " + sensorColor.red() + "/" + sensorColor.green() + "/" + sensorColor.blue();
+    }
 }
