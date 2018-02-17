@@ -7,8 +7,10 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Servo;
 
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicDelivery.Wall;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicPickup.Grabbing;
+import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_CLOCKWISE;
+import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_FORWARD;
+import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_RIGHT;
 
 /**
  * Created by JASMINE on 10/22/17.
@@ -22,6 +24,11 @@ public class DriverOpMode_Relic extends OpMode {
 
     private MecanumWheels mecanumWheels; //Controls mecanum wheel motors.
     private boolean backButtonPressed; //True when the button for changing direction is pressed.
+
+    //current motor speeds
+    private double currentForward;
+    private double currentRight;
+    private double currentClockwise;
 
     private DcMotor pusher; //The motor controling the glyph pusher.
     private DcMotor relicArm; //The motor that extends the relic arm.
@@ -124,7 +131,7 @@ public class DriverOpMode_Relic extends OpMode {
         Done
     }
 
-    private RelicDelivery relicDeliveryState = Wall; //The current state of the relic delivery.
+    private RelicDelivery relicDeliveryState = RelicDelivery.Wall; //The current state of the relic delivery.
 
     enum RelicPickup {
         Init,
@@ -144,6 +151,16 @@ public class DriverOpMode_Relic extends OpMode {
 
     // The timer for the robot transition between delivery and pickup
     private long transitionStartTime = 0;
+
+    boolean grabTriggerPressed = false;
+
+    //autonomous options
+    private boolean isBlue; //true if on blue alliance
+    private boolean isCornerPos; //true of robot starts on corner platform
+
+//    private BNO055IMU imu; // gyro
+//    Orientation angles; // angles from gyro
+
 
     @Override
     public void init() {
@@ -187,6 +204,7 @@ public class DriverOpMode_Relic extends OpMode {
         }
         lift.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         lift.setPower(0);
+        //imu = hardwareMap.get(BNO055IMU.class, "IMU");
         telemetry();
     }
 
@@ -238,7 +256,7 @@ public class DriverOpMode_Relic extends OpMode {
         // fine control with up and down overrides coarse control left and right
         // up - clockwise, down - counterclockwise
         if (Math.abs(gamepad1.right_stick_y) > 0.4)
-            clockwise = (-gamepad1.right_stick_y / Math.abs(gamepad1.right_stick_y)) * MecanumWheels.MIN_CLOCKWISE;
+            clockwise = (-gamepad1.right_stick_y / Math.abs(gamepad1.right_stick_y)) * MIN_CLOCKWISE;
 
         if ((gamepad1.left_bumper && relicDeliveryState == RelicDelivery.Transition) ||
                 (gamepad1.right_bumper && relicPickupState == RelicPickup.TransitionToDelivery)) {
@@ -260,12 +278,64 @@ public class DriverOpMode_Relic extends OpMode {
             } else if (gamepad1.dpad_left) {
                 right = -DPAD_POWER * 1.5;
             }
-            mecanumWheels.powerMotors(forward, right, clockwise);
+            driverPowerWheels(forward, right, clockwise);
         } else {
             double forward = -gamepad1.left_stick_y;
             double right = gamepad1.left_stick_x;
-            mecanumWheels.powerMotors(forward, right, clockwise);
+            driverPowerWheels(forward, right, clockwise);
         }
+    }
+
+    /**
+     * Grdually change the speed from current to the requested
+     * @param forward requested forward from -1 to 1
+     * @param right requested right from -1 to 1
+     * @param clockwise requested clockwise from -1 to 1
+     */
+    void driverPowerWheels (double forward, double right, double clockwise) {
+
+        currentForward = calculateNextSpeed(forward, currentForward, MIN_FORWARD);
+        currentRight = calculateNextSpeed(right, currentRight, MIN_RIGHT);
+        currentClockwise = calculateNextSpeed(clockwise, currentClockwise, MIN_CLOCKWISE);
+        mecanumWheels.powerMotors(currentForward, currentRight, currentClockwise);
+    }
+
+    private double calculateNextSpeed(double speed, double currentSpeed, double minSpeed){
+        double STEP = 0.2;
+        if (Math.abs(speed)<0.1){
+            // cut power when going to 0
+            STEP = 1;
+        }
+
+        double nextSpeed;
+
+        if (Math.abs(currentSpeed-speed)<=STEP) {
+            nextSpeed=speed;
+        } else {
+            if (currentSpeed<speed) {
+                //speed is increasing
+                nextSpeed = currentSpeed + STEP;
+                if (nextSpeed > 1)
+                    nextSpeed = 1;
+                else if (nextSpeed == 0){
+                    nextSpeed = minSpeed;
+                } else if (nextSpeed >= -minSpeed && nextSpeed < 0){
+                    nextSpeed = 0;
+                }
+            } else {
+                //speed is decreasing
+                nextSpeed = currentSpeed - STEP;
+                if(nextSpeed < -1) {
+                    nextSpeed = -1;
+                }else if (nextSpeed == 0) {
+                    nextSpeed = -minSpeed;
+                }else if (nextSpeed <= minSpeed && nextSpeed > 0){
+                    nextSpeed = 0;
+                }
+            }
+        }
+        return nextSpeed;
+
     }
 
     public void stop() {
@@ -278,7 +348,7 @@ public class DriverOpMode_Relic extends OpMode {
                 //e.printStackTrace();
             }
         }
-    };
+    }
 
     /**
      * Use second game pad right trigger to push the glyph out.
@@ -326,7 +396,6 @@ public class DriverOpMode_Relic extends OpMode {
             relicArm.setPower(-0.8);
         } else {
             relicArm.setPower(0);
-            //relicDeliveryState = RelicDelivery.Wall;
         }
 
         // code for relic hand
@@ -344,9 +413,11 @@ public class DriverOpMode_Relic extends OpMode {
                 setPercentOpen(relicRotate, 0);
             }
             if (gamepad1.right_trigger > 0) {
+                grabTriggerPressed = true;
                 relicRelease(gamepad1.right_trigger, true); //reset relic pickup state
             } else {
-                relicGrab(true); //reset relic delivery state
+                relicGrab(grabTriggerPressed); //reset relic delivery state if controlled manually
+                grabTriggerPressed = false;
             }
         }
     }
@@ -543,7 +614,7 @@ public class DriverOpMode_Relic extends OpMode {
      * @param targetPos - target position of the relic screw
      */
     private void relicScrewToPosition(int targetPos) {
-        boolean touchReleased = relicTouchSensor.getState();
+        boolean touchReleased = screwTouchSensor.getState();
         if (Math.abs(relicScrew.getCurrentPosition()- targetPos) > 50 && touchReleased) {
             if (relicScrew.getCurrentPosition()> targetPos) {
                 relicScrew.setPower(-1);
@@ -598,19 +669,19 @@ public class DriverOpMode_Relic extends OpMode {
     }
 
     private void pickupRelic() {
-        switch (relicPickupState) {
-            case Init:
-                transitionStartTime = System.currentTimeMillis();
-                relicPickupState = RelicPickup.TransitionToDelivery;
-            case TransitionToDelivery:
-                if (System.currentTimeMillis()-transitionStartTime < 2000) {
-                    mecanumWheels.powerMotors(0, 0.6, -0.3);
-                } else {
-                    mecanumWheels.powerMotors(0,0,0);
-                }
-        }
+//        switch (relicPickupState) {
+//            case Init:
+//                transitionStartTime = System.currentTimeMillis();
+//                relicPickupState = RelicPickup.TransitionToDelivery;
+//            case TransitionToDelivery:
+//                if (System.currentTimeMillis()-transitionStartTime < 1700) {
+//                    mecanumWheels.powerMotors(0, 0.6, -0.3);
+//                } else {
+//                    mecanumWheels.powerMotors(0,0,0);
+//                }
+//        }
 
-    /*
+
         switch (relicPickupState) {
 
             case Init:
@@ -618,7 +689,7 @@ public class DriverOpMode_Relic extends OpMode {
                 relicRelease(1, false); //Don't reset relic pickup state
                 relicArmToPosition(1, RELIC_ARM_LENGTH);
                 relicScrewToPosition(pickupScrewPosition(relicArm.getCurrentPosition()));
-                relicPickupState = ExtendingToRelic;
+                relicPickupState = RelicPickup.ExtendingToRelic;
                 break;
             case ExtendingToRelic:
                 setPercentOpen(relicRotate, 1); //rotate down
@@ -655,22 +726,22 @@ public class DriverOpMode_Relic extends OpMode {
             case Done:
                 break;
         }
-        */
+
     }
 
     private void deliverRelic() {
-        switch (relicDeliveryState) {
-            case Wall:
-                relicDeliveryState = RelicDelivery.Transition;
-                transitionStartTime = System.currentTimeMillis();
-            case Transition:
-                if (System.currentTimeMillis()-transitionStartTime < 2000) {
-                    mecanumWheels.powerMotors(-0, -0.6, 0.3);
-                } else {
-                    mecanumWheels.powerMotors(0, 0, 0);
-                }
-        }
-/*
+//        switch (relicDeliveryState) {
+//            case Wall:
+//                relicDeliveryState = RelicDelivery.Transition;
+//                transitionStartTime = System.currentTimeMillis();
+//            case Transition:
+//                if (System.currentTimeMillis()-transitionStartTime < 2000) {
+//                    mecanumWheels.powerMotors(-0, -0.6, 0.3);
+//                } else {
+//                    mecanumWheels.powerMotors(0, 0, 0);
+//                }
+//        }
+
         switch (relicDeliveryState) {
 
             case Wall:
@@ -678,7 +749,7 @@ public class DriverOpMode_Relic extends OpMode {
                     relicScrew.setPower(1);
                 } else {
                     relicScrew.setPower(0);
-                    relicDeliveryState = ExtendingToRotate;
+                    relicDeliveryState = RelicDelivery.ExtendingToRotate;
                 }
                 break;
             case ExtendingToRotate:
@@ -722,7 +793,7 @@ public class DriverOpMode_Relic extends OpMode {
             case Done:
                 break;
         }
-        */
+
     }
 
     private void telemetry() {
@@ -730,14 +801,15 @@ public class DriverOpMode_Relic extends OpMode {
         telemetry.addData("Delivery State", relicDeliveryState);
         telemetry.addData("pusher", gamepad2.right_trigger);
         telemetry.addData("lift target level", targetLiftLevel);
-        telemetry.addData("lift", lift.getCurrentPosition());
-        telemetry.addData("touch sensor released", liftTouchReleased);
-        telemetry.addData("relic arm", relicArm.getCurrentPosition());
-        telemetry.addData("relic sensor released", relicTouchReleased);
+        telemetry.addData("lift", lift.getCurrentPosition()+" released: "+liftTouchReleased);
+        telemetry.addData("relic arm", relicArm.getCurrentPosition()+" released: "+relicTouchReleased);
         telemetry.addData("relic screw", relicScrew.getCurrentPosition());
-        if(leftHand != null && rightHand != null) {
-            telemetry.addData("grip trigger", gamepad2.left_trigger);
-            telemetry.addData("grip", leftHand.getPosition() + " " + rightHand.getPosition());
-        }
+//        if(leftHand != null && rightHand != null) {
+//            telemetry.addData("grip trigger", gamepad2.left_trigger);
+//            telemetry.addData("grip", leftHand.getPosition() + " " + rightHand.getPosition());
+//        }
+//        telemetry.addLine().
+//                addData("status", imu.getSystemStatus().toShortString()).
+//                addData("calib", imu.getCalibrationStatus().toString());
     }
 }
