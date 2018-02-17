@@ -7,9 +7,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Servo;
 
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicDelivery.ExtendingToRotate;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicDelivery.Wall;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicPickup.ExtendingToRelic;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RelicPickup.Grabbing;
 
 /**
@@ -122,6 +120,7 @@ public class DriverOpMode_Relic extends OpMode {
         Release,
         RetractingToRotate,
         Retracting,
+        Transition,
         Done
     }
 
@@ -133,6 +132,7 @@ public class DriverOpMode_Relic extends OpMode {
         Grabbing,
         RetractingToRotate,
         Retracting,
+        TransitionToDelivery,
         Done
     }
 
@@ -141,6 +141,9 @@ public class DriverOpMode_Relic extends OpMode {
     //Need to allow time for the servos to reach their positions.
     private long relicGrabStartTime = 0; // The timer for the grabber.
     private long relicRotateStartTime = 0; // The timer for the relic rotation.
+
+    // The timer for the robot transition between delivery and pickup
+    private long transitionStartTime = 0;
 
     @Override
     public void init() {
@@ -237,6 +240,11 @@ public class DriverOpMode_Relic extends OpMode {
         if (Math.abs(gamepad1.right_stick_y) > 0.4)
             clockwise = (-gamepad1.right_stick_y / Math.abs(gamepad1.right_stick_y)) * MecanumWheels.MIN_CLOCKWISE;
 
+        if ((gamepad1.left_bumper && relicDeliveryState == RelicDelivery.Transition) ||
+                (gamepad1.right_bumper && relicPickupState == RelicPickup.TransitionToDelivery)) {
+            //skip the wheels controls below when transitioning
+            return;
+        }
         //We are using robot coordinates
         //D-pad is used for slow speed movements.
         if (gamepad1.dpad_up || gamepad1.dpad_down || gamepad1.dpad_left || gamepad1.dpad_right) {
@@ -590,7 +598,19 @@ public class DriverOpMode_Relic extends OpMode {
     }
 
     private void pickupRelic() {
+        switch (relicPickupState) {
+            case Init:
+                transitionStartTime = System.currentTimeMillis();
+                relicPickupState = RelicPickup.TransitionToDelivery;
+            case TransitionToDelivery:
+                if (System.currentTimeMillis()-transitionStartTime < 2000) {
+                    mecanumWheels.powerMotors(0, 0.6, -0.3);
+                } else {
+                    mecanumWheels.powerMotors(0,0,0);
+                }
+        }
 
+    /*
         switch (relicPickupState) {
 
             case Init:
@@ -635,10 +655,22 @@ public class DriverOpMode_Relic extends OpMode {
             case Done:
                 break;
         }
+        */
     }
 
     private void deliverRelic() {
-
+        switch (relicDeliveryState) {
+            case Wall:
+                relicDeliveryState = RelicDelivery.Transition;
+                transitionStartTime = System.currentTimeMillis();
+            case Transition:
+                if (System.currentTimeMillis()-transitionStartTime < 2000) {
+                    mecanumWheels.powerMotors(-0, -0.6, 0.3);
+                } else {
+                    mecanumWheels.powerMotors(0, 0, 0);
+                }
+        }
+/*
         switch (relicDeliveryState) {
 
             case Wall:
@@ -690,6 +722,7 @@ public class DriverOpMode_Relic extends OpMode {
             case Done:
                 break;
         }
+        */
     }
 
     private void telemetry() {

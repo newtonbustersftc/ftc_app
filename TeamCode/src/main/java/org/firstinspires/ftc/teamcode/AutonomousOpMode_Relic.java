@@ -688,7 +688,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
      * @param forward True: If the robot is moving forward. False: If the robot is moving backwards.
      * @return
      */
-    int inchesToCounts(double inches, boolean forward) {
+    static int inchesToCounts(double inches, boolean forward) {
         // RR wheel, power 0.4
         if (forward) {
             return (int) ((3000 * inches) / 34.5);
@@ -726,13 +726,13 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             } else {
                 double distanceToRelicPicking = TILE_LENGTH - 1;
                 moveByInchesGyro(-0.3, 0, distanceToRelicPicking, -MINIMUM_POWER);
-                out.append("Heading before relic pick up: " + getGyroAngles().firstAngle + "\n");
+                log("Heading before relic pick up");
                 grabRelic();
-                out.append("Heading after relic pick up: " + getGyroAngles().firstAngle + "\n");
+                log("Heading after relic pick up");
                 moveByInchesGyro(-0.3, 0, MINCLEAR + 2 - distanceToRelicPicking, -MINIMUM_POWER);
-                out.append("Heading before rotating 90 degrees: " + getGyroAngles().firstAngle + "\n");
+                log("Heading before rotating 90 degrees");
                 rotate(-0.3, 90);
-                out.append("Heading after rotating 90 degrees: " + getGyroAngles().firstAngle + "\n");
+                log("Heading after rotating 90 degrees");
                 sleep(800);
 
                 double totalDistance = 33 - TILE_LENGTH;
@@ -745,9 +745,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 if (totalDistance > 0) {
                     goCounts(0.3, inchesToCounts(totalDistance, true));
                 }
-                out.append("Heading before rotating to cryptobox: " + getGyroAngles().firstAngle + "\n");
+                log("Heading before rotating to cryptobox");
                 rotate(-0.3, 72);
-                out.append("Heading after rotating to cryptobox: " + getGyroAngles().firstAngle + "\n");
+                log("Heading after rotating to cryptobox");
                 goCounts(0.3, inchesToCounts(10.5, true));
             }
 
