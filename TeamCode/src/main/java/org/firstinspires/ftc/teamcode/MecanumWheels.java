@@ -58,8 +58,11 @@ class MecanumWheels {
 
     }
 
-
     void powerMotors(double forward, double right, double clockwise) {
+        powerMotors(forward, right, clockwise, this.forward);
+    }
+
+    void powerMotors(double forward, double right, double clockwise, boolean forwardDir) {
 
 
         telemetry.addData("Gamepad Forward,Right,Clockwise", (int) (forward * 100) +
@@ -78,7 +81,7 @@ class MecanumWheels {
         forward = adjustpower(forward, MIN_FORWARD) * forwardSignFactor;
         clockwise = adjustpower(clockwise, MIN_CLOCKWISE) * clockwiseSignFactor;
 
-        if (this.forward) {
+        if (forwardDir) {
             forward = -forward;
             right = -right;
         }
