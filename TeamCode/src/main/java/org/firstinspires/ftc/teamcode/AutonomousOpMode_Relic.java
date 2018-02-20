@@ -726,6 +726,11 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             } else {
                 double distanceToRelicPicking = TILE_LENGTH - 1;
                 moveByInchesGyro(-0.3, 0, distanceToRelicPicking, -MINIMUM_POWER);
+                // make sure the arm is at the right height
+                while (relicScrew.isBusy()) {
+                    idle();
+                }
+                relicScrew.setPower(0);
                 log("Heading before relic pick up");
                 grabRelic();
                 log("Heading after relic pick up");
