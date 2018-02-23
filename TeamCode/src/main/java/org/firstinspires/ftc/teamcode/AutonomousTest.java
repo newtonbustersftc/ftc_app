@@ -15,6 +15,7 @@ import static java.lang.Float.parseFloat;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_ARM_DOWN;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_ARM_HOME;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_KICK_CENTER;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_GRAB_HOME;
 
 /**
  * Created by NBTeam on 10/27/2017.
@@ -24,7 +25,11 @@ public class AutonomousTest extends AutonomousOpMode_Relic {
 
     @Override
     public void runOpMode() throws InterruptedException {
+        relicGrab = hardwareMap.servo.get("Relic-Grab");
+        relicGrab.setPosition(RELIC_GRAB_HOME);
+
         preRun();
+
         waitForStart();
 
         autonomousStart(); //Initialize the servos

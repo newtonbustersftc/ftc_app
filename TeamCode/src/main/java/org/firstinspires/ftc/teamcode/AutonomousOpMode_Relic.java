@@ -42,6 +42,7 @@ import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_KICK_RIGHT
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.LEFT_HAND_IN_POS;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.LEFT_HAND_OUT_POS;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_GRAB_HOLD;
+import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_GRAB_HOME;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_GRAB_RELEASE;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_ROTATE_DOWN;
 import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_ROTATE_UP;
@@ -109,7 +110,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
     //slowest forward power that still moves the robot
     //used in calculating power gradients
-    static final double MINIMUM_POWER = 0.15;
+    static final double MINIMUM_POWER = 0.2;
+
+    static final double ROTATE_POWER = 0.3;
 
     //for VuMark detection
     private VuforiaLocalizer vuforia;
@@ -373,6 +376,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
      */
     @Override
     public void runOpMode() throws InterruptedException {
+
+        relicGrab = hardwareMap.servo.get("Relic-Grab");
+        relicGrab.setPosition(RELIC_GRAB_HOME);
 
         //Initialize instance variables and detect the VuMark
         RelicRecoveryVuMark vuMark = preRun();
@@ -720,7 +726,7 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
 
                 moveByInchesGyro(-0.3, 0, totalDistance, -MINIMUM_POWER);
                 sleep(800);
-                rotate(0.3, 108);
+                rotate(ROTATE_POWER, 108);
                 sleep(800);
                 goCounts(0.3, inchesToCounts(10.5, true));
             } else {
@@ -731,13 +737,13 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                     idle();
                 }
                 relicScrew.setPower(0);
-                log("Heading before relic pick up");
+                log("Before relic pick up");
                 grabRelic();
-                log("Heading after relic pick up");
+                log("After relic pick up");
                 moveByInchesGyro(-0.3, 0, MINCLEAR + 2 - distanceToRelicPicking, -MINIMUM_POWER);
-                log("Heading before rotating 90 degrees");
-                rotate(-0.3, 90);
-                log("Heading after rotating 90 degrees");
+                log("Before rotating 90 degrees");
+                rotate(-ROTATE_POWER, 90);
+                log("After rotating 90 degrees");
                 sleep(800);
 
                 double totalDistance = 33 - TILE_LENGTH;
@@ -750,14 +756,13 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 if (totalDistance > 0) {
                     goCounts(0.3, inchesToCounts(totalDistance, true));
                 }
-                log("Heading before rotating to cryptobox");
-                rotate(-0.3, 72);
-                log("Heading after rotating to cryptobox");
+                log("Before rotating to cryptobox");
+                rotate(-ROTATE_POWER, 70);
+                log("After rotating 70 to cryptobox");
                 goCounts(0.3, inchesToCounts(10.5, true));
             }
 
         } else { // red
-
             double totalDistance = 29; //distance to the turn for the center bin
 
             if (!isCornerPos) {
@@ -765,13 +770,13 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
                 moveByInchesGyro(0.3, 0, MINCLEAR, MINIMUM_POWER);
                 sleep(800);
                 //Rotate to relic grabbing position.
-                log("Heading before rotating 90 degrees");
-                rotate(-0.3, 90);
-                log("Heading after rotating 90 degrees");
+                log("Before rotating 90 degrees");
+                rotate(-ROTATE_POWER, 90);
+                log("After rotating 90 degrees");
                 sleep(800);
-                log("Heading before relic pick up");
+                log("Before relic pick up");
                 grabRelic();
-                log("Heading after relic pick up");
+                log("After relic pick up");
             }
 
 
@@ -783,9 +788,9 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
             // Rotate to cryptobox.
             goCounts(0.4, inchesToCounts(totalDistance, true));
             sleep(800);
-            log("Heading before rotating to cryptobox");
-            rotate(0.3, 72);
-            log("Heading after rotating to cryptobox");
+            log("Before rotating to cryptobox");
+            rotate(ROTATE_POWER, 68);
+            log("After rotating to 68 cryptobox");
             sleep(800);
 
             goCounts(0.4, inchesToCounts(9, true));
@@ -800,24 +805,19 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         raiseGlyph(false);
         setPercentOpen(rightHand, 1);
         setPercentOpen(leftHand, 1);
-        sleep(800);
+        sleep(300);
+
+        log("Before push");
 
         // one last push
         wheels.powerMotors(0.3, 0, 0);
         sleep(700);
         wheels.powerMotors(0, 0, 0);
-        sleep(200);
-
-        // jk another push
-        pusher.setPower(-0.4);
-        sleep(800);
-        pusher.setPower(0.4);
 
         goCounts(-0.4, 300);
         setPercentOpen(rightHand, 1);
         setPercentOpen(leftHand, 1);
-        sleep(500);
-        pusher.setPower(0);
+        sleep(300);
     }
 
     /**
@@ -833,7 +833,8 @@ public class AutonomousOpMode_Relic extends LinearOpMode {
         relicRotate.setPosition(RELIC_ROTATE_DOWN);
         relicGrab.setPosition(RELIC_GRAB_RELEASE);
 
-        int extendcounts = isBlue || isCornerPos ? 1040 : 825;
+        int extendcounts = isBlue || isCornerPos ? 1040 : 800; //825
+        if (isCornerPos) { extendcounts = 950; }
 
         //extending arm to relic
         moveRelicArm(1, extendcounts);

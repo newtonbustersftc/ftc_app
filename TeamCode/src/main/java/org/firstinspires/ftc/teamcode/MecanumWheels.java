@@ -27,6 +27,8 @@ class MecanumWheels {
     private Telemetry telemetry;
     private boolean forward;
 
+    private final String REVERSED = "REVERSED";
+
     MecanumWheels(HardwareMap hardwareMap, Telemetry telemetry, boolean frontForward) {
         this.telemetry = telemetry;
         this.forward = frontForward;
@@ -51,6 +53,7 @@ class MecanumWheels {
     void changeDirection() {
         forward = !forward;
     }
+    boolean isForward() {return forward;}
 
     void powerMotors(double forward, double right, double clockwise) {
         powerMotors(forward, right, clockwise, this.forward);
@@ -58,9 +61,9 @@ class MecanumWheels {
 
     void powerMotors(double forward, double right, double clockwise, boolean forwardDir) {
 
-        telemetry.addData("Gamepad Forward,Right,Clockwise", (int) (forward * 100) +
-                ", " + (int) (right * 100) +
-                ", " + (int) (clockwise * 100));
+//        telemetry.addData("Gamepad Forward,Right,Clockwise", (int) (forward * 100) +
+//                ", " + (int) (right * 100) +
+//                ", " + (int) (clockwise * 100));
 
         double rightSignFactor = right > 0 ? 1 : -1;
         double forwardSignFactor = forward > 0 ? 1 : -1;
@@ -101,6 +104,9 @@ class MecanumWheels {
         motorRearRight.setPower(rear_right);
 
         // Telemetry - all doubles are scaled to (-100, 100)
+        if (!isForward()) {
+            telemetry.addData("Driver dir", REVERSED);
+        }
         telemetry.addData("DC1,2,3,4", (int) (front_left * 100) + ", " +
                 (int) (front_right * 100) + ", " +
                 (int) (rear_left * 100) + ", " +

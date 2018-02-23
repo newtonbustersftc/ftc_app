@@ -1,6 +1,9 @@
 package org.firstinspires.ftc.teamcode;
 
+import android.app.Activity;
 import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.view.View;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -97,6 +100,7 @@ public class DriverOpMode_Relic extends OpMode {
     static final double RELIC_ROTATE_DOWN = 0.76; //holding the relic in place to grab or put down
 
     private Servo relicGrab; // The servo controlling the relic hand grabber.
+    static final double RELIC_GRAB_HOME = 0.2; // closed
     static final double RELIC_GRAB_HOLD = 0.299; //holding the relic
     static final double RELIC_GRAB_RELEASE = 0.85; //letting go of the relic
 
@@ -119,7 +123,7 @@ public class DriverOpMode_Relic extends OpMode {
     private static final int RELIC_ARM_PLACE_RELIC = 2300;
 
     //safe length to rotate relic grabber up or down
-    private static final int RELIC_ARM_ROTATE = 1900;
+    private static final int RELIC_ARM_ROTATE = 1800;
 
     //length of relic arm completely extended
     private static final int RELIC_ARM_LENGTH = 2400;
@@ -166,6 +170,7 @@ public class DriverOpMode_Relic extends OpMode {
     private boolean isBlue; //true if on blue alliance
     private boolean isCornerPos; //true of robot starts on corner platform
 
+    View relativeLayout;
 
     @Override
     public void init() {
@@ -223,6 +228,7 @@ public class DriverOpMode_Relic extends OpMode {
 
     @Override
     public void start() {
+        resetStartTime();
         backButtonPressed = false;
         // Initializes the position of all of the servos after the start button is pressed
         // so the robot doesn't move during intitialization.
@@ -242,6 +248,11 @@ public class DriverOpMode_Relic extends OpMode {
         setUpServo(relicRotate, RELIC_ROTATE_UP, RELIC_ROTATE_DOWN);
         relicGrab = hardwareMap.servo.get("Relic-Grab");
         setUpServo(relicGrab, RELIC_GRAB_HOLD, RELIC_GRAB_RELEASE);
+        // get a reference to the RelativeLayout so we can change the background
+        // color of the Robot Controller app to match the hue detected by the RGB sensor.
+        int relativeLayoutId = hardwareMap.appContext.getResources().getIdentifier("RelativeLayout", "id", hardwareMap.appContext.getPackageName());
+        relativeLayout = ((Activity) hardwareMap.appContext).findViewById(relativeLayoutId);
+
     }
 
     @Override
@@ -359,6 +370,12 @@ public class DriverOpMode_Relic extends OpMode {
             setPercentOpen(leftHand, 1);
             try {
                 Thread.sleep(200);
+                // Set the panel back to the default color
+                relativeLayout.post(new Runnable() {
+                    public void run() {
+                        relativeLayout.setBackgroundColor(Color.WHITE);
+                    }
+                });
             } catch (InterruptedException e) {
                 //e.printStackTrace();
             }
@@ -728,7 +745,7 @@ public class DriverOpMode_Relic extends OpMode {
                 relicScrewToPosition(ARM_SCREW_CLEAR_WALL);
                 if (!armMoving) {
                     setPercentOpen(relicRotate, 0); // rotate up
-                    if (numDeliveriesCompleted == 1 && !isCornerPos) {
+                    if (numDeliveriesCompleted == 1 && !isCornerPos && getRuntime() < 100) {
                         relicPickupState = RelicPickup.TransitionToDelivery;
                         transitionStartTime = System.currentTimeMillis();
                     } else {
@@ -803,6 +820,7 @@ public class DriverOpMode_Relic extends OpMode {
                 if (System.currentTimeMillis() - relicGrabStartTime > 800) {
                     relicDeliveryState = RelicDelivery.RetractingToRotate;
                     releaseStartTime = System.currentTimeMillis();
+                    numDeliveriesCompleted++;
                 }
                 break;
             case RetractingToRotate:
@@ -813,8 +831,7 @@ public class DriverOpMode_Relic extends OpMode {
                 if (!armMoving) {
                     setPercentOpen(relicRotate, 0);
                     relicGrab(false); //don't reset relicDeliveryState
-                    if (numDeliveriesCompleted == 0 && !isCornerPos) {
-                        numDeliveriesCompleted++;
+                    if (numDeliveriesCompleted == 1 && !isCornerPos) {
                         relicDeliveryState = RelicDelivery.Transition;
                         transitionStartTime = System.currentTimeMillis();
                     } else {
@@ -852,17 +869,28 @@ public class DriverOpMode_Relic extends OpMode {
     }
 
     private void telemetry() {
-        if (relicRotate != null &&  relicGrab != null){
-            telemetry.addData("Relic rotate", relicRotate.getPosition() + " " + gamepad1.left_trigger);
-            telemetry.addData("Grab", relicGrab.getPosition() + " " + gamepad1.right_trigger);
-        }
+        double runtime = getRuntime();
+        String alliance = isBlue ? "BLUE" : "RED";
+        telemetry.addData(alliance+" Runtime", (int)runtime);
         telemetry.addData("Pickup State", relicPickupState);
         telemetry.addData("Delivery State", relicDeliveryState);
-        telemetry.addData("pusher", gamepad2.right_trigger);
         telemetry.addData("lift target level", targetLiftLevel);
         telemetry.addData("lift", lift.getCurrentPosition() + " released: " + liftTouchReleased);
         telemetry.addData("relic arm", relicArm.getCurrentPosition() + " moving: " + armMoving + " released: " + relicTouchReleased);
         telemetry.addData("relic screw", relicScrew.getCurrentPosition() + " moving: " + screwMoving);
-
+        telemetry.addData("pusher", gamepad2.right_trigger);
+        if (relicRotate != null &&  relicGrab != null){
+            telemetry.addData("Relic rotate", gamepad1.left_trigger);
+            telemetry.addData("Grab", gamepad1.right_trigger);
+        }
+        if (runtime > 75) {
+            final int color = (runtime > 90 && runtime < 110) ? Color.GREEN : Color.YELLOW;
+            // see SensorColor sample for an example of how to change the color
+            relativeLayout.post(new Runnable() {
+                public void run() {
+                    relativeLayout.setBackgroundColor(color);
+                }
+            });
+        }
     }
 }
