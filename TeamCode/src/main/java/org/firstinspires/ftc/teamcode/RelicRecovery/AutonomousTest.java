@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.RelicRecovery;
 
 import android.os.Environment;
 
@@ -12,15 +12,15 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import static java.lang.Float.parseFloat;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_ARM_DOWN;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_ARM_HOME;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_KICK_CENTER;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_GRAB_HOME;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.JEWEL_ARM_DOWN;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.JEWEL_ARM_HOME;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.JEWEL_KICK_CENTER;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.RELIC_GRAB_HOME;
 
 /**
  * Created by NBTeam on 10/27/2017.
  */
-@Autonomous(name = "AutonomousTest", group = "Main")
+//@Autonomous(name = "AutonomousTestRelic", group = "Main")
 public class AutonomousTest extends AutonomousOpMode_Relic {
 
     @Override

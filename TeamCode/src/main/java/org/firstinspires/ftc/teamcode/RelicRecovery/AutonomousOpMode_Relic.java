@@ -1,10 +1,9 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.RelicRecovery;
 
 import android.content.SharedPreferences;
 import android.os.Environment;
 
 import com.qualcomm.hardware.bosch.BNO055IMU;
-import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -31,32 +30,32 @@ import java.util.Date;
 import java.util.Locale;
 
 import static java.lang.System.currentTimeMillis;
-import static org.firstinspires.ftc.teamcode.AutonomousOptions.ALLIANCE_PREF;
-import static org.firstinspires.ftc.teamcode.AutonomousOptions.START_POSITION_PREF;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.ARM_SCREW_UP;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_ARM_DOWN;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_ARM_HOME;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_KICK_CENTER;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_KICK_LEFT;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.JEWEL_KICK_RIGHT;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.LEFT_HAND_IN_POS;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.LEFT_HAND_OUT_POS;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_GRAB_HOLD;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_GRAB_HOME;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_GRAB_RELEASE;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_ROTATE_DOWN;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RELIC_ROTATE_UP;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RIGHT_HAND_IN_POS;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.RIGHT_HAND_OUT_POS;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.resetEncoders;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.setPercentOpen;
-import static org.firstinspires.ftc.teamcode.DriverOpMode_Relic.setUpServo;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.AutonomousOptions.ALLIANCE_PREF;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.AutonomousOptions.START_POSITION_PREF;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.ARM_SCREW_UP;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.JEWEL_ARM_DOWN;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.JEWEL_ARM_HOME;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.JEWEL_KICK_CENTER;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.JEWEL_KICK_LEFT;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.JEWEL_KICK_RIGHT;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.LEFT_HAND_IN_POS;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.LEFT_HAND_OUT_POS;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.RELIC_GRAB_HOLD;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.RELIC_GRAB_HOME;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.RELIC_GRAB_RELEASE;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.RELIC_ROTATE_DOWN;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.RELIC_ROTATE_UP;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.RIGHT_HAND_IN_POS;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.RIGHT_HAND_OUT_POS;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.resetEncoders;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.setPercentOpen;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.DriverOpMode_Relic.setUpServo;
 
 /**
  * Created by Brandon on 10/22/2017.
  */
 
-@Autonomous(name = "AutonomousOpMode", group = "Main")
+//@Autonomous(name = "AutonomousRelic", group = "Main")
 public class AutonomousOpMode_Relic extends LinearOpMode {
 
     StringBuffer out = null; //variable holds information for logs

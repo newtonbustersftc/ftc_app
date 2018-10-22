@@ -20,7 +20,7 @@ public class PixyCamTest extends OpMode {
     @Override
     public void init()
     {
-        pixyCam = hardwareMap.get(PixyCam.class, "pixycam");
+        pixyCam = hardwareMap.get(PixyCam.class, "pixy");
     }
 
     /*

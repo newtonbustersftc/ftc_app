@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.RelicRecovery;
 
 import android.content.SharedPreferences;
 
@@ -18,8 +18,7 @@ import java.util.Map;
  * revised by Simone on 3/24/2016.
  */
 
-@TeleOp(name="Autonomous Options", group="Main")
-
+//@TeleOp(name="Autonomous Options", group="Main")
 public class AutonomousOptions extends OpMode {
 
     enum State  {DisplayAll, DisplaySingle}

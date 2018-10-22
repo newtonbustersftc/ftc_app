@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.RelicRecovery;
 
 import android.app.Activity;
 import android.graphics.Color;
@@ -17,7 +17,7 @@ import java.util.Locale;
 /**
  * Created by NBTeam on 12/15/2017.
  */
-@Autonomous(name = "ColourTest", group = "Main")
+//@Autonomous(name = "ColourTest", group = "Main")
 public class ColourTest extends LinearOpMode{
     ColorSensor rightColour;
     ColorSensor leftColour;

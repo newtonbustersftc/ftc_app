@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.RelicRecovery;
 
 import android.app.Activity;
 import android.content.SharedPreferences;
@@ -6,23 +6,22 @@ import android.graphics.Color;
 import android.view.View;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Servo;
 
-import static org.firstinspires.ftc.teamcode.AutonomousOptions.ALLIANCE_PREF;
-import static org.firstinspires.ftc.teamcode.AutonomousOptions.START_POSITION_PREF;
-import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_CLOCKWISE;
-import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_FORWARD;
-import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_RIGHT;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.AutonomousOptions.ALLIANCE_PREF;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.AutonomousOptions.START_POSITION_PREF;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.MecanumWheels.MIN_CLOCKWISE;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.MecanumWheels.MIN_FORWARD;
+import static org.firstinspires.ftc.teamcode.RelicRecovery.MecanumWheels.MIN_RIGHT;
 
 /**
  * Created by JASMINE on 10/22/17.
  * This class has the code for our driver controlled mode.
  */
-@TeleOp(name = "DriverOpMode", group = "Main")
+//@TeleOp(name = "DriverRelic", group = "Main")
 public class DriverOpMode_Relic extends OpMode {
 
 
