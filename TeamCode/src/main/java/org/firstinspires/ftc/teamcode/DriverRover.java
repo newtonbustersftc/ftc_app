@@ -3,7 +3,10 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.Range;
+
+import static android.os.SystemClock.sleep;
 
 @TeleOp(name = "DriverRover", group = "Main")
 public class DriverRover extends OpMode {
@@ -12,25 +15,55 @@ public class DriverRover extends OpMode {
 
     private DcMotor motorLeft;
     private DcMotor motorRight;
+    private DcMotor liftMotor;
+
+    private Servo hookServo;
+    private Servo markerServo;
 
     //for now, we don't support robot reversing the forward direction
     private final boolean forward = true;
+
+    boolean hookOpen; //when true, the hook is released
+    boolean hookButtonPressed = false; //when true, the hook button is pressed down
+
+    //optimal lift height encoder count is -11600 to -12800 so -12200 is optimal
+    public static final int LATCHING_POS = 12200;
+    static final int LATCHING_POS_LOW = 11600;
+    static final int LATCHING_POS_HIGH = 12800;
 
     @Override
     public void init() {
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
         motorRight = hardwareMap.dcMotor.get("wheelsRight");
+        liftMotor = hardwareMap.dcMotor.get("liftMotor");
 
         // run by power
         motorLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motorRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
+        //reset the encoder for the lift motor
+        liftMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        sleep(1000);
+        liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
         // float zero power
         motorLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         motorRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        liftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         //setting the motors on the right side in reverse so both wheels spin the same way.
         motorRight.setDirection(DcMotor.Direction.REVERSE);
+    }
+
+    @Override
+    public void start() {
+        hookServo = hardwareMap.servo.get("hookServo");
+        //set position to 0 for releasing the hook and use position 1 to close hook
+        setUpServo(hookServo, 0.04, 0.325);
+
+        markerServo = hardwareMap.servo.get("markerServo");
+        //for moving the arm forward, use 1, for moving it back, use 0
+        setUpServo(markerServo, 0.2, 0.8);
     }
 
     @Override
@@ -39,6 +72,7 @@ public class DriverRover extends OpMode {
         //forward as a direction
         double leftForward;
         double rightForward;
+        double liftMotorPower;
 
         int sign = forward ? 1 : -1;
         if (!gamepad1.y) {
@@ -72,6 +106,40 @@ public class DriverRover extends OpMode {
             }
         }
 
+        // Lift motor when given negative power, the lift rises and lowers when given positive power
+        if (gamepad1.x || gamepad1.a) {
+            int currentPos = Math.abs(liftMotor.getCurrentPosition());
+            if (gamepad1.x) {
+                if (LATCHING_POS_LOW < currentPos && currentPos < LATCHING_POS_HIGH) {
+                    liftMotorPower = 0;
+                } else {
+                    liftMotorPower = -1;
+                }
+            } else {
+                if (currentPos < 1000) {
+                    liftMotorPower = 0.2;
+                } else {
+                    liftMotorPower = 1;
+                }
+            }
+        } else {
+            liftMotorPower = 0.0;
+        }
+
+        if (gamepad1.b) {
+            hookButtonPressed = true;
+        } else {
+            if (hookButtonPressed) {
+                if (hookOpen) {
+                    hookServo.setPosition(1);
+                } else {
+                    hookServo.setPosition(0);
+                }
+                hookOpen = !hookOpen;
+            }
+            hookButtonPressed = false;
+        }
+
         //driving backwards
         if (!forward) { //when start, front direction is the intake side, lightStrip2
             leftForward = -leftForward;
@@ -94,16 +162,54 @@ public class DriverRover extends OpMode {
 
         telemetry.addData("left", leftForward);
         telemetry.addData("right", rightForward);
+        telemetry.addData("lift", liftMotor.getCurrentPosition());
 
-        powerMotors(rightForward, leftForward);
+        powerMotors(rightForward, leftForward, liftMotorPower);
     }
 
-    private void powerMotors(double rightForward, double leftForward) {
+    private void powerMotors(double rightForward, double leftForward, double liftMotorPower) {
         motorLeft.setPower(leftForward);
         motorRight.setPower(rightForward);
+        liftMotor.setPower(liftMotorPower);
     }
 
-    private double scaled (double x) {
+    private double scaled(double x) {
         return (x / 1.07) * (.62 * x * x + .45);
+    }
+
+    /**
+     * Takes the holding position and release position,
+     * Makes them the minimum and maximum servo positions
+     * After this method, you can pass percentOpen as the servo position.
+     * Holding position would be 0, complete release position would be 1.
+     *
+     * @param servo  - servo motor
+     * @param inPos  - holding position between 0 and 1
+     * @param outPos - releasing position between 0 and 1
+     */
+    static void setUpServo(Servo servo, double inPos, double outPos) {
+        // scale t0 the range between inPos and outPos
+        double min = Math.min(inPos, outPos);
+        double max = Math.max(inPos, outPos);
+        servo.scaleRange(min, max);
+
+        // make sure in position = 0, out position = 1
+        if (inPos > outPos) {
+            servo.setDirection(Servo.Direction.REVERSE);
+        } else {
+            servo.setDirection(Servo.Direction.FORWARD);
+        }
+
+        setPercentOpen(servo, 0);
+    }
+
+    /**
+     * Sets percent open
+     *
+     * @param servo       - servo motor to use
+     * @param percentOpen is the number between 0 and 1
+     */
+    static void setPercentOpen(Servo servo, double percentOpen) {
+        servo.setPosition(percentOpen);
     }
 }

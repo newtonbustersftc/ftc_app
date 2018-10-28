@@ -13,14 +13,16 @@ public class AutonomousTestRover extends AutonomousRover {
         preRun();
         waitForStart();
         //distanceTest();
-        rotate(0.3,90);
-        rotate(-0.3, 180);
+//        rotate(0.12,90);
+//        rotate(-0.12, 180);
+//        rotate(0.12, 180);
+        landing();
     }
 
     private void distanceTest() throws InterruptedException {
         int counts = 1000;
         while (counts < 5000) {
-            goCounts(0.3, counts);
+            goCounts(-0.3, counts);
             sleep(5000);
             goCounts( -0.3, counts);
             sleep(5000);
@@ -28,5 +30,4 @@ public class AutonomousTestRover extends AutonomousRover {
         }
 
     }
-
 }
