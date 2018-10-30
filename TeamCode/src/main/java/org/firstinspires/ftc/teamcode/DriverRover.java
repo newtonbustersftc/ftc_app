@@ -4,6 +4,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.util.Range;
 
 import static android.os.SystemClock.sleep;
@@ -17,13 +18,13 @@ public class DriverRover extends OpMode {
     private DcMotor motorRight;
     private DcMotor liftMotor;
 
-    private Servo hookServo;
+    private ServoImplEx hookServo;
     private Servo markerServo;
 
     //for now, we don't support robot reversing the forward direction
     private final boolean forward = true;
 
-    boolean hookOpen; //when true, the hook is released
+    boolean hookReleased = true; //when true, the hook is released
     boolean hookButtonPressed = false; //when true, the hook button is pressed down
 
     //optimal lift height encoder count is -11600 to -12800 so -12200 is optimal
@@ -57,7 +58,9 @@ public class DriverRover extends OpMode {
 
     @Override
     public void start() {
-        hookServo = hardwareMap.servo.get("hookServo");
+        //ServoImplEx allows to energize and deenergize servo
+        // we don't want to hook servo to keep position when robot is lifting or lowering
+        hookServo = (ServoImplEx)hardwareMap.servo.get("hookServo");
         //set position to 0 for releasing the hook and use position 1 to close hook
         setUpServo(hookServo, 0.04, 0.325);
 
@@ -86,7 +89,7 @@ public class DriverRover extends OpMode {
         }
 
         if ((gamepad1.dpad_up || gamepad1.dpad_down || gamepad1.dpad_left || gamepad1.dpad_right)) {
-            // dPadDrive: Forward, Backwards, Rotate in place CClockwise and Clockwise
+            // dPadDrive: Forward, Backwards, in place CClockwise and Clockwise
             //We are using robot coordinates
             double dpadSpeed = 0.2;
             if (gamepad1.dpad_up) {
@@ -110,15 +113,18 @@ public class DriverRover extends OpMode {
         if (gamepad1.x || gamepad1.a) {
             int currentPos = Math.abs(liftMotor.getCurrentPosition());
             if (gamepad1.x) {
-                if (LATCHING_POS_LOW < currentPos && currentPos < LATCHING_POS_HIGH) {
+                if (LATCHING_POS < currentPos) {
                     liftMotorPower = 0;
                 } else {
                     liftMotorPower = -1;
                 }
             } else {
                 if (currentPos < 1000) {
-                    liftMotorPower = 0.2;
+                    liftMotorPower = 0.3;
                 } else {
+                    if (currentPos < LATCHING_POS_LOW) {
+                        disableHook();
+                    }
                     liftMotorPower = 1;
                 }
             }
@@ -130,12 +136,13 @@ public class DriverRover extends OpMode {
             hookButtonPressed = true;
         } else {
             if (hookButtonPressed) {
-                if (hookOpen) {
+                enableHook();
+                if (hookReleased) {
                     hookServo.setPosition(1);
                 } else {
                     hookServo.setPosition(0);
                 }
-                hookOpen = !hookOpen;
+                hookReleased = !hookReleased;
             }
             hookButtonPressed = false;
         }
@@ -171,6 +178,24 @@ public class DriverRover extends OpMode {
         motorLeft.setPower(leftForward);
         motorRight.setPower(rightForward);
         liftMotor.setPower(liftMotorPower);
+    }
+
+    /**
+     * deenergize hook servo (if enabled)
+     */
+    void disableHook() {
+        if (hookServo.isPwmEnabled()) {
+            hookServo.setPwmDisable();
+        }
+    }
+
+    /**
+     * energize hook servo (if disabled)
+     */
+    void enableHook() {
+        if (!hookServo.isPwmEnabled()) {
+            hookServo.setPwmEnable();
+        }
     }
 
     private double scaled(double x) {
@@ -212,4 +237,5 @@ public class DriverRover extends OpMode {
     static void setPercentOpen(Servo servo, double percentOpen) {
         servo.setPosition(percentOpen);
     }
+
 }

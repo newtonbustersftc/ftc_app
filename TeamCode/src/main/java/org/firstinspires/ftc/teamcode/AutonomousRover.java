@@ -62,7 +62,6 @@ public class AutonomousRover extends LinearOpMode {
         liftMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
 
-
         //setting the motors on the right side in reverse so both wheels spin the same way.
         motorRight.setDirection(DcMotor.Direction.REVERSE);
 
@@ -78,6 +77,7 @@ public class AutonomousRover extends LinearOpMode {
     }
 
     public void landing() throws InterruptedException {
+        if(!opModeIsActive()) return;
         liftMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         liftMotor.setPower(-1);
         liftMotor.setTargetPosition(-DriverRover.LATCHING_POS);
@@ -100,63 +100,83 @@ public class AutonomousRover extends LinearOpMode {
         sleep(3000);
         int distanceForward = inchesToCounts(7);
         goCounts(0.3, distanceForward);
-
-
-
     }
 
     public void rotateAndMoveGold() throws InterruptedException {
-        double rotatePower = 0.2;
+        if(!opModeIsActive()) return;
         boolean goldOnSide = false; //if gold block isn't in the center
         boolean goldOnRight = false;
-        PixyCam.Block goldBlock = pixyCam.getBiggestBlock(2); // Signature 2 = yellow block
+        PixyCam.Block goldBlock = getGoldBlock();
         telemetry.addData("Gold", goldBlock.toString());
-        while (goldBlock.x > 140 || goldBlock.x < 110) {
+        telemetry.update();
+        sleep(2000);
+        if (goldBlock.x > 140 || goldBlock.x < 110) {
             goldOnSide = true;
             if (goldBlock.x > 140) {
                 goldOnRight = true;
-                motorRight.setPower(-rotatePower);
-                motorLeft.setPower(rotatePower);
+                rotate(.3, 30);
             } else {
-                motorRight.setPower(rotatePower);
-                motorLeft.setPower(-rotatePower);
+                rotate(-.3, 30);
             }
-            goldBlock = pixyCam.getBiggestBlock(2); // Signature 2 = yellow block
-            telemetry.addData("Gold", goldBlock.toString());
-            telemetry.update();
         }
-        motorRight.setPower(0);
-        motorLeft.setPower(0);
-        sleep(1000);
-        goldBlock = pixyCam.getBiggestBlock(2);
-        telemetry.update();
-        sleep(5000);
+        sleep(500);
 
         int distanceToCenterGold = inchesToCounts(17); //distance is in counts
         int distanceToSideGold = inchesToCounts(19); //distance is in counts
 
+        int extraDistance = 0;
+
         if (goldOnSide) {
-            goCounts(0.3, distanceToSideGold);
+            if(depotSide()){
+                extraDistance = inchesToCounts(10);
+            }
+            goCounts(0.5, distanceToSideGold + extraDistance);
         } else {
-            goCounts(0.3, distanceToCenterGold);
+            if(depotSide()){
+                extraDistance = inchesToCounts(17);
+            }
+            goCounts(0.5, distanceToCenterGold + extraDistance);
         }
 
         //if facing crater, we are done
         if (depotSide()) {
-            int extraDistanceCenter = inchesToCounts(17); //distance is in counts
-
-            if (!goldOnSide) {
-                goCounts(0.3, extraDistanceCenter);
-            } else {
-                goCounts(0.3, inchesToCounts(5));
+            if (goldOnSide) {
                 if (goldOnRight) {
-                    //TODO: rotate ccw and move to depot
+                    double currentAngle = getGyroAngles().firstAngle;
+                    //return to previous heading
+                    rotate(-0.3,Math.abs(currentAngle));
+                    goCounts(0.5, inchesToCounts(13));
+                    rotate(-0.3, 20);
+                    goCounts(0.5, inchesToCounts(8));
                 } else {
-                    //TODO: rotate cw and move to depot
+                    double currentAngle = getGyroAngles().firstAngle;
+                    //return to previous heading
+                    rotate(0.3,Math.abs(currentAngle));
+                    goCounts(0.5, inchesToCounts(13));
+                    rotate(0.3, 30);
+                    goCounts(0.5, inchesToCounts(8));
                 }
-
             }
         }
+    }
+
+    PixyCam.Block getGoldBlock() {
+        PixyCam.Block block = null;
+        while (block == null ||
+                (block.x <= 0 || block.x >= 255) ||
+                (block.y <= 0 || block.y >= 255) ||
+                (block.width < 8 || block.width > 70) ||
+                (block.height < 8 || block.height > 70)
+                ) {
+            if(!opModeIsActive()){
+                break;
+            }
+            block = pixyCam.getBiggestBlock(2); // Signature 2 = yellow block
+            telemetry.addData("Signature 2",block.toString());
+            telemetry.update();
+            sleep(20);
+        }
+        return block;
     }
 
     /**
@@ -181,11 +201,12 @@ public class AutonomousRover extends LinearOpMode {
      * @param angle
      */
     void rotate(double power, double angle) {
+        if(!opModeIsActive()) return;
         double originalHeading = getGyroAngles().firstAngle;
         double currentHeading = originalHeading;
         telemetry.addData("current heading", originalHeading);
         telemetry.update();
-        sleep(3000);
+        sleep(1000);
         long start = new Date().getTime();
         motorRight.setPower(-power);
         motorLeft.setPower(power);
@@ -201,11 +222,11 @@ public class AutonomousRover extends LinearOpMode {
         telemetry.addData("current heading", currentHeading);
         telemetry.addData("rotate time", end - start);
         telemetry.update();
-        sleep(3000);
+        sleep(1000);
         currentHeading = getGyroAngles().firstAngle;
         telemetry.addData("current heading", currentHeading);
         telemetry.update();
-        sleep(3000);
+        sleep(1000);
     }
 
 
@@ -218,7 +239,8 @@ public class AutonomousRover extends LinearOpMode {
      * @throws InterruptedException
      */
     boolean goCounts(double power, int counts) throws InterruptedException {
-        //wheels.resetEncoders();
+        if(!opModeIsActive()) return false;
+
         motorLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         motorRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         DcMotor motor = motorLeft;
@@ -318,6 +340,7 @@ public class AutonomousRover extends LinearOpMode {
 
     /**
      * formats angles to one decimal point precision
+     *
      * @param degrees angle in degrees
      * @return a string
      */
