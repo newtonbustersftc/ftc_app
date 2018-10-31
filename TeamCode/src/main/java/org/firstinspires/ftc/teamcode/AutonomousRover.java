@@ -17,6 +17,10 @@ import java.util.Locale;
 @Autonomous(name = "AutoRoverCrater", group = "Main")
 public class AutonomousRover extends LinearOpMode {
 
+    final double POS_MARKER_FORWARD = 0.8;
+    final double POS_MARKER_UP = 0.45;
+    final double POS_MARKER_BACK = 0.2;
+
     DcMotor motorLeft;
     DcMotor motorRight;
     DcMotor liftMotor;
@@ -39,7 +43,18 @@ public class AutonomousRover extends LinearOpMode {
 
         waitForStart();
         landing();
+
         rotateAndMoveGold();
+
+        liftMotor.setPower(0);
+        liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        telemetry.addData("Lift Position", liftMotor.getCurrentPosition());
+
+        //Deliver team marker.
+        markerServo.setPosition(POS_MARKER_FORWARD);
+        sleep(2000);
+        markerServo.setPosition(POS_MARKER_UP);
+        sleep(2000);
     }
 
     public void preRun() {
@@ -89,15 +104,10 @@ public class AutonomousRover extends LinearOpMode {
         hookServo.setPosition(0.01);
         sleep(1000);
         markerServo = hardwareMap.servo.get("markerServo");
-        markerServo.setPosition(0.45);
+        markerServo.setPosition(POS_MARKER_BACK);
         liftMotor.setPower(1);
         liftMotor.setTargetPosition(0);
-        sleep(6000);
-        liftMotor.setPower(0);
-        sleep(200);
-        liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        telemetry.addData("Lift Position", liftMotor.getCurrentPosition());
-        sleep(3000);
+        sleep(1500);
         int distanceForward = inchesToCounts(7);
         goCounts(0.3, distanceForward);
     }
@@ -133,7 +143,7 @@ public class AutonomousRover extends LinearOpMode {
             goCounts(0.5, distanceToSideGold + extraDistance);
         } else {
             if(depotSide()){
-                extraDistance = inchesToCounts(17);
+                extraDistance = inchesToCounts(25);
             }
             goCounts(0.5, distanceToCenterGold + extraDistance);
         }
@@ -206,7 +216,7 @@ public class AutonomousRover extends LinearOpMode {
         double currentHeading = originalHeading;
         telemetry.addData("current heading", originalHeading);
         telemetry.update();
-        sleep(1000);
+        sleep(500);
         long start = new Date().getTime();
         motorRight.setPower(-power);
         motorLeft.setPower(power);
@@ -222,11 +232,11 @@ public class AutonomousRover extends LinearOpMode {
         telemetry.addData("current heading", currentHeading);
         telemetry.addData("rotate time", end - start);
         telemetry.update();
-        sleep(1000);
+        sleep(500);
         currentHeading = getGyroAngles().firstAngle;
         telemetry.addData("current heading", currentHeading);
         telemetry.update();
-        sleep(1000);
+        sleep(500);
     }
 
 
