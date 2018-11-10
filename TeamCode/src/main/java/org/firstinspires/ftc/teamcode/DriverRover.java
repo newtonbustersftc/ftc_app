@@ -66,7 +66,7 @@ public class DriverRover extends OpMode {
 
         markerServo = hardwareMap.servo.get("markerServo");
         //for moving the arm forward, use 1, for moving it back, use 0
-        setUpServo(markerServo, 0.2, 0.8);
+        setUpServo(markerServo, AutonomousRover.POS_MARKER_BACK, AutonomousRover.POS_MARKER_FORWARD);
     }
 
     @Override
@@ -123,7 +123,7 @@ public class DriverRover extends OpMode {
                     liftMotorPower = 0.3;
                 } else {
                     if (currentPos < LATCHING_POS_LOW) {
-                        disableHook();
+                        deenergizeHook();
                     }
                     liftMotorPower = 1;
                 }
@@ -136,7 +136,7 @@ public class DriverRover extends OpMode {
             hookButtonPressed = true;
         } else {
             if (hookButtonPressed) {
-                enableHook();
+                energizeHook();
                 if (hookReleased) {
                     hookServo.setPosition(1);
                 } else {
@@ -183,7 +183,7 @@ public class DriverRover extends OpMode {
     /**
      * deenergize hook servo (if enabled)
      */
-    void disableHook() {
+    void deenergizeHook() {
         if (hookServo.isPwmEnabled()) {
             hookServo.setPwmDisable();
         }
@@ -192,7 +192,7 @@ public class DriverRover extends OpMode {
     /**
      * energize hook servo (if disabled)
      */
-    void enableHook() {
+    void energizeHook() {
         if (!hookServo.isPwmEnabled()) {
             hookServo.setPwmEnable();
         }

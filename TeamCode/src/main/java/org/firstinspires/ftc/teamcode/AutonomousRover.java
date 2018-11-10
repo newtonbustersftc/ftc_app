@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
@@ -17,9 +18,9 @@ import java.util.Locale;
 @Autonomous(name = "AutoRoverCrater", group = "Main")
 public class AutonomousRover extends LinearOpMode {
 
-    final double POS_MARKER_FORWARD = 0.8;
-    final double POS_MARKER_UP = 0.45;
-    final double POS_MARKER_BACK = 0.2;
+    static final double POS_MARKER_FORWARD = 0.8;
+    static final double POS_MARKER_UP = 0.45;
+    static final double POS_MARKER_BACK = 0.2;
 
     DcMotor motorLeft;
     DcMotor motorRight;
@@ -46,14 +47,6 @@ public class AutonomousRover extends LinearOpMode {
 
         rotateAndMoveGold();
 
-        liftMotor.setPower(0);
-        liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        telemetry.addData("Lift Position", liftMotor.getCurrentPosition());
-
-        //Deliver team marker.
-        markerServo.setPosition(POS_MARKER_FORWARD);
-        sleep(2000);
-        markerServo.setPosition(POS_MARKER_UP);
         sleep(2000);
     }
 
@@ -120,7 +113,12 @@ public class AutonomousRover extends LinearOpMode {
         telemetry.addData("Gold", goldBlock.toString());
         telemetry.update();
         sleep(2000);
-        if (goldBlock.x > 140 || goldBlock.x < 110) {
+
+        liftMotor.setPower(0);
+        liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        telemetry.addData("Lift Position", liftMotor.getCurrentPosition());
+
+        if (goldBlock!= null && (goldBlock.x > 140 || goldBlock.x < 110)) {
             goldOnSide = true;
             if (goldBlock.x > 140) {
                 goldOnRight = true;
@@ -131,19 +129,19 @@ public class AutonomousRover extends LinearOpMode {
         }
         sleep(500);
 
-        int distanceToCenterGold = inchesToCounts(17); //distance is in counts
-        int distanceToSideGold = inchesToCounts(19); //distance is in counts
+        int distanceToCenterGold = inchesToCounts(19); //distance is in counts
+        int distanceToSideGold = inchesToCounts(21); //distance is in counts
 
-        int extraDistance = 0;
+        int extraDistance = 0; //extraDistance is for the depot side only
 
         if (goldOnSide) {
             if(depotSide()){
-                extraDistance = inchesToCounts(10);
+                extraDistance = inchesToCounts(8);
             }
             goCounts(0.5, distanceToSideGold + extraDistance);
         } else {
             if(depotSide()){
-                extraDistance = inchesToCounts(25);
+                extraDistance = inchesToCounts(23);
             }
             goCounts(0.5, distanceToCenterGold + extraDistance);
         }
@@ -167,10 +165,28 @@ public class AutonomousRover extends LinearOpMode {
                     goCounts(0.5, inchesToCounts(8));
                 }
             }
+            //Deliver team marker.
+            markerServo.setPosition(POS_MARKER_FORWARD);
+            sleep(2000);
+            markerServo.setPosition(POS_MARKER_UP);
+            sleep(2000);
+        } else {
+            if(goldOnSide) {
+                if(goldOnRight) {
+                    rotate(-0.3,20);
+                } else {
+                    rotate(0.3, 10);
+                }
+                goCounts(0.5,inchesToCounts(5));
+            }
+            markerServo.setPosition(POS_MARKER_FORWARD);
+            sleep(2000);
         }
     }
 
     PixyCam.Block getGoldBlock() {
+        ElapsedTime time = new ElapsedTime();
+        time.reset();
         PixyCam.Block block = null;
         while (block == null ||
                 (block.x <= 0 || block.x >= 255) ||
@@ -178,7 +194,8 @@ public class AutonomousRover extends LinearOpMode {
                 (block.width < 8 || block.width > 70) ||
                 (block.height < 8 || block.height > 70)
                 ) {
-            if(!opModeIsActive()){
+            if(!opModeIsActive() || time.seconds() > 5){
+                block = null;
                 break;
             }
             block = pixyCam.getBiggestBlock(2); // Signature 2 = yellow block
