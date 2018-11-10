@@ -1,26 +1,21 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
-import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
-import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
-
 import java.util.Date;
-import java.util.Locale;
 
 @Autonomous(name = "AutoRoverCrater", group = "Main")
-public class AutonomousRover extends LinearOpMode {
+public class AutonomousRover extends BaseAutonomous {
 
     static final double POS_MARKER_FORWARD = 0.8;
     static final double POS_MARKER_UP = 0.45;
     static final double POS_MARKER_BACK = 0.2;
+
+    static final double POS_HOOK_CLOSED = 0.5;
+    static final double POS_HOOK_OPEN = 0.2;
 
     DcMotor motorLeft;
     DcMotor motorRight;
@@ -31,15 +26,13 @@ public class AutonomousRover extends LinearOpMode {
 
     PixyCam pixyCam;
 
-    private BNO055IMU imu; // gyro
-    private Orientation angles; // angles from gyro
 
     protected boolean depotSide() {
         return false;
     }
 
     @Override
-    public void runOpMode() throws InterruptedException {
+    public void doRunOpMode() throws InterruptedException {
         preRun();
 
         waitForStart();
@@ -94,7 +87,7 @@ public class AutonomousRover extends LinearOpMode {
         sleep(200);
 
         hookServo = hardwareMap.servo.get("hookServo");
-        hookServo.setPosition(0.01);
+        hookServo.setPosition(POS_HOOK_OPEN);
         sleep(1000);
         markerServo = hardwareMap.servo.get("markerServo");
         markerServo.setPosition(POS_MARKER_BACK);
@@ -110,8 +103,12 @@ public class AutonomousRover extends LinearOpMode {
         boolean goldOnSide = false; //if gold block isn't in the center
         boolean goldOnRight = false;
         PixyCam.Block goldBlock = getGoldBlock();
-        telemetry.addData("Gold", goldBlock.toString());
-        telemetry.update();
+        if(goldBlock != null) {
+            telemetry.addData("Gold", goldBlock.toString());
+            telemetry.update();
+            log("Detected gold block " + goldBlock.toString());
+        }
+
         sleep(2000);
 
         liftMotor.setPower(0);
@@ -201,24 +198,12 @@ public class AutonomousRover extends LinearOpMode {
             block = pixyCam.getBiggestBlock(2); // Signature 2 = yellow block
             telemetry.addData("Signature 2",block.toString());
             telemetry.update();
-            sleep(20);
+            sleep(100);
         }
         return block;
     }
 
-    /**
-     * Save current gyro heading, roll, and pitch into angles variable
-     * angles.firstAngle is the heading
-     * angles.secondAngle is the roll
-     * angles.thirdAngle is the pitch
-     * Heading: clockwise is decreasing, counterclockwise is increasing
-     * Pitch: Lift side w/ light is decreasing, vice versa
-     * Roll: Lift side w/ mini USB port is decreasing, vice versa
-     */
-    Orientation getGyroAngles() {
-        angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
-        return angles;
-    }
+
 
     /**
      * rotates robot the given angle, give negative power for counterclockwise rotation and
@@ -321,58 +306,8 @@ public class AutonomousRover extends LinearOpMode {
         return (int) (1000 * inches / 11.5);
     }
 
-    /**
-     * initializes gyro
-     */
-    private void gyroInit() {
-        // see the calibration sample opmode;
-        BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
-        parameters.angleUnit = BNO055IMU.AngleUnit.DEGREES;
-        parameters.calibrationDataFile = "AdafruitIMUCalibration.json";
-
-        imu = hardwareMap.get(BNO055IMU.class, "imu");
-        imu.initialize(parameters);
+    void log(String s) {
+        super.log();
+        out.append(s);
     }
-
-    /**
-     * adds information about gyro angles and status to telemetry
-     *
-     * @param update if true, telemetry is updated right away
-     */
-    void logGyro(boolean update) {
-        telemetry.addLine().
-                addData("status", imu.getSystemStatus().toShortString()).
-                addData("calib", imu.getCalibrationStatus().toString());
-
-        getGyroAngles();
-        telemetry.addLine().
-                addData("heading", formatAngle(angles.angleUnit, angles.firstAngle)).
-                addData("roll", formatAngle(angles.angleUnit, angles.secondAngle)).
-                addData("pitch", formatAngle(angles.angleUnit, angles.thirdAngle));
-        if (update) {
-            telemetry.update();
-        }
-    }
-
-    /**
-     * formats gyro angle for telemetry
-     *
-     * @param angleUnit
-     * @param angle
-     * @return
-     */
-    String formatAngle(AngleUnit angleUnit, double angle) {
-        return formatDegrees(AngleUnit.DEGREES.fromUnit(angleUnit, angle));
-    }
-
-    /**
-     * formats angles to one decimal point precision
-     *
-     * @param degrees angle in degrees
-     * @return a string
-     */
-    String formatDegrees(double degrees) {
-        return String.format(Locale.getDefault(), "%.1f", AngleUnit.DEGREES.normalize(degrees));
-    }
-
 }

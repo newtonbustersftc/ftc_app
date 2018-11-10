@@ -62,7 +62,7 @@ public class DriverRover extends OpMode {
         // we don't want to hook servo to keep position when robot is lifting or lowering
         hookServo = (ServoImplEx)hardwareMap.servo.get("hookServo");
         //set position to 0 for releasing the hook and use position 1 to close hook
-        setUpServo(hookServo, 0.04, 0.325);
+        setUpServo(hookServo, AutonomousRover.POS_HOOK_OPEN, AutonomousRover.POS_HOOK_CLOSED);
 
         markerServo = hardwareMap.servo.get("markerServo");
         //for moving the arm forward, use 1, for moving it back, use 0

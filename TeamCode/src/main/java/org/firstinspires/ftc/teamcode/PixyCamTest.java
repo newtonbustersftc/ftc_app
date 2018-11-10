@@ -30,11 +30,11 @@ public class PixyCamTest extends OpMode {
     @Override
     public void loop()
     {
-        if (elapsedTime.milliseconds() > 100) // Update every tenth of a second.
+        if (elapsedTime.milliseconds() > 200) // Update every tenth of a second.
         {
             elapsedTime.reset();
-            block1 = pixyCam.getBiggestBlock(1);
-            telemetry.addData("Signature 1", block1.toString());
+//            block1 = pixyCam.getBiggestBlock(1);
+//            telemetry.addData("Signature 1", block1.toString());
             block2 = pixyCam.getBiggestBlock(2);
             telemetry.addData("Signature 2", block2.toString());
         }
