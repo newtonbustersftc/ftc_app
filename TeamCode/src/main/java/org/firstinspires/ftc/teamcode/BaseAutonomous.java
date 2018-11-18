@@ -4,9 +4,7 @@ import android.os.Environment;
 
 import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.hardware.DcMotor;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
@@ -25,16 +23,18 @@ public abstract class BaseAutonomous extends LinearOpMode {
     private BNO055IMU imu; // gyro
     Orientation angles; // angles from gyro
 
+    protected String logPrefix = "lastrun";
+
     @Override
     public void runOpMode() throws InterruptedException {
         try {
             doRunOpMode();
+            telemetry.clear();
         } finally {
             try {
                 if(out != null) {
-                    String name = "lastrun";
                     //log file without the time stamp to find it easier
-                    File file = new File(Environment.getExternalStorageDirectory().getPath() + "/FIRST/" + name + ".txt");
+                    File file = new File(Environment.getExternalStorageDirectory().getPath() + "/FIRST/" + logPrefix + ".txt");
 
                     //saving the log file into a file
                     OutputStreamWriter outputStreamWriter = new OutputStreamWriter(new FileOutputStream(file));
@@ -43,8 +43,9 @@ public abstract class BaseAutonomous extends LinearOpMode {
 
                     //log file with the time stamp for history
                     String timestamp = new SimpleDateFormat("MMMdd_HHmm", Locale.US).format(new Date());
-                    file = new File(Environment.getExternalStorageDirectory().getPath() + "/FIRST/" + name + "_" + timestamp + ".txt");
+                    file = new File(Environment.getExternalStorageDirectory().getPath() + "/FIRST/" + logPrefix + "_" + timestamp + ".txt");
                     telemetry.addData("File", file.getAbsolutePath());
+                    telemetry.update();
 
                     //saving the log file into a file
                     outputStreamWriter = new OutputStreamWriter(new FileOutputStream(file));
@@ -54,10 +55,10 @@ public abstract class BaseAutonomous extends LinearOpMode {
                 }
             } catch (Exception e) {
                 telemetry.addData("Exception", "File write failed: " + e.toString());
+                telemetry.update();
             }
-
         }
-
+        sleep(2000);
     }
 
     abstract public void doRunOpMode() throws InterruptedException;
