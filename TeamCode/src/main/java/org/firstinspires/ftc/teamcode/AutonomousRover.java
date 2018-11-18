@@ -78,7 +78,7 @@ public class AutonomousRover extends BaseAutonomous {
     }
 
     public void landing() throws InterruptedException {
-        if(!opModeIsActive()) return;
+        if (!opModeIsActive()) return;
         liftMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
         liftMotor.setPower(-1);
         liftMotor.setTargetPosition(-DriverRover.LATCHING_POS);
@@ -99,11 +99,11 @@ public class AutonomousRover extends BaseAutonomous {
     }
 
     public void rotateAndMoveGold() throws InterruptedException {
-        if(!opModeIsActive()) return;
+        if (!opModeIsActive()) return;
         boolean goldOnSide = false; //if gold block isn't in the center
         boolean goldOnRight = false;
         PixyCam.Block goldBlock = getGoldBlock();
-        if(goldBlock != null) {
+        if (goldBlock != null) {
             telemetry.addData("Gold", goldBlock.toString());
             telemetry.update();
             log("Detected gold block " + goldBlock.toString());
@@ -115,7 +115,7 @@ public class AutonomousRover extends BaseAutonomous {
         liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         telemetry.addData("Lift Position", liftMotor.getCurrentPosition());
 
-        if (goldBlock!= null && (goldBlock.x > 140 || goldBlock.x < 110)) {
+        if (goldBlock != null && (goldBlock.x > 140 || goldBlock.x < 110)) {
             goldOnSide = true;
             if (goldBlock.x > 140) {
                 goldOnRight = true;
@@ -132,12 +132,12 @@ public class AutonomousRover extends BaseAutonomous {
         int extraDistance = 0; //extraDistance is for the depot side only
 
         if (goldOnSide) {
-            if(depotSide()){
+            if (depotSide()) {
                 extraDistance = inchesToCounts(8);
             }
             goCounts(0.5, distanceToSideGold + extraDistance);
         } else {
-            if(depotSide()){
+            if (depotSide()) {
                 extraDistance = inchesToCounts(23);
             }
             goCounts(0.5, distanceToCenterGold + extraDistance);
@@ -149,14 +149,14 @@ public class AutonomousRover extends BaseAutonomous {
                 if (goldOnRight) {
                     double currentAngle = getGyroAngles().firstAngle;
                     //return to previous heading
-                    rotate(-0.3,Math.abs(currentAngle));
+                    rotate(-0.3, Math.abs(currentAngle));
                     goCounts(0.5, inchesToCounts(13));
                     rotate(-0.3, 20);
                     goCounts(0.5, inchesToCounts(8));
                 } else {
                     double currentAngle = getGyroAngles().firstAngle;
                     //return to previous heading
-                    rotate(0.3,Math.abs(currentAngle));
+                    rotate(0.3, Math.abs(currentAngle));
                     goCounts(0.5, inchesToCounts(13));
                     rotate(0.3, 30);
                     goCounts(0.5, inchesToCounts(8));
@@ -168,13 +168,13 @@ public class AutonomousRover extends BaseAutonomous {
             markerServo.setPosition(POS_MARKER_UP);
             sleep(2000);
         } else {
-            if(goldOnSide) {
-                if(goldOnRight) {
-                    rotate(-0.3,20);
+            if (goldOnSide) {
+                if (goldOnRight) {
+                    rotate(-0.3, 20);
                 } else {
                     rotate(0.3, 10);
                 }
-                goCounts(0.5,inchesToCounts(5));
+                goCounts(0.5, inchesToCounts(5));
             }
             markerServo.setPosition(POS_MARKER_FORWARD);
             sleep(2000);
@@ -191,18 +191,17 @@ public class AutonomousRover extends BaseAutonomous {
                 (block.width < 8 || block.width > 70) ||
                 (block.height < 8 || block.height > 70)
                 ) {
-            if(!opModeIsActive() || time.seconds() > 5){
+            if (!opModeIsActive() || time.seconds() > 5) {
                 block = null;
                 break;
             }
             block = pixyCam.getBiggestBlock(2); // Signature 2 = yellow block
-            telemetry.addData("Signature 2",block.toString());
+            telemetry.addData("Signature 2", block.toString());
             telemetry.update();
             sleep(100);
         }
         return block;
     }
-
 
 
     /**
@@ -213,7 +212,7 @@ public class AutonomousRover extends BaseAutonomous {
      * @param angle
      */
     void rotate(double power, double angle) {
-        if(!opModeIsActive()) return;
+        if (!opModeIsActive()) return;
         double originalHeading = getGyroAngles().firstAngle;
         double currentHeading = originalHeading;
         telemetry.addData("current heading", originalHeading);
@@ -251,7 +250,7 @@ public class AutonomousRover extends BaseAutonomous {
      * @throws InterruptedException
      */
     boolean goCounts(double power, int counts) throws InterruptedException {
-        if(!opModeIsActive()) return false;
+        if (!opModeIsActive()) return false;
 
         motorLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         motorRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -292,6 +291,56 @@ public class AutonomousRover extends BaseAutonomous {
         telemetry.addData("Counts Moved", Math.abs(motor.getCurrentPosition() - startPos));
         telemetry.update();
         return finished;
+    }
+
+    /**
+     * set break or float behavior
+     *
+     * @param behavior
+     */
+    void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior) {
+        motorLeft.setZeroPowerBehavior(behavior);
+        motorRight.setZeroPowerBehavior(behavior);
+    }
+
+    /**
+     * @return the selected wheel encoder count
+     */
+    int getWheelPosition() {
+        return motorLeft.getCurrentPosition();
+    }
+
+    /**
+     * @param motorPower power to go in straight line from -1 to 1
+     * @param steerPower power to make adjustments clockwise
+     */
+    void steer(double motorPower, double steerPower) {
+        double leftPower = motorPower;
+        double rightPower = motorPower;
+        if (leftPower > 0) {
+            if (steerPower > 0)
+                leftPower += steerPower;
+            else
+                rightPower -= steerPower;
+        } else {
+            if (steerPower > 0) {
+                rightPower -= steerPower;
+            } else {
+                leftPower += steerPower;
+            }
+        }
+        motorLeft.setPower(leftPower);
+        motorRight.setPower(rightPower);
+    }
+
+    /**
+     * @param inches
+     * @param foward true when robot moves foward
+     * @return
+     */
+    int inchesToCounts(double inches, boolean foward) {
+        //it doesn't matter whether robot moves foward or backwards
+        return inchesToCounts(inches);
     }
 
     /**

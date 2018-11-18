@@ -4,6 +4,7 @@ import android.os.Environment;
 
 import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
@@ -23,7 +24,9 @@ public abstract class BaseAutonomous extends LinearOpMode {
     private BNO055IMU imu; // gyro
     Orientation angles; // angles from gyro
 
-    protected String logPrefix = "lastrun";
+    protected String logPrefix = "lastrun"; //prefix for a log file
+
+    protected double kp = 0.04; //experimental coefficient for proportional correction of the direction
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -136,4 +139,94 @@ public abstract class BaseAutonomous extends LinearOpMode {
             out = new StringBuffer();
         }
     }
+
+    /**
+     * set break or float behavior
+     * @param behavior
+     */
+    void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior){
+        throw new UnsupportedOperationException("setZeroPowerBehavior is not implemented");
+    }
+
+    /**
+     * @return the selected wheel encoder count
+     */
+    int getWheelPosition(){
+        throw new UnsupportedOperationException("getWheelPosition is not implemented");
+    }
+
+
+    int inchesToCounts(double inches, boolean foward){
+        throw new UnsupportedOperationException("inchesToCounts is not implemented");
+    }
+
+    /**
+     *
+     * @param motorPower power to go in straight line from -1 to 1
+     * @param steerPower power to make adjustments clockwise
+     */
+    void steer(double motorPower, double steerPower){
+        throw new UnsupportedOperationException("steer is not implemented");
+    }
+
+
+    /**
+     * moves robot given number of inches using the gyro to keep us straight
+     *
+     * @param startPower starting forward power
+     * @param heading    gyro heading
+     * @param inches     distance forward
+     * @param endPower   ending forward power
+     * @return true if distance required was travelled, false otherwise
+     * @throws InterruptedException
+     */
+    boolean moveByInchesGyro(double startPower, double heading, double inches, double endPower) throws InterruptedException {
+
+        boolean forward = startPower > 0;
+
+        setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        int initialcount = getWheelPosition();
+        double error, steerSpeed; // counterclockwise speed
+
+        double inchesForGradient = 10;
+        double slope = (endPower - startPower) / inchesToCounts(Math.min(inchesForGradient, inches), forward);
+        double countsForGradient = (inches < inchesForGradient) ? 0 : Math.abs(inchesToCounts(inches - inchesForGradient, forward));
+
+        double countsSinceStart = Math.abs(getWheelPosition() - initialcount);
+        double motorPower = startPower;
+        while (opModeIsActive() && countsSinceStart < inchesToCounts(inches, forward)) {
+            // error CCW - negative, CW - positive
+            error = getRawHeadingError(heading);
+
+            if (Math.abs(error) < 1) {
+                steerSpeed = 0;
+            } else {
+                steerSpeed = kp * error / 4;
+            }
+            telemetry.addData("Error", error);
+            telemetry.update();
+
+            if (countsSinceStart > countsForGradient) {
+                motorPower = slope * (countsSinceStart - inchesToCounts(inches, forward)) + endPower;
+            }
+            steer(motorPower, -steerSpeed);
+
+            countsSinceStart = Math.abs(getWheelPosition() - initialcount);
+
+        }
+        steer(0, 0);
+
+        return opModeIsActive();
+    }
+
+    /**
+     * error for java detection
+     *
+     * @param heading desired heading
+     * @return the error (difference between desired heading and actual heading)
+     */
+    double getRawHeadingError(double heading) {
+        return (getGyroAngles().firstAngle - heading);
+    }
+
 }
