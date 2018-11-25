@@ -5,10 +5,12 @@ import android.os.Environment;
 import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DistanceSensor;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
 
 import java.io.File;
@@ -25,8 +27,6 @@ public abstract class BaseAutonomous extends LinearOpMode {
     Orientation angles; // angles from gyro
 
     protected String logPrefix = "lastrun"; //prefix for a log file
-
-    protected double kp = 0.04; //experimental coefficient for proportional correction of the direction
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -92,6 +92,17 @@ public abstract class BaseAutonomous extends LinearOpMode {
         angles = imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
         return angles;
     }
+
+    /**
+     * error for java detection
+     *
+     * @param heading desired heading
+     * @return the error (difference between desired heading and actual heading)
+     */
+    double getRawHeadingError(double heading) {
+        return (getGyroAngles().firstAngle - heading);
+    }
+
 
     /**
      * adds information about gyro angles and status to telemetry
@@ -174,13 +185,13 @@ public abstract class BaseAutonomous extends LinearOpMode {
      * moves robot given number of inches using the gyro to keep us straight
      *
      * @param startPower starting forward power
-     * @param heading    gyro heading
+     * @param errorSource object that has getError method
      * @param inches     distance forward
      * @param endPower   ending forward power
      * @return true if distance required was travelled, false otherwise
      * @throws InterruptedException
      */
-    boolean moveByInchesGyro(double startPower, double heading, double inches, double endPower) throws InterruptedException {
+    boolean moveWithProportionalCorrection(double startPower, double endPower, double inches, ErrorSource errorSource) throws InterruptedException {
 
         boolean forward = startPower > 0;
 
@@ -196,12 +207,12 @@ public abstract class BaseAutonomous extends LinearOpMode {
         double motorPower = startPower;
         while (opModeIsActive() && countsSinceStart < inchesToCounts(inches, forward)) {
             // error CCW - negative, CW - positive
-            error = getRawHeadingError(heading);
+            error = errorSource.getError();
 
             if (Math.abs(error) < 1) {
                 steerSpeed = 0;
             } else {
-                steerSpeed = kp * error / 4;
+                steerSpeed = errorSource.getKP() * error ;
             }
             telemetry.addData("Error", error);
             telemetry.update();
@@ -209,7 +220,7 @@ public abstract class BaseAutonomous extends LinearOpMode {
             if (countsSinceStart > countsForGradient) {
                 motorPower = slope * (countsSinceStart - inchesToCounts(inches, forward)) + endPower;
             }
-            steer(motorPower, -steerSpeed);
+            steer(motorPower, steerSpeed);
 
             countsSinceStart = Math.abs(getWheelPosition() - initialcount);
 
@@ -219,14 +230,56 @@ public abstract class BaseAutonomous extends LinearOpMode {
         return opModeIsActive();
     }
 
-    /**
-     * error for java detection
-     *
-     * @param heading desired heading
-     * @return the error (difference between desired heading and actual heading)
-     */
-    double getRawHeadingError(double heading) {
-        return (getGyroAngles().firstAngle - heading);
+    public class GyroErrorSource implements ErrorSource {
+
+        private double heading;
+
+        public GyroErrorSource(double heading) {
+            this.heading = heading;
+        }
+
+        @Override
+        public double getError() {
+            return getRawHeadingError(heading);
+        }
+
+        @Override
+        public double getKP() {
+            //experimental coefficient for proportional correction of the direction
+            return 0.01;
+        }
+    }
+
+    public class RangeErrorSource implements ErrorSource {
+
+        private DistanceSensor distanceSensor;
+        private double rangeInInches;
+        private int errorSign;
+
+        RangeErrorSource(DistanceSensor distanceSensor,
+                                double rangeInInches,
+                                boolean clockwiseForPositiveError) {
+            this.distanceSensor = distanceSensor;
+            this.rangeInInches = rangeInInches;
+            errorSign = clockwiseForPositiveError ? 1 : -1;
+        }
+
+        @Override
+        public double getError() {
+            /*
+            with the sensor mounted on the left side of the robot,
+            we want the robot to move clockwise (positive error) if it is too close to the wall
+            and counterclockwise (negative error) if it is too far from the wall
+             */
+
+            return (rangeInInches - distanceSensor.getDistance(DistanceUnit.INCH)) * errorSign;
+        }
+
+        @Override
+        public double getKP() {
+            //experimental coefficient for proportional correction of the direction
+            return 0.005;
+        }
     }
 
 }

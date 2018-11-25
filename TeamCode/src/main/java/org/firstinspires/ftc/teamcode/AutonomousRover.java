@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DistanceSensor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -17,14 +18,16 @@ public class AutonomousRover extends BaseAutonomous {
     static final double POS_HOOK_CLOSED = 0.5;
     static final double POS_HOOK_OPEN = 0.2;
 
-    DcMotor motorLeft;
-    DcMotor motorRight;
-    DcMotor liftMotor;
+    private DcMotor motorLeft;
+    private DcMotor motorRight;
+    private DcMotor liftMotor;
 
-    Servo hookServo;
-    Servo markerServo;
+    private Servo hookServo;
+    private Servo markerServo;
 
-    PixyCam pixyCam;
+    private PixyCam pixyCam;
+
+    DistanceSensor rangeSensorLeft;
 
 
     protected boolean depotSide() {
@@ -47,6 +50,7 @@ public class AutonomousRover extends BaseAutonomous {
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
         motorRight = hardwareMap.dcMotor.get("wheelsRight");
 
+        rangeSensorLeft = hardwareMap.get(DistanceSensor.class, "rangeSensor");
 
         pixyCam = hardwareMap.get(PixyCam.class, "pixy");
 

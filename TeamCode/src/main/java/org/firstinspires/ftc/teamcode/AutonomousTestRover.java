@@ -9,9 +9,10 @@ public class AutonomousTestRover extends AutonomousRover {
     public void runOpMode() throws InterruptedException {
         preRun();
         waitForStart();
+        distanceDriveTest();
         //distanceTest();
         //steerTest();
-        gyroDriveTest();
+        //gyroDriveTest();
 //        rotate(0.12,90);
 //        rotate(-0.12, 180);
 //        rotate(0.12, 180);
@@ -64,10 +65,24 @@ public class AutonomousTestRover extends AutonomousRover {
         double endPower = 0.1;
         double heading = 0;
         double inches = 66;
-        moveByInchesGyro(startPower, heading, inches, endPower);
+        moveWithProportionalCorrection(startPower, endPower, inches, new GyroErrorSource(heading));
 
         sleep( 5000);
-        moveByInchesGyro(-startPower, heading, inches, -endPower);
+        moveWithProportionalCorrection(-startPower, -endPower, inches, new GyroErrorSource(heading));
+        sleep(5000);
+    }
+
+    void distanceDriveTest() throws InterruptedException {
+        double startPower = 0.3;
+        double endPower = 0.1;
+        double inches = 66;
+        double rangeInInches = 7;
+        ErrorSource errorSourceForward = new RangeErrorSource(rangeSensorLeft, rangeInInches, true);
+        ErrorSource errorSourceBackward = new RangeErrorSource(rangeSensorLeft, rangeInInches, false);
+        moveWithProportionalCorrection(startPower, endPower, inches, errorSourceForward);
+
+        sleep( 5000);
+        moveWithProportionalCorrection(-startPower, -endPower, inches, errorSourceBackward);
         sleep(5000);
     }
 }
