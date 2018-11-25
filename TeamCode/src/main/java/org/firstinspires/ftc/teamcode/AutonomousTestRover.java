@@ -9,7 +9,11 @@ public class AutonomousTestRover extends AutonomousRover {
     public void runOpMode() throws InterruptedException {
         preRun();
         waitForStart();
-        distanceDriveTest();
+        goldPosition = getGoldPosition();
+        telemetry.addData("Gold Position", goldPosition);
+        telemetry.update();
+        sleep(10000);
+        //distanceDriveTest();
         //distanceTest();
         //steerTest();
         //gyroDriveTest();

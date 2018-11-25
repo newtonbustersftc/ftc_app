@@ -4,12 +4,59 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DistanceSensor;
 import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.robotcore.external.ClassFactory;
+import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
+import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
+import org.firstinspires.ftc.robotcore.external.tfod.TFObjectDetector;
+
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.List;
+
+import static java.lang.System.currentTimeMillis;
 
 @Autonomous(name = "AutoRoverCrater", group = "Main")
 public class AutonomousRover extends BaseAutonomous {
+
+    private static final String TFOD_MODEL_ASSET = "RoverRuckus.tflite";
+    private static final String LABEL_GOLD_MINERAL = "Gold Mineral";
+    private static final String LABEL_SILVER_MINERAL = "Silver Mineral";
+
+    /*
+     * IMPORTANT: You need to obtain your own license key to use Vuforia. The string below with which
+     * 'parameters.vuforiaLicenseKey' is initialized is for illustration only, and will not function.
+     * A Vuforia 'Development' license key, can be obtained free of charge from the Vuforia developer
+     * web site at https://developer.vuforia.com/license-manager.
+     *
+     * Vuforia license keys are always 380 characters long, and look as if they contain mostly
+     * random data. As an example, here is a example of a fragment of a valid key:
+     *      ... yIgIzTqZ4mWjk9wd3cZO9T1axEqzuhxoGlfOOI2dRzKS4T0hQ8kT ...
+     * Once you've obtained a license key, copy the string from the Vuforia web site
+     * and paste it in to your code on the next line, between the double quotes.
+     */
+    private static final String VUFORIA_KEY = "AbXEDef/////AAAAGU/yaxRV9EUDvGnzyyDBYXcKyDJ9pLb4hlfkcdjSSYUFWen3PVv+3CgFK9M2otdAxlvNvXj2mms/QU9yN/s5sZTgeh+iC39BihOEqC4I+0PYf1L8lqajM0dmEVbsfnGkDcCro+TnDT0vr6zTeJlprz7oNMqGQNZFKSUwEB9cMQR5eLOlUTyt4zhAYvX7Tz2E1cSAXlpVFBzo7/QOqaK7ex/iPo7h1m81KrFDI+yQ6WiveNWAev7kMnau8du//Jyr1I9D6e8QxeL0j/wLDxSrBGAqRnAHcyuQq7Eo39DIseEUu5k849py3hA0uKL8s7NYHg9LxTezwyhSk7cft8aGnCMJ9yMVJEUeTAnE2GEqySWF";
+
+    /**
+     * {@link #vuforia} is the variable we will use to store our instance of the Vuforia
+     * localization engine.
+     */
+    private VuforiaLocalizer vuforia;
+
+    /**
+     * {@link #tfod} is the variable we will use to store our instance of the Tensor Flow Object
+     * Detection engine.
+     */
+    private TFObjectDetector tfod;
+
+    long startMillis;
+
+    enum GoldPosition {
+        left, center, right, undetected
+    }
+
+    GoldPosition goldPosition = GoldPosition.undetected;
 
     static final double POS_MARKER_FORWARD = 0.8;
     static final double POS_MARKER_UP = 0.45;
@@ -25,8 +72,6 @@ public class AutonomousRover extends BaseAutonomous {
     private Servo hookServo;
     private Servo markerServo;
 
-    private PixyCam pixyCam;
-
     DistanceSensor rangeSensorLeft;
 
 
@@ -36,9 +81,11 @@ public class AutonomousRover extends BaseAutonomous {
 
     @Override
     public void doRunOpMode() throws InterruptedException {
+
         preRun();
 
         waitForStart();
+        startMillis = currentTimeMillis();
         landing();
 
         rotateAndMoveGold();
@@ -47,12 +94,12 @@ public class AutonomousRover extends BaseAutonomous {
     }
 
     public void preRun() {
+        initializeTensorFlow();
+
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
         motorRight = hardwareMap.dcMotor.get("wheelsRight");
 
         rangeSensorLeft = hardwareMap.get(DistanceSensor.class, "rangeSensor");
-
-        pixyCam = hardwareMap.get(PixyCam.class, "pixy");
 
         // run by power
         motorLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -76,6 +123,7 @@ public class AutonomousRover extends BaseAutonomous {
         while (!this.isStarted() && !this.isStopRequested()) {
             telemetry.clearAll();
             logGyro(false);
+            telemetry.addData("tfod", tfod != null);
             telemetry.update();
             idle();
         }
@@ -106,27 +154,24 @@ public class AutonomousRover extends BaseAutonomous {
         if (!opModeIsActive()) return;
         boolean goldOnSide = false; //if gold block isn't in the center
         boolean goldOnRight = false;
-        PixyCam.Block goldBlock = getGoldBlock();
-        if (goldBlock != null) {
-            telemetry.addData("Gold", goldBlock.toString());
-            telemetry.update();
-            log("Detected gold block " + goldBlock.toString());
-        }
 
-        sleep(2000);
+        goldPosition = getGoldPosition();
+
+        if (goldPosition.equals(GoldPosition.right)) {
+            goldOnRight = true;
+            goldOnSide = true;
+        } else if (goldPosition.equals(GoldPosition.left)) {
+            goldOnSide = true;
+        }
 
         liftMotor.setPower(0);
         liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         telemetry.addData("Lift Position", liftMotor.getCurrentPosition());
 
-        if (goldBlock != null && (goldBlock.x > 140 || goldBlock.x < 110)) {
-            goldOnSide = true;
-            if (goldBlock.x > 140) {
-                goldOnRight = true;
-                rotate(.3, 30);
-            } else {
-                rotate(-.3, 30);
-            }
+        if (goldOnRight) {
+            rotate(0.3, 30);
+        } else if (goldOnSide) {
+            rotate(-0.3, 30); //Gold is on the left
         }
         sleep(500);
 
@@ -184,29 +229,6 @@ public class AutonomousRover extends BaseAutonomous {
             sleep(2000);
         }
     }
-
-    PixyCam.Block getGoldBlock() {
-        ElapsedTime time = new ElapsedTime();
-        time.reset();
-        PixyCam.Block block = null;
-        while (block == null ||
-                (block.x <= 0 || block.x >= 255) ||
-                (block.y <= 0 || block.y >= 255) ||
-                (block.width < 8 || block.width > 70) ||
-                (block.height < 8 || block.height > 70)
-                ) {
-            if (!opModeIsActive() || time.seconds() > 5) {
-                block = null;
-                break;
-            }
-            block = pixyCam.getBiggestBlock(2); // Signature 2 = yellow block
-            telemetry.addData("Signature 2", block.toString());
-            telemetry.update();
-            sleep(100);
-        }
-        return block;
-    }
-
 
     /**
      * rotates robot the given angle, give negative power for counterclockwise rotation and
@@ -359,8 +381,174 @@ public class AutonomousRover extends BaseAutonomous {
         return (int) (1000 * inches / 11.5);
     }
 
-    void log(String s) {
-        super.log();
-        out.append(s);
+    void initializeTensorFlow() {
+        // The TFObjectDetector uses the camera frames from the VuforiaLocalizer,
+        // so we create that first.
+        initVuforia();
+
+        if (ClassFactory.getInstance().canCreateTFObjectDetector()) {
+            initTfod();
+        } else {
+            telemetry.addData("Sorry!", "This device is not compatible with TFOD");
+            telemetry.update();
+            sleep(10000);
+        }
+    }
+
+    /**
+     * Initialize the Vuforia localization engine.
+     */
+    private void initVuforia() {
+        /*
+         * Configure Vuforia by creating a Parameter object, and passing it to the Vuforia engine.
+         */
+        VuforiaLocalizer.Parameters parameters = new VuforiaLocalizer.Parameters();
+
+        parameters.vuforiaLicenseKey = VUFORIA_KEY;
+        parameters.cameraDirection = VuforiaLocalizer.CameraDirection.BACK;
+
+        //  Instantiate the Vuforia engine
+        vuforia = ClassFactory.getInstance().createVuforia(parameters);
+
+        // Loading trackables is not necessary for the Tensor Flow Object Detection engine.
+    }
+
+    /**
+     * Initialize the Tensor Flow Object Detection engine.
+     */
+    private void initTfod() {
+        int tfodMonitorViewId = hardwareMap.appContext.getResources().getIdentifier(
+                "tfodMonitorViewId", "id", hardwareMap.appContext.getPackageName());
+        TFObjectDetector.Parameters tfodParameters = new TFObjectDetector.Parameters(tfodMonitorViewId);
+        tfodParameters.minimumConfidence = 0.7;
+        tfod = ClassFactory.getInstance().createTFObjectDetector(tfodParameters, vuforia);
+        tfod.loadModelFromAsset(TFOD_MODEL_ASSET, LABEL_GOLD_MINERAL, LABEL_SILVER_MINERAL);
+    }
+
+    GoldPosition getGoldPosition() {
+
+        long startTime = currentTimeMillis();
+
+        try {
+            /** Activate Tensor Flow Object Detection. */
+            if (tfod != null) {
+                tfod.activate();
+                sleep(1000);
+            }
+            while (opModeIsActive() && currentTimeMillis() - startTime < 3000) {
+                if (tfod != null) {
+                    // getUpdatedRecognitions() will return null if no new information is available since
+                    // the last time that call was made.
+                    List<Recognition> updatedRecognitions = tfod.getRecognitions();
+                    if (updatedRecognitions != null) {
+                        if (updatedRecognitions.size() < 1) continue;
+
+                        // phone rotation is disabled
+                        // the phone is mounted on the side
+                        // top (left) is the lowest y coord - 0, bottom (right) is the highest - 800
+                        Collections.sort(updatedRecognitions, new Comparator<Recognition>() {
+                            @Override
+                            public int compare(Recognition r1, Recognition r2) {
+                                return (int) (r1.getBottom() - r2.getBottom());
+                            }
+                        });
+
+                        float goldBottom = -1;
+                        float silver1Bottom = -1;
+                        float silver2Bottom = -1;
+
+                        int numberOfGolds = 0;
+                        int numberOfOthers = 0;
+                        int nr = 1;
+
+                        for (Recognition recognition : updatedRecognitions) {
+                            if (recognition != null) {
+                                telemetry.addData(recognition.getLabel() + (nr++),
+                                        "bottom: " + (int) recognition.getBottom() + "," +
+                                                " conf: " + recognition.getConfidence() + ", (" +
+                                                recognition.getImageWidth() + "," + recognition.getImageHeight()
+                                );
+                            }
+                            if (recognition.getLabel().equals(LABEL_GOLD_MINERAL)) {
+                                numberOfGolds++;
+                                goldBottom = recognition.getBottom();
+                            } else {
+                                if (recognition.getLabel().equals(LABEL_SILVER_MINERAL)) {
+                                    if (silver1Bottom < 0) {
+                                        silver1Bottom = recognition.getBottom();
+                                    } else if (silver2Bottom < 0) {
+                                        silver2Bottom = recognition.getBottom();
+                                    } else {
+                                        return GoldPosition.undetected;
+                                    }
+                                }
+                                numberOfOthers++;
+                            }
+                        }
+
+                        if (numberOfGolds > 1 || numberOfOthers > 2) {
+                            continue;
+                        }
+
+                        if (goldBottom >= 0) {
+                            if (isRight(goldBottom)) {
+                                return GoldPosition.right;
+                            } else if (isCenter(goldBottom)) {
+                                return GoldPosition.center;
+                            } else if (isLeft(goldBottom)) {
+                                return GoldPosition.left;
+                            } else {
+                                return GoldPosition.undetected; //This should never happen
+                            }
+                        }
+
+                        if (silver1Bottom < 0 && silver2Bottom < 0) {
+                            continue;
+                        }
+
+                        if (!isLeft(silver1Bottom) && !isLeft(silver2Bottom)) {
+                            return GoldPosition.left;
+                        } else if (!isCenter(silver1Bottom) && !isCenter(silver2Bottom)) {
+                            return GoldPosition.center;
+                        } else if (!isRight(silver1Bottom) && !isRight(silver2Bottom)) {
+                            return GoldPosition.right;
+                        }
+
+                        telemetry.addData("numberOfGolds", numberOfGolds);
+                        telemetry.addData("numberOfOthers", numberOfOthers);
+
+                        telemetry.addData("Time", (currentTimeMillis() - startMillis) / 1000);
+                        telemetry.update();
+                        sleep(100);
+                    }
+                }
+            }
+        } finally {
+            if (tfod != null) {
+                tfod.deactivate();
+                tfod.shutdown();
+            }
+        }
+        return GoldPosition.undetected;
+    }
+
+    /**
+     * The image height is 800 pixels. Because the origin of the y axis is at the
+     * top of the phone, the bottom coordinate of the leftmost mineral must be between
+     * 0 and 266.
+     *
+     * @param y
+     * @return
+     */
+    boolean isLeft(float y) {
+        return y >= 0 && y <= 800.0 / 3;
+    }
+
+    boolean isCenter(float y) {
+        return y > 800.0 / 3 && y <= (800.0 / 3) * 2;
+    }
+
+    boolean isRight(float y) {
+        return y > (800.0 / 3) * 2 && y <= 800;
     }
 }
