@@ -20,13 +20,18 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
+import static java.lang.System.currentTimeMillis;
+
 
 public abstract class BaseAutonomous extends LinearOpMode {
+
+    boolean TEST = false;
+
     protected StringBuffer out = null;
     private BNO055IMU imu; // gyro
     Orientation angles; // angles from gyro
 
-    protected String logPrefix = "lastrun"; //prefix for a log file
+    String logPrefix = "lastrun"; //prefix for a log file
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -61,7 +66,6 @@ public abstract class BaseAutonomous extends LinearOpMode {
                 telemetry.update();
             }
         }
-        sleep(2000);
     }
 
     abstract public void doRunOpMode() throws InterruptedException;
@@ -145,11 +149,6 @@ public abstract class BaseAutonomous extends LinearOpMode {
         return String.format(Locale.getDefault(), "%.1f", AngleUnit.DEGREES.normalize(degrees));
     }
 
-    void log() {
-        if(out == null) {
-            out = new StringBuffer();
-        }
-    }
 
     /**
      * set break or float behavior
@@ -193,6 +192,8 @@ public abstract class BaseAutonomous extends LinearOpMode {
      */
     boolean moveWithProportionalCorrection(double startPower, double endPower, double inches, ErrorSource errorSource) throws InterruptedException {
 
+        if (!opModeIsActive()) return false;
+
         boolean forward = startPower > 0;
 
         setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -205,6 +206,7 @@ public abstract class BaseAutonomous extends LinearOpMode {
 
         double countsSinceStart = Math.abs(getWheelPosition() - initialcount);
         double motorPower = startPower;
+        long startTime = currentTimeMillis();
         while (opModeIsActive() && countsSinceStart < inchesToCounts(inches, forward)) {
             // error CCW - negative, CW - positive
             error = errorSource.getError();
@@ -221,13 +223,20 @@ public abstract class BaseAutonomous extends LinearOpMode {
                 motorPower = slope * (countsSinceStart - inchesToCounts(inches, forward)) + endPower;
             }
             steer(motorPower, steerSpeed);
-
+            if (TEST) logCorrection(currentTimeMillis()-startTime, error, steerSpeed);
             countsSinceStart = Math.abs(getWheelPosition() - initialcount);
 
         }
         steer(0, 0);
 
         return opModeIsActive();
+    }
+
+    private void logCorrection(long timeMs, double error, double steerSpeed) {
+        if(out == null) {
+            out = new StringBuffer();
+        }
+        out.append(String.format(Locale.US, "%d,%.2f,%.2f\n", timeMs, error, steerSpeed));
     }
 
     public class GyroErrorSource implements ErrorSource {
@@ -256,6 +265,8 @@ public abstract class BaseAutonomous extends LinearOpMode {
         private double rangeInInches;
         private int errorSign;
 
+        private double KP = 0.005;
+
         RangeErrorSource(DistanceSensor distanceSensor,
                                 double rangeInInches,
                                 boolean clockwiseForPositiveError) {
@@ -265,6 +276,9 @@ public abstract class BaseAutonomous extends LinearOpMode {
         }
 
         @Override
+        /**
+         * Error is positive if we are closer to the wall than we want to be
+         */
         public double getError() {
             /*
             with the sensor mounted on the left side of the robot,
@@ -278,7 +292,11 @@ public abstract class BaseAutonomous extends LinearOpMode {
         @Override
         public double getKP() {
             //experimental coefficient for proportional correction of the direction
-            return 0.005;
+            return KP;
+        }
+
+        public void setKP(double kp) {
+            this.KP = kp;
         }
     }
 

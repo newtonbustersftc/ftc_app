@@ -4,8 +4,10 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DistanceSensor;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.TouchSensor;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
 import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
 import org.firstinspires.ftc.robotcore.external.tfod.TFObjectDetector;
@@ -14,6 +16,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 import static java.lang.System.currentTimeMillis;
 
@@ -72,8 +75,15 @@ public class AutonomousRover extends BaseAutonomous {
     private Servo hookServo;
     private Servo markerServo;
 
-    DistanceSensor rangeSensorLeft;
+    DistanceSensor rangeSensorFrontLeft;
+    DistanceSensor rangeSensorBackLeft;
+    DistanceSensor rangeSensorFrontRight;
+    DistanceSensor rangeSensorBackRight;
 
+    private TouchSensor liftTouch;
+
+    boolean goldOnSide = false; //if gold isn't in the center
+    boolean goldOnRight = false; //if gold on the right
 
     protected boolean depotSide() {
         return false;
@@ -82,24 +92,67 @@ public class AutonomousRover extends BaseAutonomous {
     @Override
     public void doRunOpMode() throws InterruptedException {
 
-        preRun();
-
-        waitForStart();
         startMillis = currentTimeMillis();
-        landing();
 
-        rotateAndMoveGold();
+        // The TFObjectDetector uses the camera frames from the VuforiaLocalizer,
+        // so we create that first.
+        long startMs = currentTimeMillis();
+        initVuforia();
+        long vuforiaMs = currentTimeMillis()-startMs;
 
-        sleep(2000);
+        try {
+            long tfodMs = 0;
+            if (ClassFactory.getInstance().canCreateTFObjectDetector()) {
+                startMs = currentTimeMillis();
+                initTfod();
+                tfodMs = currentTimeMillis() - startMs;
+            } else {
+                telemetry.addData("Sorry!", "This device is not compatible with TFOD");
+            }
+
+            preRun();
+
+            log("vuforia/tfod "+vuforiaMs+"/"+tfodMs);
+
+            waitForStart();
+
+            goldOnSide = false;
+            goldOnRight = false;
+            startMillis = currentTimeMillis();
+
+            landing();
+            rotateAndMoveGold();
+
+            deliverTeamMarker();
+
+            park();
+
+            // if lift is not retracted fully, do retract it.
+            retractLift();
+
+            telemetry.addData("Gyro Heading", getGyroAngles().firstAngle);
+            telemetry.addData("Distance FR", rangeSensorFrontRight.getDistance(DistanceUnit.INCH));
+            telemetry.addData("Distance FL", rangeSensorFrontLeft.getDistance(DistanceUnit.INCH));
+            telemetry.addData("Distance BL", rangeSensorBackLeft.getDistance(DistanceUnit.INCH));
+            telemetry.update();
+            sleep(5000);
+        } finally {
+            if (tfod != null) {
+                tfod.shutdown();
+                tfod = null;
+            }
+        }
     }
 
     public void preRun() {
-        initializeTensorFlow();
 
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
         motorRight = hardwareMap.dcMotor.get("wheelsRight");
 
-        rangeSensorLeft = hardwareMap.get(DistanceSensor.class, "rangeSensor");
+        rangeSensorFrontLeft = hardwareMap.get(DistanceSensor.class, "rangeFrontLeft");
+        rangeSensorBackLeft = hardwareMap.get(DistanceSensor.class, "rangeBackLeft");
+        rangeSensorFrontRight = hardwareMap.get(DistanceSensor.class, "rangeFrontRight");
+        rangeSensorBackRight = hardwareMap.get(DistanceSensor.class, "rangeBackRight");
 
         // run by power
         motorLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -111,8 +164,10 @@ public class AutonomousRover extends BaseAutonomous {
 
         liftMotor = hardwareMap.dcMotor.get("liftMotor");
         liftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        liftMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
+        liftTouch = hardwareMap.touchSensor.get("lift_touch");
+        //retractLift(); - safety hazard
+        liftMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
         //setting the motors on the right side in reverse so both wheels spin the same way.
         motorRight.setDirection(DcMotor.Direction.REVERSE);
@@ -131,31 +186,71 @@ public class AutonomousRover extends BaseAutonomous {
 
     public void landing() throws InterruptedException {
         if (!opModeIsActive()) return;
-        liftMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        liftMotor.setPower(-1);
-        liftMotor.setTargetPosition(-DriverRover.LATCHING_POS);
-        sleep(6000);
-        liftMotor.setPower(0);
-        sleep(200);
 
-        hookServo = hardwareMap.servo.get("hookServo");
-        hookServo.setPosition(POS_HOOK_OPEN);
-        sleep(1000);
-        markerServo = hardwareMap.servo.get("markerServo");
-        markerServo.setPosition(POS_MARKER_BACK);
-        liftMotor.setPower(1);
-        liftMotor.setTargetPosition(0);
-        sleep(1500);
-        int distanceForward = inchesToCounts(7);
-        goCounts(0.3, distanceForward);
+        try {
+
+            if (out == null) {
+                out = new StringBuffer();
+            }
+
+            // detect where the gold is
+            goldPosition = getGoldPosition();
+            telemetry.addData("Gold", goldPosition);
+            telemetry.update();
+
+            log("1st detection");
+
+            // lower the robot
+            liftMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            liftMotor.setPower(-1);
+            liftMotor.setTargetPosition(-DriverRover.LATCHING_POS);
+            while (Math.abs(liftMotor.getCurrentPosition()) <= DriverRover.LATCHING_POS_LOW) {
+                idle();
+            }
+            sleep(200);
+            liftMotor.setPower(0);
+            sleep(200);
+
+            // open hook
+            hookServo = hardwareMap.servo.get("hookServo");
+            hookServo.setPosition(POS_HOOK_OPEN);
+            sleep(1500);
+            markerServo = hardwareMap.servo.get("markerServo");
+            markerServo.setPosition(POS_MARKER_BACK);
+
+            if (!opModeIsActive()) return;
+
+            // retract lift
+            liftMotor.setPower(1);
+            liftMotor.setTargetPosition(0);
+            // let hook clear the handle
+            while (opModeIsActive() && Math.abs(liftMotor.getCurrentPosition()) > DriverRover.LATCHING_POS_LOW) {
+                idle();
+            }
+            sleep(200);
+
+            // second attempt to detect where the gold is
+            if (goldPosition == GoldPosition.undetected) {
+                goldPosition = getGoldPosition();
+                telemetry.addData("Gold", goldPosition);
+                telemetry.update();
+                log("2nd detection");
+            }
+
+            // move forward where the gold is visible again
+            moveWithProportionalCorrection(0.5, 0.2, 7, new GyroErrorSource(0));
+
+            log("At the line");
+        } finally {
+            if (tfod != null) {
+                tfod.shutdown();
+                tfod = null;
+            }
+        }
     }
 
     public void rotateAndMoveGold() throws InterruptedException {
         if (!opModeIsActive()) return;
-        boolean goldOnSide = false; //if gold block isn't in the center
-        boolean goldOnRight = false;
-
-        goldPosition = getGoldPosition();
 
         if (goldPosition.equals(GoldPosition.right)) {
             goldOnRight = true;
@@ -168,54 +263,74 @@ public class AutonomousRover extends BaseAutonomous {
         liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         telemetry.addData("Lift Position", liftMotor.getCurrentPosition());
 
+        double heading = 0;
         if (goldOnRight) {
             rotate(0.3, 30);
+            heading = -35; // clockwise from 0 - negative heading
         } else if (goldOnSide) {
             rotate(-0.3, 30); //Gold is on the left
+            heading = 35; // counterclockwise from 0 - positive heading
         }
         sleep(500);
+        log("Rotated to gold");
 
-        int distanceToCenterGold = inchesToCounts(19); //distance is in counts
-        int distanceToSideGold = inchesToCounts(21); //distance is in counts
+        int distanceToCenterGold = 19; //distance is in inches
+        int distanceToSideGold = 21; //distance is in inches
 
         int extraDistance = 0; //extraDistance is for the depot side only
 
         if (goldOnSide) {
             if (depotSide()) {
-                extraDistance = inchesToCounts(8);
+                extraDistance = 8;
             }
-            goCounts(0.5, distanceToSideGold + extraDistance);
+//            goCounts(0.5, inchesToCounts(distanceToSideGold+extraDistance));
+            moveWithProportionalCorrection(0.7, 0.2, distanceToSideGold + extraDistance, new GyroErrorSource(heading));
+
         } else {
             if (depotSide()) {
-                extraDistance = inchesToCounts(23);
+                extraDistance = 29;
             }
-            goCounts(0.5, distanceToCenterGold + extraDistance);
+//            goCounts(0.5, inchesToCounts(distanceToCenterGold + extraDistance));
+            moveWithProportionalCorrection(0.7, 0.2, distanceToCenterGold + extraDistance, new GyroErrorSource(heading));
+
         }
 
+        log("Moved mineral");
+
+    }
+
+    void deliverTeamMarker() throws InterruptedException {
+        if (!opModeIsActive()) return;
         //if facing crater, we are done
         if (depotSide()) {
             if (goldOnSide) {
+                double currentAngle = getGyroAngles().firstAngle;
                 if (goldOnRight) {
-                    double currentAngle = getGyroAngles().firstAngle;
                     //return to previous heading
-                    rotate(-0.3, Math.abs(currentAngle));
-                    goCounts(0.5, inchesToCounts(13));
-                    rotate(-0.3, 20);
-                    goCounts(0.5, inchesToCounts(8));
+                    rotate(-0.3, Math.abs(currentAngle) - 5);
+////                    goCounts(0.5, inchesToCounts(13));
+//                    moveWithProportionalCorrection(0.7,0.2, 13, new GyroErrorSource(0));
+//                    rotate(-0.3, 20);
+////                    goCounts(0.5, inchesToCounts(8));
+//                    moveWithProportionalCorrection(0.7,0.2, 8, new GyroErrorSource(35));
+                    moveWithProportionalCorrection(0.7, 0.2, 21, new GyroErrorSource(35));
                 } else {
-                    double currentAngle = getGyroAngles().firstAngle;
                     //return to previous heading
-                    rotate(0.3, Math.abs(currentAngle));
-                    goCounts(0.5, inchesToCounts(13));
-                    rotate(0.3, 30);
-                    goCounts(0.5, inchesToCounts(8));
+                    rotate(0.3, Math.abs(currentAngle) - 5);
+////                    goCounts(0.5, inchesToCounts(13));
+//                    moveWithProportionalCorrection(0.7,0.2, 13, new GyroErrorSource(0));
+//                    rotate(0.3, 30);
+////                    goCounts(0.5, inchesToCounts(8));
+//                    moveWithProportionalCorrection(0.7,0.2, 8, new GyroErrorSource(-45));
+                    moveWithProportionalCorrection(0.7, 0.2, 23, new GyroErrorSource(-45));
                 }
             }
             //Deliver team marker.
             markerServo.setPosition(POS_MARKER_FORWARD);
-            sleep(2000);
+            sleep(1200);
             markerServo.setPosition(POS_MARKER_UP);
-            sleep(2000);
+            sleep(1000);
+
         } else {
             if (goldOnSide) {
                 if (goldOnRight) {
@@ -226,8 +341,76 @@ public class AutonomousRover extends BaseAutonomous {
                 goCounts(0.5, inchesToCounts(5));
             }
             markerServo.setPosition(POS_MARKER_FORWARD);
-            sleep(2000);
+            sleep(1200);
         }
+
+        log("Delivered marker");
+
+    }
+
+    void park() throws InterruptedException {
+        if (!opModeIsActive() || !depotSide()) return; // delivering marker is not implemented for crater zone yet
+
+        double moveForwardHeading;
+        double parkHeading;
+        double inchesForward = 5;
+        double inchesToWall = 3;
+        double rotatePower;
+        double distanceToTravel;
+        boolean clockwiseWhenTooClose;
+
+        DistanceSensor rangeSensor;
+
+        if (goldOnSide) {
+            if (goldOnRight) {
+                parkHeading = 45;
+                rotatePower = -0.3;
+                inchesForward = 0;
+                distanceToTravel = 56;
+                inchesToWall = 3;
+                rangeSensor = rangeSensorBackRight; //We dont have this sensor yet(as of 12/2 4 PM)
+                clockwiseWhenTooClose = true;
+            } else {
+                parkHeading = -45;
+                rotatePower = 0.3;
+                distanceToTravel = 60;
+                inchesToWall = 5;
+                rangeSensor = rangeSensorBackLeft;
+                clockwiseWhenTooClose = false;
+            }
+            moveForwardHeading = parkHeading;
+        } else {
+            parkHeading = -45;
+            rotatePower = 0.3;
+            moveForwardHeading = 0;
+            inchesForward = 5;
+            distanceToTravel = 70;
+            inchesToWall = 5;
+            rangeSensor = rangeSensorBackLeft;
+            clockwiseWhenTooClose = false;
+        }
+        // move forward a bit
+        moveWithProportionalCorrection(0.7, 0.2, inchesForward, new GyroErrorSource(moveForwardHeading));
+        double currentHeading = getGyroAngles().firstAngle;
+        double angleToRotate = Math.abs(currentHeading - parkHeading) - 5; //small adjustment for over rotation
+        // rotate to be along the wall
+        rotate(rotatePower, angleToRotate);
+        sleep(1000);
+        if (goldOnRight) return; //no sensor yet
+//        else {
+//            moveWithProportionalCorrection(-0.7, -0.2, distanceToTravel,
+//                    new RangeErrorSource(rangeSensor, inchesToWall, clockwiseWhenTooClose));
+//        }
+        log("Parked");
+    }
+
+    void retractLift() {
+        long startMs = currentTimeMillis();
+        while (!liftTouch.isPressed() && currentTimeMillis() - startMs < 5000) {
+            liftMotor.setPower(1); //positive power retracts the lift arm
+            sleep(10);
+        }
+        liftMotor.setPower(0.0);
     }
 
     /**
@@ -241,10 +424,10 @@ public class AutonomousRover extends BaseAutonomous {
         if (!opModeIsActive()) return;
         double originalHeading = getGyroAngles().firstAngle;
         double currentHeading = originalHeading;
-        telemetry.addData("current heading", originalHeading);
-        telemetry.update();
-        sleep(500);
-        long start = new Date().getTime();
+//        telemetry.addData("current heading", originalHeading);
+//        telemetry.update();
+//        sleep(500);
+//        long start = new Date().getTime();
         motorRight.setPower(-power);
         motorLeft.setPower(power);
         while (opModeIsActive() && Math.abs(currentHeading - originalHeading) < angle) {
@@ -254,16 +437,16 @@ public class AutonomousRover extends BaseAutonomous {
         }
         motorRight.setPower(0);
         motorLeft.setPower(0);
-        long end = new Date().getTime();
+//        long end = new Date().getTime();
+//        currentHeading = getGyroAngles().firstAngle;
+//        telemetry.addData("current heading", currentHeading);
+//        telemetry.addData("rotate time", end - start);
+//        telemetry.update();
+//        sleep(500);
         currentHeading = getGyroAngles().firstAngle;
         telemetry.addData("current heading", currentHeading);
-        telemetry.addData("rotate time", end - start);
         telemetry.update();
-        sleep(500);
-        currentHeading = getGyroAngles().firstAngle;
-        telemetry.addData("current heading", currentHeading);
-        telemetry.update();
-        sleep(500);
+//        sleep(500);
     }
 
 
@@ -278,8 +461,7 @@ public class AutonomousRover extends BaseAutonomous {
     boolean goCounts(double power, int counts) throws InterruptedException {
         if (!opModeIsActive()) return false;
 
-        motorLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        motorRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         DcMotor motor = motorLeft;
 
         int startPos = motor.getCurrentPosition();
@@ -355,6 +537,14 @@ public class AutonomousRover extends BaseAutonomous {
                 leftPower += steerPower;
             }
         }
+
+        // Normalize power if either one exceeds +/- 1.0;
+        double max = Math.max(Math.abs(leftPower), Math.abs(rightPower));
+        if (max > 1.0) {
+            leftPower /= max;
+            rightPower /= max;
+        }
+
         motorLeft.setPower(leftPower);
         motorRight.setPower(rightPower);
     }
@@ -381,19 +571,19 @@ public class AutonomousRover extends BaseAutonomous {
         return (int) (1000 * inches / 11.5);
     }
 
-    void initializeTensorFlow() {
-        // The TFObjectDetector uses the camera frames from the VuforiaLocalizer,
-        // so we create that first.
-        initVuforia();
-
-        if (ClassFactory.getInstance().canCreateTFObjectDetector()) {
-            initTfod();
-        } else {
-            telemetry.addData("Sorry!", "This device is not compatible with TFOD");
-            telemetry.update();
-            sleep(10000);
-        }
-    }
+//    void initializeTensorFlow() {
+//        // The TFObjectDetector uses the camera frames from the VuforiaLocalizer,
+//        // so we create that first.
+//        initVuforia();
+//
+//        if (ClassFactory.getInstance().canCreateTFObjectDetector()) {
+//            initTfod();
+//        } else {
+//            telemetry.addData("Sorry!", "This device is not compatible with TFOD");
+//            telemetry.update();
+//            sleep(10000);
+//        }
+//    }
 
     /**
      * Initialize the Vuforia localization engine.
@@ -421,134 +611,171 @@ public class AutonomousRover extends BaseAutonomous {
                 "tfodMonitorViewId", "id", hardwareMap.appContext.getPackageName());
         TFObjectDetector.Parameters tfodParameters = new TFObjectDetector.Parameters(tfodMonitorViewId);
         tfodParameters.minimumConfidence = 0.7;
+        //tfodParameters.useObjectTracker = false;
+
         tfod = ClassFactory.getInstance().createTFObjectDetector(tfodParameters, vuforia);
         tfod.loadModelFromAsset(TFOD_MODEL_ASSET, LABEL_GOLD_MINERAL, LABEL_SILVER_MINERAL);
+
     }
 
     GoldPosition getGoldPosition() {
-
-        long startTime = currentTimeMillis();
 
         try {
             /** Activate Tensor Flow Object Detection. */
             if (tfod != null) {
                 tfod.activate();
-                sleep(1000);
+                sleep(500);
             }
-            while (opModeIsActive() && currentTimeMillis() - startTime < 3000) {
-                if (tfod != null) {
-                    // getUpdatedRecognitions() will return null if no new information is available since
-                    // the last time that call was made.
-                    List<Recognition> updatedRecognitions = tfod.getRecognitions();
-                    if (updatedRecognitions != null) {
-                        if (updatedRecognitions.size() < 1) continue;
+            long startMs = currentTimeMillis();
+            while (opModeIsActive() && tfod != null && currentTimeMillis() - startMs < 2000) {
+                // getUpdatedRecognitions() will return null if no new information is available since
+                // the last time that call was made.
+                List<Recognition> updatedRecognitions = tfod.getRecognitions();
+                if (updatedRecognitions != null) {
+                    if (updatedRecognitions.size() < 1) continue;
 
-                        // phone rotation is disabled
-                        // the phone is mounted on the side
-                        // top (left) is the lowest y coord - 0, bottom (right) is the highest - 800
-                        Collections.sort(updatedRecognitions, new Comparator<Recognition>() {
-                            @Override
-                            public int compare(Recognition r1, Recognition r2) {
-                                return (int) (r1.getBottom() - r2.getBottom());
-                            }
-                        });
+                    // phone rotation is disabled
+                    // the phone is mounted on the side
+                    // top (right) is the lowest y coord - 0, bottom (left) is the highest - 800
+                    Collections.sort(updatedRecognitions, new Comparator<Recognition>() {
+                        @Override
+                        public int compare(Recognition r1, Recognition r2) {
+                            return (int) (r1.getTop() - r2.getTop());
+                        }
+                    });
 
-                        float goldBottom = -1;
-                        float silver1Bottom = -1;
-                        float silver2Bottom = -1;
+                    float goldY = -1;
+                    float silver1Y = -1;
+                    float silver2Y = -1;
 
-                        int numberOfGolds = 0;
-                        int numberOfOthers = 0;
-                        int nr = 1;
+                    int numberOfGolds = 0;
+                    int numberOfOthers = 0;
+                    int nr = 1;
 
-                        for (Recognition recognition : updatedRecognitions) {
-                            if (recognition != null) {
-                                telemetry.addData(recognition.getLabel() + (nr++),
-                                        "bottom: " + (int) recognition.getBottom() + "," +
-                                                " conf: " + recognition.getConfidence() + ", (" +
-                                                recognition.getImageWidth() + "," + recognition.getImageHeight()
-                                );
-                            }
+                    for (Recognition recognition : updatedRecognitions) {
+                        if (recognition != null) {
+                            out.append("# "+recognition.getLabel() + (nr++) +
+                                    ", y: " + (int) getMineralCenter(recognition) +
+                                    ", conf: " + (int)(100*recognition.getConfidence()) + "%, (" +
+                                    recognition.getImageWidth() + "," + recognition.getImageHeight() + ")\n");
+//                            telemetry.addData(recognition.getLabel() + (nr++),
+//                                    "y: " + (int) getMineralCenter(recognition) + "," +
+//                                            " conf: " + recognition.getConfidence() + ", (" +
+//                                            recognition.getImageWidth() + "," + recognition.getImageHeight()
+//                            );
+
                             if (recognition.getLabel().equals(LABEL_GOLD_MINERAL)) {
                                 numberOfGolds++;
-                                goldBottom = recognition.getBottom();
+                                goldY = getMineralCenter(recognition);
                             } else {
                                 if (recognition.getLabel().equals(LABEL_SILVER_MINERAL)) {
-                                    if (silver1Bottom < 0) {
-                                        silver1Bottom = recognition.getBottom();
-                                    } else if (silver2Bottom < 0) {
-                                        silver2Bottom = recognition.getBottom();
-                                    } else {
-                                        return GoldPosition.undetected;
+                                    if (silver1Y < 0) {
+                                        silver1Y = getMineralCenter(recognition);
+                                    } else if (silver2Y < 0) {
+                                        silver2Y = getMineralCenter(recognition);
                                     }
                                 }
                                 numberOfOthers++;
                             }
                         }
-
-                        if (numberOfGolds > 1 || numberOfOthers > 2) {
-                            continue;
-                        }
-
-                        if (goldBottom >= 0) {
-                            if (isRight(goldBottom)) {
-                                return GoldPosition.right;
-                            } else if (isCenter(goldBottom)) {
-                                return GoldPosition.center;
-                            } else if (isLeft(goldBottom)) {
-                                return GoldPosition.left;
-                            } else {
-                                return GoldPosition.undetected; //This should never happen
-                            }
-                        }
-
-                        if (silver1Bottom < 0 && silver2Bottom < 0) {
-                            continue;
-                        }
-
-                        if (!isLeft(silver1Bottom) && !isLeft(silver2Bottom)) {
-                            return GoldPosition.left;
-                        } else if (!isCenter(silver1Bottom) && !isCenter(silver2Bottom)) {
-                            return GoldPosition.center;
-                        } else if (!isRight(silver1Bottom) && !isRight(silver2Bottom)) {
-                            return GoldPosition.right;
-                        }
-
-                        telemetry.addData("numberOfGolds", numberOfGolds);
-                        telemetry.addData("numberOfOthers", numberOfOthers);
-
-                        telemetry.addData("Time", (currentTimeMillis() - startMillis) / 1000);
-                        telemetry.update();
-                        sleep(100);
                     }
+
+                    if (numberOfGolds > 1 || numberOfOthers > 2) {
+                        continue;
+                    }
+
+                    if (goldY >= 0) {
+                        if (isRight(goldY)) {
+                            return GoldPosition.right;
+                        } else if (isCenter(goldY)) {
+                            return GoldPosition.center;
+                        } else if (isLeft(goldY)) {
+                            return GoldPosition.left;
+                        } else {
+                            return GoldPosition.undetected; //This should never happen
+                        }
+                    }
+
+                    // if no gold is detected, need two silver recognitions to tell the position of gold
+                    // if two silver positions are not available, try again
+                    if (silver1Y < 0 || silver2Y < 0) {
+                        // two silver positions are not available
+                        continue;
+                    }
+
+                    if (!isLeft(silver1Y) && !isLeft(silver2Y)) {
+                        return GoldPosition.left;
+                    } else if (!isCenter(silver1Y) && !isCenter(silver2Y)) {
+                        return GoldPosition.center;
+                    } else if (!isRight(silver1Y) && !isRight(silver2Y)) {
+                        return GoldPosition.right;
+                    }
+
+                    telemetry.addData("numberOfGolds", numberOfGolds);
+                    telemetry.addData("numberOfOthers", numberOfOthers);
+
+                    telemetry.addData("Time", (currentTimeMillis() - startMs) / 1000);
+                    telemetry.update();
+                    sleep(100);
                 }
             }
         } finally {
             if (tfod != null) {
                 tfod.deactivate();
-                tfod.shutdown();
             }
         }
         return GoldPosition.undetected;
     }
 
+    float getMineralCenter(Recognition r) {
+        return (r.getBottom() + r.getTop()) / 2;
+    }
+
     /**
      * The image height is 800 pixels. Because the origin of the y axis is at the
-     * top of the phone, the bottom coordinate of the leftmost mineral must be between
+     * top of the phone, the bottom coordinate of the rightmost mineral must be between
      * 0 and 266.
      *
      * @param y
      * @return
      */
-    boolean isLeft(float y) {
-        return y >= 0 && y <= 800.0 / 3;
+    boolean isRight(float y) {
+        return y < 800.0 / 3;
     }
 
     boolean isCenter(float y) {
-        return y > 800.0 / 3 && y <= (800.0 / 3) * 2;
+        return y >= (800.0 / 3) && y <= (800.0 / 3) * 2;
     }
 
-    boolean isRight(float y) {
-        return y > (800.0 / 3) * 2 && y <= 800;
+    boolean isLeft(float y) {
+        return y > (800.0 / 3) * 2;
+    }
+
+    /**
+     * Add a log row to comma delimited table of steps
+     *
+     * @param step make sure there is no commas in step string
+     */
+    void log(String step) {
+        if (!opModeIsActive()) return;
+
+        if (out == null) {
+            out = new StringBuffer();
+            out.append("# "); // start of the comment
+            out.append(depotSide() ? "Depot" : "Creator");
+            out.append("\n"); // end of comment
+            // table header followed by new line
+            out.append("Time,Step,Gyro,GoldPos,RangeFL,RangeBL,RangeFR,DriveLeft,DriveRight,\n");
+        }
+
+        out.append(String.format(Locale.US, "%5d,%22s,%4.1f,%s,%5.1f,%5.1f,%5.1f,%d,%d\n",
+                currentTimeMillis() - startMillis,
+                step,
+                getGyroAngles().firstAngle, goldPosition,
+                rangeSensorFrontLeft.getDistance(DistanceUnit.INCH),
+                rangeSensorBackLeft.getDistance(DistanceUnit.INCH),
+                rangeSensorFrontRight.getDistance(DistanceUnit.INCH),
+                motorLeft.getCurrentPosition(),
+                motorRight.getCurrentPosition()));
     }
 }

@@ -11,7 +11,6 @@ import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.Range;
 
 import static android.os.SystemClock.sleep;
-import static java.lang.System.currentTimeMillis;
 
 @TeleOp(name = "DriverRover", group = "Main")
 public class DriverRover extends OpMode {
@@ -21,6 +20,8 @@ public class DriverRover extends OpMode {
     private DcMotor motorLeft;
     private DcMotor motorRight;
     private DcMotor liftMotor;
+    //private DcMotor debrisCollection;
+    private DcMotor armExtension; //extend - positive, retract-negative
 
     private ServoImplEx hookServo;
     private Servo markerServo;
@@ -28,6 +29,7 @@ public class DriverRover extends OpMode {
     private CRServo rightIntakeServo;
 
     private TouchSensor liftTouch;
+    private TouchSensor armTouch;
 
     //for now, we don't support robot reversing the forward direction
     private final boolean forward = true;
@@ -45,12 +47,15 @@ public class DriverRover extends OpMode {
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
         motorRight = hardwareMap.dcMotor.get("wheelsRight");
         liftMotor = hardwareMap.dcMotor.get("liftMotor");
+        armExtension = hardwareMap.dcMotor.get("armExtension");
 
         // run by power
         motorLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motorRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        armExtension.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         liftTouch = hardwareMap.touchSensor.get("lift_touch");
+        armTouch = hardwareMap.touchSensor.get("armTouch");
 
         //reset the encoder for the lift motor
         liftReset();
@@ -59,6 +64,7 @@ public class DriverRover extends OpMode {
         motorLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         motorRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         liftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        armExtension.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         //setting the motors on the right side in reverse so both wheels spin the same way.
         motorRight.setDirection(DcMotor.Direction.REVERSE);
@@ -67,16 +73,16 @@ public class DriverRover extends OpMode {
     @Override
     public void start() {
 
-        if (!liftTouch.isPressed()) {
-            telemetry.addData("lift" , "resetting" );
-            long startMillis = currentTimeMillis();
-            while (!liftTouch.isPressed() && currentTimeMillis() - startMillis < 5000) {
-                liftMotor.setPower(0.5); //positive power retracts the lift arm
-                sleep(10);
-            }
-            liftMotor.setPower(0.0);
-            liftReset();
-        }
+//        if (!liftTouch.isPressed()) {
+//            telemetry.addData("lift" , "resetting" );
+//            long startMillis = currentTimeMillis();
+//            while (!liftTouch.isPressed() && currentTimeMillis() - startMillis < 5000) {
+//                liftMotor.setPower(0.5); //positive power retracts the lift arm
+//                sleep(10);
+//            }
+//            liftMotor.setPower(0.0);
+//            liftReset();
+//        }
 
         //ServoImplEx allows to energize and deenergize servo
         // we don't want to hook servo to keep position when robot is lifting or lowering
@@ -115,6 +121,7 @@ public class DriverRover extends OpMode {
         double leftForward;
         double rightForward;
         double liftMotorPower;
+        double armExtensionPower;
 
         int sign = forward ? 1 : -1;
         //Arcade Drive
@@ -158,7 +165,7 @@ public class DriverRover extends OpMode {
                 }
             } else if (!liftTouch.isPressed()){ //a button is pressed
                 if (currentPos < 300) {
-                    liftMotorPower = 0.3;
+                    liftMotorPower = 0.7;
                 } else {
                     if (currentPos < LATCHING_POS_LOW) {
                         deenergizeHook();
@@ -187,6 +194,19 @@ public class DriverRover extends OpMode {
             hookButtonPressed = false;
         }
 
+        // Lift motor when given negative power, the lift rises and lowers when given positive power
+        if (gamepad1.left_bumper || gamepad1.right_bumper) {
+            if (gamepad1.left_bumper) {
+                armExtensionPower = 0.5;
+            } else if (gamepad1.right_bumper && !armTouch.isPressed()){ //a button is pressed
+                armExtensionPower = -0.5;
+            } else {
+                armExtensionPower = 0.0;
+            }
+        } else {
+            armExtensionPower = 0.0;
+        }
+
         //driving backwards
         if (!forward) { //when start, front direction is the intake side, lightStrip2
             leftForward = -leftForward;
@@ -211,14 +231,17 @@ public class DriverRover extends OpMode {
         telemetry.addData("right", rightForward);
         telemetry.addData("lift", liftMotor.getCurrentPosition());
         telemetry.addData("lift touch", liftTouch.isPressed());
+        telemetry.addData("Extension Count", armExtension.getCurrentPosition());
+        telemetry.addData("Extension Touch", armTouch.isPressed());
 
-        powerMotors(rightForward, leftForward, liftMotorPower);
+        powerMotors(rightForward, leftForward, liftMotorPower, armExtensionPower);
     }
 
-    private void powerMotors(double rightForward, double leftForward, double liftMotorPower) {
+    private void powerMotors(double rightForward, double leftForward, double liftMotorPower, double armExtensionPower) {
         motorLeft.setPower(leftForward);
         motorRight.setPower(rightForward);
         liftMotor.setPower(liftMotorPower);
+        armExtension.setPower(armExtensionPower);
     }
 
     /**

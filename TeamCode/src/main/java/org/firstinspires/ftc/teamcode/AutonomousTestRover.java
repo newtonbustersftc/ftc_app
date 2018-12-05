@@ -6,21 +6,28 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 public class AutonomousTestRover extends AutonomousRover {
 
     @Override
-    public void runOpMode() throws InterruptedException {
+    public void doRunOpMode() throws InterruptedException {
         preRun();
         waitForStart();
-        goldPosition = getGoldPosition();
-        telemetry.addData("Gold Position", goldPosition);
-        telemetry.update();
-        sleep(10000);
-        //distanceDriveTest();
-        //distanceTest();
-        //steerTest();
-        //gyroDriveTest();
-//        rotate(0.12,90);
+
+        rangeDriveTest();
+
+//        steerTest();
+
+//        gyroDriveTest();
+
+//        distanceTest();
+
+//        rotate(0.15,90);
 //        rotate(-0.12, 180);
 //        rotate(0.12, 180);
+
 //        landing();
+
+//        goldPosition = getGoldPosition();
+//        telemetry.addData("Gold Position", goldPosition);
+//        telemetry.update();
+//        sleep(10000);
 
     }
 
@@ -76,17 +83,30 @@ public class AutonomousTestRover extends AutonomousRover {
         sleep(5000);
     }
 
-    void distanceDriveTest() throws InterruptedException {
-        double startPower = 0.3;
-        double endPower = 0.1;
-        double inches = 66;
-        double rangeInInches = 7;
-        ErrorSource errorSourceForward = new RangeErrorSource(rangeSensorLeft, rangeInInches, true);
-        ErrorSource errorSourceBackward = new RangeErrorSource(rangeSensorLeft, rangeInInches, false);
-        moveWithProportionalCorrection(startPower, endPower, inches, errorSourceForward);
+    void rangeDriveTest() throws InterruptedException {
+        double startPower = 0.7;
+        double endPower = 0.2;
+        double inches = 69;
+        double rangeInInches = 5;
+        logPrefix = "rangeTest";
+        TEST = true;
+        out = new StringBuffer();
 
-        sleep( 5000);
-        moveWithProportionalCorrection(-startPower, -endPower, inches, errorSourceBackward);
-        sleep(5000);
+        double [] kpArr = {0.5, 0.1, 0.05, 0.01};
+
+        for(double kp : kpArr) {
+            telemetry.addData("kP", kp);
+            telemetry.update();
+            out.append(String.format("# kp = %.1f \n", kp));
+            RangeErrorSource errorSourceBackward = new RangeErrorSource(rangeSensorBackLeft, rangeInInches, false);
+            errorSourceBackward.setKP(kp);
+            moveWithProportionalCorrection(-startPower, -endPower, inches, errorSourceBackward);
+            sleep(5000);
+
+            RangeErrorSource errorSourceForward = new RangeErrorSource(rangeSensorFrontLeft, rangeInInches, true);
+            errorSourceForward.setKP(kp);
+            moveWithProportionalCorrection(startPower, endPower, inches, errorSourceForward);
+            sleep( 5000);
+        }
     }
 }
