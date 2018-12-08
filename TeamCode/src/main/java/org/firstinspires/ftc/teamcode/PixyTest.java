@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.I2cDeviceSynch;
 
@@ -9,7 +8,7 @@ import com.qualcomm.robotcore.hardware.I2cDeviceSynch;
  */
 
 
-@Autonomous(name = "PixyTest", group = "Main")
+//@Autonomous(name = "PixyTest", group = "Main")
 public class PixyTest extends LinearOpMode {
     I2cDeviceSynch pixy; //our Pixy device
 

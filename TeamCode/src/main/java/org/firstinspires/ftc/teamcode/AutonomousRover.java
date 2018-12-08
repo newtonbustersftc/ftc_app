@@ -98,7 +98,7 @@ public class AutonomousRover extends BaseAutonomous {
         // so we create that first.
         long startMs = currentTimeMillis();
         initVuforia();
-        long vuforiaMs = currentTimeMillis()-startMs;
+        long vuforiaMs = currentTimeMillis() - startMs;
 
         try {
             long tfodMs = 0;
@@ -112,7 +112,7 @@ public class AutonomousRover extends BaseAutonomous {
 
             preRun();
 
-            log("vuforia/tfod "+vuforiaMs+"/"+tfodMs);
+            log("vuforia/tfod " + vuforiaMs + "/" + tfodMs);
 
             waitForStart();
 
@@ -125,10 +125,12 @@ public class AutonomousRover extends BaseAutonomous {
 
             deliverTeamMarker();
 
-            park();
-
             // if lift is not retracted fully, do retract it.
             retractLift();
+
+            park();
+
+
 
             telemetry.addData("Gyro Heading", getGyroAngles().firstAngle);
             telemetry.addData("Distance FR", rangeSensorFrontRight.getDistance(DistanceUnit.INCH));
@@ -200,8 +202,25 @@ public class AutonomousRover extends BaseAutonomous {
 
             log("1st detection");
 
-            // lower the robot
             liftMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+            if (goldPosition == GoldPosition.undetected) {
+                // second attempt to detect where the gold is
+                liftMotor.setPower(-0.7);
+                int lowerPos = DriverRover.LATCHING_POS / 5;
+                liftMotor.setTargetPosition(-lowerPos);
+                while (Math.abs(liftMotor.getCurrentPosition()) <= lowerPos) {
+                    idle();
+                }
+                sleep(200);
+                liftMotor.setPower(0);
+                goldPosition = getGoldPosition();
+                telemetry.addData("Gold", goldPosition);
+                telemetry.update();
+                log("2nd detection");
+            }
+
+            // lower the robot
             liftMotor.setPower(-1);
             liftMotor.setTargetPosition(-DriverRover.LATCHING_POS);
             while (Math.abs(liftMotor.getCurrentPosition()) <= DriverRover.LATCHING_POS_LOW) {
@@ -228,14 +247,6 @@ public class AutonomousRover extends BaseAutonomous {
                 idle();
             }
             sleep(200);
-
-            // second attempt to detect where the gold is
-            if (goldPosition == GoldPosition.undetected) {
-                goldPosition = getGoldPosition();
-                telemetry.addData("Gold", goldPosition);
-                telemetry.update();
-                log("2nd detection");
-            }
 
             // move forward where the gold is visible again
             moveWithProportionalCorrection(0.5, 0.2, 7, new GyroErrorSource(0));
@@ -313,7 +324,7 @@ public class AutonomousRover extends BaseAutonomous {
 //                    rotate(-0.3, 20);
 ////                    goCounts(0.5, inchesToCounts(8));
 //                    moveWithProportionalCorrection(0.7,0.2, 8, new GyroErrorSource(35));
-                    moveWithProportionalCorrection(0.7, 0.2, 21, new GyroErrorSource(35));
+                    moveWithProportionalCorrection(0.7, 0.2, 11, new GyroErrorSource(0));
                 } else {
                     //return to previous heading
                     rotate(0.3, Math.abs(currentAngle) - 5);
@@ -349,58 +360,49 @@ public class AutonomousRover extends BaseAutonomous {
     }
 
     void park() throws InterruptedException {
-        if (!opModeIsActive() || !depotSide()) return; // delivering marker is not implemented for crater zone yet
+        if (!opModeIsActive() || !depotSide())
+            return; // delivering marker is not implemented for crater zone yet
 
         double moveForwardHeading;
-        double parkHeading;
         double inchesForward = 5;
-        double inchesToWall = 3;
         double rotatePower;
         double distanceToTravel;
-        boolean clockwiseWhenTooClose;
-
-        DistanceSensor rangeSensor;
 
         if (goldOnSide) {
             if (goldOnRight) {
-                parkHeading = 45;
-                rotatePower = -0.3;
-                inchesForward = 0;
-                distanceToTravel = 56;
-                inchesToWall = 3;
-                rangeSensor = rangeSensorBackRight; //We dont have this sensor yet(as of 12/2 4 PM)
-                clockwiseWhenTooClose = true;
-            } else {
-                parkHeading = -45;
+                rotate(-0.3, 35);
                 rotatePower = 0.3;
-                distanceToTravel = 60;
-                inchesToWall = 5;
-                rangeSensor = rangeSensorBackLeft;
-                clockwiseWhenTooClose = false;
+                inchesForward = 26;
+                distanceToTravel = 79;
+                moveForwardHeading = 45;
+            } else {
+                rotatePower = 0.3;
+                moveForwardHeading = -45;
+                distanceToTravel = 78;
             }
-            moveForwardHeading = parkHeading;
         } else {
-            parkHeading = -45;
             rotatePower = 0.3;
             moveForwardHeading = 0;
             inchesForward = 5;
-            distanceToTravel = 70;
-            inchesToWall = 5;
-            rangeSensor = rangeSensorBackLeft;
-            clockwiseWhenTooClose = false;
+            distanceToTravel = 78;
         }
         // move forward a bit
         moveWithProportionalCorrection(0.7, 0.2, inchesForward, new GyroErrorSource(moveForwardHeading));
         double currentHeading = getGyroAngles().firstAngle;
+        double parkHeading = -45;
         double angleToRotate = Math.abs(currentHeading - parkHeading) - 5; //small adjustment for over rotation
         // rotate to be along the wall
         rotate(rotatePower, angleToRotate);
         sleep(1000);
-        if (goldOnRight) return; //no sensor yet
-//        else {
-//            moveWithProportionalCorrection(-0.7, -0.2, distanceToTravel,
-//                    new RangeErrorSource(rangeSensor, inchesToWall, clockwiseWhenTooClose));
-//        }
+
+        double inchesToWall = 5;
+        DistanceSensor rangeF = rangeSensorBackLeft;
+        DistanceSensor rangeB = rangeSensorFrontLeft;
+        boolean clockwiseWhenTooClose = false;
+
+        moveWithProportionalCorrection(-0.7, -0.2, distanceToTravel,
+                new RangeErrorSource(rangeF, rangeB, inchesToWall, clockwiseWhenTooClose));
+
         log("Parked");
     }
 
@@ -654,10 +656,6 @@ public class AutonomousRover extends BaseAutonomous {
 
                     for (Recognition recognition : updatedRecognitions) {
                         if (recognition != null) {
-                            out.append("# "+recognition.getLabel() + (nr++) +
-                                    ", y: " + (int) getMineralCenter(recognition) +
-                                    ", conf: " + (int)(100*recognition.getConfidence()) + "%, (" +
-                                    recognition.getImageWidth() + "," + recognition.getImageHeight() + ")\n");
 //                            telemetry.addData(recognition.getLabel() + (nr++),
 //                                    "y: " + (int) getMineralCenter(recognition) + "," +
 //                                            " conf: " + recognition.getConfidence() + ", (" +
@@ -680,9 +678,17 @@ public class AutonomousRover extends BaseAutonomous {
                         }
                     }
 
+                    telemetry.addData("numberOfGolds", numberOfGolds);
+                    telemetry.addData("numberOfOthers", numberOfOthers);
+                    telemetry.addData("Time", (currentTimeMillis() - startMs) / 1000);
+                    telemetry.update();
+                    sleep(50);
+
                     if (numberOfGolds > 1 || numberOfOthers > 2) {
                         continue;
                     }
+
+                    out.append(String.format("# gold=%d, silver1=%d, silver2=%d\n", (int) goldY, (int) silver1Y, (int) silver2Y));
 
                     if (goldY >= 0) {
                         if (isRight(goldY)) {
@@ -703,6 +709,7 @@ public class AutonomousRover extends BaseAutonomous {
                         continue;
                     }
 
+
                     if (!isLeft(silver1Y) && !isLeft(silver2Y)) {
                         return GoldPosition.left;
                     } else if (!isCenter(silver1Y) && !isCenter(silver2Y)) {
@@ -711,12 +718,7 @@ public class AutonomousRover extends BaseAutonomous {
                         return GoldPosition.right;
                     }
 
-                    telemetry.addData("numberOfGolds", numberOfGolds);
-                    telemetry.addData("numberOfOthers", numberOfOthers);
-
-                    telemetry.addData("Time", (currentTimeMillis() - startMs) / 1000);
-                    telemetry.update();
-                    sleep(100);
+                    sleep(50);
                 }
             }
         } finally {

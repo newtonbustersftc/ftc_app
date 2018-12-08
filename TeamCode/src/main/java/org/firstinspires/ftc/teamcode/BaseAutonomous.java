@@ -210,12 +210,8 @@ public abstract class BaseAutonomous extends LinearOpMode {
         while (opModeIsActive() && countsSinceStart < inchesToCounts(inches, forward)) {
             // error CCW - negative, CW - positive
             error = errorSource.getError();
+            steerSpeed = errorSource.getKP() * error ;
 
-            if (Math.abs(error) < 1) {
-                steerSpeed = 0;
-            } else {
-                steerSpeed = errorSource.getKP() * error ;
-            }
             telemetry.addData("Error", error);
             telemetry.update();
 
@@ -249,7 +245,10 @@ public abstract class BaseAutonomous extends LinearOpMode {
 
         @Override
         public double getError() {
-            return getRawHeadingError(heading);
+            double error = getRawHeadingError(heading);
+            // consider 1 degree error negligible
+            // we need no-correction area to avoid over-correction
+            return (Math.abs(error) < 1) ? 0 : error;
         }
 
         @Override
@@ -261,18 +260,28 @@ public abstract class BaseAutonomous extends LinearOpMode {
 
     public class RangeErrorSource implements ErrorSource {
 
-        private DistanceSensor distanceSensor;
+        private DistanceSensor s1;
+        private DistanceSensor s2;
         private double rangeInInches;
         private int errorSign;
 
-        private double KP = 0.005;
+        private double KP = 0.02;
 
-        RangeErrorSource(DistanceSensor distanceSensor,
-                                double rangeInInches,
-                                boolean clockwiseForPositiveError) {
-            this.distanceSensor = distanceSensor;
+        /**
+         *
+         * @param s1 leading sensor
+         * @param s2 following sensor
+         * @param rangeInInches how many inches we want to be from the wall
+         * @param clockwiseIfTooClose should we rotate clockwise if we are too close?
+         */
+        RangeErrorSource(DistanceSensor s1,
+                         DistanceSensor s2,
+                         double rangeInInches,
+                         boolean clockwiseIfTooClose) {
+            this.s1 = s1;
+            this.s2 = s2;
             this.rangeInInches = rangeInInches;
-            errorSign = clockwiseForPositiveError ? 1 : -1;
+            errorSign = clockwiseIfTooClose ? 1 : -1;
         }
 
         @Override
@@ -286,7 +295,9 @@ public abstract class BaseAutonomous extends LinearOpMode {
             and counterclockwise (negative error) if it is too far from the wall
              */
 
-            return (rangeInInches - distanceSensor.getDistance(DistanceUnit.INCH)) * errorSign;
+            double error1 = (rangeInInches - s1.getDistance(DistanceUnit.INCH)) * errorSign;
+            double error2 = (s2.getDistance(DistanceUnit.INCH) - s1.getDistance(DistanceUnit.INCH)) * errorSign;
+            return error1 + error2;
         }
 
         @Override

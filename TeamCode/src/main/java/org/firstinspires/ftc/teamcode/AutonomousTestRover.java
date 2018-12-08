@@ -2,7 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
-@Autonomous(name = "AutoTestRover", group = "Main")
+@Autonomous(name = "TestRover", group = "Main")
 public class AutonomousTestRover extends AutonomousRover {
 
     @Override
@@ -86,24 +86,24 @@ public class AutonomousTestRover extends AutonomousRover {
     void rangeDriveTest() throws InterruptedException {
         double startPower = 0.7;
         double endPower = 0.2;
-        double inches = 69;
+        double inches = 70;
         double rangeInInches = 5;
         logPrefix = "rangeTest";
         TEST = true;
         out = new StringBuffer();
 
-        double [] kpArr = {0.5, 0.1, 0.05, 0.01};
+        double [] kpArr = {0.02, 0.02, 0.02, 0.02, 0.02};
 
         for(double kp : kpArr) {
             telemetry.addData("kP", kp);
             telemetry.update();
             out.append(String.format("# kp = %.1f \n", kp));
-            RangeErrorSource errorSourceBackward = new RangeErrorSource(rangeSensorBackLeft, rangeInInches, false);
+            RangeErrorSource errorSourceBackward = new RangeErrorSource(rangeSensorBackLeft, rangeSensorFrontLeft, rangeInInches,  false);
             errorSourceBackward.setKP(kp);
             moveWithProportionalCorrection(-startPower, -endPower, inches, errorSourceBackward);
             sleep(5000);
 
-            RangeErrorSource errorSourceForward = new RangeErrorSource(rangeSensorFrontLeft, rangeInInches, true);
+            RangeErrorSource errorSourceForward = new RangeErrorSource(rangeSensorFrontLeft, rangeSensorBackLeft, rangeInInches, true);
             errorSourceForward.setKP(kp);
             moveWithProportionalCorrection(startPower, endPower, inches, errorSourceForward);
             sleep( 5000);
