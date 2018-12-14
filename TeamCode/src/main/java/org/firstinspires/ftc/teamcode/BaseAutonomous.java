@@ -207,7 +207,8 @@ public abstract class BaseAutonomous extends LinearOpMode {
         double countsSinceStart = Math.abs(getWheelPosition() - initialcount);
         double motorPower = startPower;
         long startTime = currentTimeMillis();
-        while (opModeIsActive() && countsSinceStart < inchesToCounts(inches, forward)) {
+        while (currentTimeMillis() - startTime < 8000 && opModeIsActive()
+                && countsSinceStart < inchesToCounts(inches, forward)) {
             // error CCW - negative, CW - positive
             error = errorSource.getError();
             steerSpeed = errorSource.getKP() * error ;

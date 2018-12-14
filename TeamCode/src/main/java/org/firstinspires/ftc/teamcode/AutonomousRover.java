@@ -767,16 +767,17 @@ public class AutonomousRover extends BaseAutonomous {
             out.append(depotSide() ? "Depot" : "Creator");
             out.append("\n"); // end of comment
             // table header followed by new line
-            out.append("Time,Step,Gyro,GoldPos,RangeFL,RangeBL,RangeFR,DriveLeft,DriveRight,\n");
+            out.append("Time,Step,Gyro,GoldPos,RangeFL,RangeBL,RangeFR,RangeBR,DriveLeft,DriveRight,\n");
         }
 
-        out.append(String.format(Locale.US, "%5d,%22s,%4.1f,%s,%5.1f,%5.1f,%5.1f,%d,%d\n",
+        out.append(String.format(Locale.US, "%5d,%22s,%4.1f,%s,%5.1f,%5.1f,%5.1f,%5.1f,%d,%d\n",
                 currentTimeMillis() - startMillis,
                 step,
                 getGyroAngles().firstAngle, goldPosition,
                 rangeSensorFrontLeft.getDistance(DistanceUnit.INCH),
                 rangeSensorBackLeft.getDistance(DistanceUnit.INCH),
                 rangeSensorFrontRight.getDistance(DistanceUnit.INCH),
+                rangeSensorBackRight.getDistance(DistanceUnit.INCH),
                 motorLeft.getCurrentPosition(),
                 motorRight.getCurrentPosition()));
     }
