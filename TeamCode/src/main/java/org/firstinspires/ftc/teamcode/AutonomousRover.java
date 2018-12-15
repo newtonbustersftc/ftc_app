@@ -249,7 +249,7 @@ public class AutonomousRover extends BaseAutonomous {
             sleep(200);
 
             // move forward where the gold is visible again
-            moveWithProportionalCorrection(0.5, 0.2, 7, new GyroErrorSource(0));
+            moveWithProportionalCorrection(0.5, 0.2, 7, new GyroErrorHandler(0));
 
             log("At the line");
         } finally {
@@ -295,14 +295,14 @@ public class AutonomousRover extends BaseAutonomous {
                 extraDistance = 8;
             }
 //            goCounts(0.5, inchesToCounts(distanceToSideGold+extraDistance));
-            moveWithProportionalCorrection(0.7, 0.2, distanceToSideGold + extraDistance, new GyroErrorSource(heading));
+            moveWithProportionalCorrection(0.7, 0.2, distanceToSideGold + extraDistance, new GyroErrorHandler(heading));
 
         } else {
             if (depotSide()) {
                 extraDistance = 29;
             }
 //            goCounts(0.5, inchesToCounts(distanceToCenterGold + extraDistance));
-            moveWithProportionalCorrection(0.7, 0.2, distanceToCenterGold + extraDistance, new GyroErrorSource(heading));
+            moveWithProportionalCorrection(0.7, 0.2, distanceToCenterGold + extraDistance, new GyroErrorHandler(heading));
 
         }
 
@@ -320,68 +320,109 @@ public class AutonomousRover extends BaseAutonomous {
                     //return to previous heading
                     rotate(-0.3, Math.abs(currentAngle) - 5);
 ////                    goCounts(0.5, inchesToCounts(13));
-//                    moveWithProportionalCorrection(0.7,0.2, 13, new GyroErrorSource(0));
+//                    moveWithProportionalCorrection(0.7,0.2, 13, new GyroErrorHandler(0));
 //                    rotate(-0.3, 20);
 ////                    goCounts(0.5, inchesToCounts(8));
-//                    moveWithProportionalCorrection(0.7,0.2, 8, new GyroErrorSource(35));
-                    moveWithProportionalCorrection(0.7, 0.2, 11, new GyroErrorSource(0));
+//                    moveWithProportionalCorrection(0.7,0.2, 8, new GyroErrorHandler(35));
+                    moveWithProportionalCorrection(0.7, 0.2, 11, new GyroErrorHandler(0));
                 } else {
                     //return to previous heading
                     rotate(0.3, Math.abs(currentAngle) - 5);
 ////                    goCounts(0.5, inchesToCounts(13));
-//                    moveWithProportionalCorrection(0.7,0.2, 13, new GyroErrorSource(0));
+//                    moveWithProportionalCorrection(0.7,0.2, 13, new GyroErrorHandler(0));
 //                    rotate(0.3, 30);
 ////                    goCounts(0.5, inchesToCounts(8));
-//                    moveWithProportionalCorrection(0.7,0.2, 8, new GyroErrorSource(-45));
-                    moveWithProportionalCorrection(0.7, 0.2, 23, new GyroErrorSource(-45));
+//                    moveWithProportionalCorrection(0.7,0.2, 8, new GyroErrorHandler(-45));
+                    moveWithProportionalCorrection(0.7, 0.2, 23, new GyroErrorHandler(-45));
                 }
             }
-            //Deliver team marker.
-            markerServo.setPosition(POS_MARKER_FORWARD);
-            sleep(1200);
-            markerServo.setPosition(POS_MARKER_UP);
-            sleep(1000);
 
         } else {
+            //in crater zone
             double heading;
-            double distance;
+            double distanceBack;
+            double distanceToWall = 52; //longest distance from right position
             // come back
             if (goldOnSide) {
-                distance = 21d/2d;
+                distanceBack = 21d / 2d;
                 if (goldOnRight) {
                     heading = -35;
                 } else {
                     // left
                     heading = 35;
+                    distanceToWall -= 12;
                 }
             } else {
                 //center
-                distance = 19d/2d;
+                distanceBack = 19d / 2d;
                 heading = 0;
+                distanceToWall -= 6;
             }
-            moveWithProportionalCorrection(-0.7, -0.2, distance, new GyroErrorSource(heading));
+            moveWithProportionalCorrection(-0.7, -0.2, distanceBack, new GyroErrorHandler(heading));
             double currentHeading = getGyroAngles().firstAngle;
             double driveHeading = 90;
             double angleToRotate = Math.abs(currentHeading - driveHeading) - 5; //small adjustment for over rotation
-            // rotate to be along the wall
+            // rotate toward the wall
             rotate(-0.3, angleToRotate);
-
-//            markerServo.setPosition(POS_MARKER_FORWARD);
-//            sleep(1200);
+            // drive toward the wall
+            moveWithProportionalCorrection(0.7, 0.2, distanceToWall, new GyroErrorHandler(driveHeading));
+            // rotate along the wall
+            currentHeading = getGyroAngles().firstAngle;
+            driveHeading = 130;
+            angleToRotate = Math.abs(driveHeading - currentHeading) - 5;
+            rotate(-0.3, angleToRotate);
+            log("At the wall");
+            // drive along the wall using two range sensors for correction
+            double inchesForward = 30;
+            boolean clockwiseWhenTooClose = false;
+            double inchesToWall = 5;
+            RangeErrorHandler errorHandler = new RangeErrorHandler (rangeSensorFrontRight,
+                    rangeSensorBackRight, inchesToWall, clockwiseWhenTooClose, driveHeading);
+            //usually use distance eensor not ugrp
+            moveWithProportionalCorrection(0.7, 0.2, inchesForward, errorHandler);
+            // Drive along the wall using gyro
+            // moveWithProportionalCorrection(0.7, 0.2, inchesForward, new GyroErrorHandler(driveHeading));
         }
-
+        //Deliver team marker.
+        markerServo.setPosition(POS_MARKER_FORWARD);
+        sleep(1200);
+        markerServo.setPosition(POS_MARKER_UP);
+        sleep(1000);
         log("Delivered marker");
 
     }
 
     void park() throws InterruptedException {
-        if (!opModeIsActive() || !depotSide())
+        if (!opModeIsActive())
             return; // delivering marker is not implemented for crater zone yet
 
+        double distanceToTravel;
+
+        if (!depotSide()){
+            distanceToTravel = 55;
+            double currentHeading = getGyroAngles().firstAngle;
+            double driveHeading = 135;
+            double angleToRotate = Math.abs(currentHeading - 140); //small adjustment for over rotation
+            // rotate toward the wall
+            rotate(-0.3, angleToRotate);
+            // drive toward the wall
+            moveWithProportionalCorrection(-0.7, -0.2, distanceToTravel, new GyroErrorHandler(driveHeading));
+
+            boolean clockwiseWhenTooClose = true;
+            double inchesToWall = 5;
+            RangeErrorHandler errorHandler = new RangeErrorHandler (rangeSensorBackRight,
+                    rangeSensorFrontRight, inchesToWall, clockwiseWhenTooClose, driveHeading);
+            //usually use distance eensor not ugrp
+            moveWithProportionalCorrection(-0.7, -0.2, distanceToTravel, errorHandler);
+
+            return;
+        }
+
+        // depot side
         double moveForwardHeading;
         double inchesForward = 5;
         double rotatePower;
-        double distanceToTravel;
+
 
         if (goldOnSide) {
             if (goldOnRight) {
@@ -402,7 +443,7 @@ public class AutonomousRover extends BaseAutonomous {
             distanceToTravel = 78;
         }
         // move forward a bit
-        moveWithProportionalCorrection(0.7, 0.2, inchesForward, new GyroErrorSource(moveForwardHeading));
+        moveWithProportionalCorrection(0.7, 0.2, inchesForward, new GyroErrorHandler(moveForwardHeading));
         double currentHeading = getGyroAngles().firstAngle;
         double parkHeading = -45;
         double angleToRotate = Math.abs(currentHeading - parkHeading) - 5; //small adjustment for over rotation
@@ -416,7 +457,7 @@ public class AutonomousRover extends BaseAutonomous {
         boolean clockwiseWhenTooClose = false;
 
         moveWithProportionalCorrection(-0.7, -0.2, distanceToTravel,
-                new RangeErrorSource(rangeF, rangeB, inchesToWall, clockwiseWhenTooClose));
+                new RangeErrorHandler(rangeF, rangeB, inchesToWall, clockwiseWhenTooClose, parkHeading));
 
         log("Parked");
     }

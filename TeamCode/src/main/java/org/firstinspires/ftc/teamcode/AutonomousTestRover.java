@@ -76,10 +76,10 @@ public class AutonomousTestRover extends AutonomousRover {
         double endPower = 0.1;
         double heading = 0;
         double inches = 66;
-        moveWithProportionalCorrection(startPower, endPower, inches, new GyroErrorSource(heading));
+        moveWithProportionalCorrection(startPower, endPower, inches, new GyroErrorHandler(heading));
 
         sleep( 5000);
-        moveWithProportionalCorrection(-startPower, -endPower, inches, new GyroErrorSource(heading));
+        moveWithProportionalCorrection(-startPower, -endPower, inches, new GyroErrorHandler(heading));
         sleep(5000);
     }
 
@@ -98,12 +98,15 @@ public class AutonomousTestRover extends AutonomousRover {
             telemetry.addData("kP", kp);
             telemetry.update();
             out.append(String.format("# kp = %.1f \n", kp));
-            RangeErrorSource errorSourceBackward = new RangeErrorSource(rangeSensorBackLeft, rangeSensorFrontLeft, rangeInInches,  false);
+            RangeErrorHandler errorSourceBackward = new RangeErrorHandler(rangeSensorBackLeft,
+                    rangeSensorFrontLeft, rangeInInches,  false,0);
             errorSourceBackward.setKP(kp);
             moveWithProportionalCorrection(-startPower, -endPower, inches, errorSourceBackward);
             sleep(5000);
 
-            RangeErrorSource errorSourceForward = new RangeErrorSource(rangeSensorFrontLeft, rangeSensorBackLeft, rangeInInches, true);
+            RangeErrorHandler errorSourceForward = new RangeErrorHandler(rangeSensorFrontLeft,
+                    rangeSensorBackLeft, rangeInInches,
+                    true, 0);
             errorSourceForward.setKP(kp);
             moveWithProportionalCorrection(startPower, endPower, inches, errorSourceForward);
             sleep( 5000);

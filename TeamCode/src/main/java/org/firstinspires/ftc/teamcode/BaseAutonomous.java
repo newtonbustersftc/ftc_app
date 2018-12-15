@@ -40,7 +40,7 @@ public abstract class BaseAutonomous extends LinearOpMode {
             telemetry.clear();
         } finally {
             try {
-                if(out != null) {
+                if (out != null) {
                     //log file without the time stamp to find it easier
                     File file = new File(Environment.getExternalStorageDirectory().getPath() + "/FIRST/" + logPrefix + ".txt");
 
@@ -152,30 +152,30 @@ public abstract class BaseAutonomous extends LinearOpMode {
 
     /**
      * set break or float behavior
+     *
      * @param behavior
      */
-    void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior){
+    void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior) {
         throw new UnsupportedOperationException("setZeroPowerBehavior is not implemented");
     }
 
     /**
      * @return the selected wheel encoder count
      */
-    int getWheelPosition(){
+    int getWheelPosition() {
         throw new UnsupportedOperationException("getWheelPosition is not implemented");
     }
 
 
-    int inchesToCounts(double inches, boolean foward){
+    int inchesToCounts(double inches, boolean foward) {
         throw new UnsupportedOperationException("inchesToCounts is not implemented");
     }
 
     /**
-     *
      * @param motorPower power to go in straight line from -1 to 1
      * @param steerPower power to make adjustments clockwise
      */
-    void steer(double motorPower, double steerPower){
+    void steer(double motorPower, double steerPower) {
         throw new UnsupportedOperationException("steer is not implemented");
     }
 
@@ -183,14 +183,14 @@ public abstract class BaseAutonomous extends LinearOpMode {
     /**
      * moves robot given number of inches using the gyro to keep us straight
      *
-     * @param startPower starting forward power
-     * @param errorSource object that has getError method
-     * @param inches     distance forward
-     * @param endPower   ending forward power
+     * @param startPower  starting forward power
+     * @param errorHandler object that has getError method
+     * @param inches      distance forward
+     * @param endPower    ending forward power
      * @return true if distance required was travelled, false otherwise
      * @throws InterruptedException
      */
-    boolean moveWithProportionalCorrection(double startPower, double endPower, double inches, ErrorSource errorSource) throws InterruptedException {
+    boolean moveWithProportionalCorrection(double startPower, double endPower, double inches, ErrorHandler errorHandler) throws InterruptedException {
 
         if (!opModeIsActive()) return false;
 
@@ -198,7 +198,7 @@ public abstract class BaseAutonomous extends LinearOpMode {
 
         setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         int initialcount = getWheelPosition();
-        double error, steerSpeed; // counterclockwise speed
+        double steerSpeed; // counterclockwise speed
 
         double inchesForGradient = 10;
         double slope = (endPower - startPower) / inchesToCounts(Math.min(inchesForGradient, inches), forward);
@@ -209,18 +209,17 @@ public abstract class BaseAutonomous extends LinearOpMode {
         long startTime = currentTimeMillis();
         while (currentTimeMillis() - startTime < 8000 && opModeIsActive()
                 && countsSinceStart < inchesToCounts(inches, forward)) {
-            // error CCW - negative, CW - positive
-            error = errorSource.getError();
-            steerSpeed = errorSource.getKP() * error ;
+            // steer CCW - negative, CW - positive
+            steerSpeed = errorHandler.getSteerSpeed();
 
-            telemetry.addData("Error", error);
+            telemetry.addData("Steer Speed", steerSpeed);
             telemetry.update();
 
             if (countsSinceStart > countsForGradient) {
                 motorPower = slope * (countsSinceStart - inchesToCounts(inches, forward)) + endPower;
             }
             steer(motorPower, steerSpeed);
-            if (TEST) logCorrection(currentTimeMillis()-startTime, error, steerSpeed);
+            //if (TEST) logCorrection(currentTimeMillis()-startTime, error, steerSpeed);
             countsSinceStart = Math.abs(getWheelPosition() - initialcount);
 
         }
@@ -230,85 +229,115 @@ public abstract class BaseAutonomous extends LinearOpMode {
     }
 
     private void logCorrection(long timeMs, double error, double steerSpeed) {
-        if(out == null) {
+        if (out == null) {
             out = new StringBuffer();
         }
         out.append(String.format(Locale.US, "%d,%.2f,%.2f\n", timeMs, error, steerSpeed));
     }
 
-    public class GyroErrorSource implements ErrorSource {
+    public class GyroErrorHandler implements ErrorHandler {
 
         private double heading;
 
-        public GyroErrorSource(double heading) {
+        GyroErrorHandler(double heading) {
             this.heading = heading;
         }
 
         @Override
-        public double getError() {
+        public double getSteerSpeed() {
+            //clockwise = positive steer speed
+            return getKP() * getError();
+        }
+
+        double getError() {
             double error = getRawHeadingError(heading);
             // consider 1 degree error negligible
             // we need no-correction area to avoid over-correction
             return (Math.abs(error) < 1) ? 0 : error;
         }
 
-        @Override
-        public double getKP() {
+
+        double getKP() {
             //experimental coefficient for proportional correction of the direction
             return 0.01;
         }
     }
 
-    public class RangeErrorSource implements ErrorSource {
+    public class RangeErrorHandler implements ErrorHandler {
 
         private DistanceSensor s1;
         private DistanceSensor s2;
         private double rangeInInches;
         private int errorSign;
+        private ErrorHandler gyroErrorHandler;
 
         private double KP = 0.02;
 
         /**
-         *
-         * @param s1 leading sensor
-         * @param s2 following sensor
-         * @param rangeInInches how many inches we want to be from the wall
+         * @param s1                  leading sensor
+         * @param s2                  following sensor
+         * @param rangeInInches       how many inches we want to be from the wall
          * @param clockwiseIfTooClose should we rotate clockwise if we are too close?
+         * @param gyroHeading         heading for fallback gyro error correction if distance sensors fail
          */
-        RangeErrorSource(DistanceSensor s1,
-                         DistanceSensor s2,
-                         double rangeInInches,
-                         boolean clockwiseIfTooClose) {
+        RangeErrorHandler(DistanceSensor s1,
+                          DistanceSensor s2,
+                          double rangeInInches,
+                          boolean clockwiseIfTooClose,
+                          double gyroHeading) {
             this.s1 = s1;
             this.s2 = s2;
             this.rangeInInches = rangeInInches;
             errorSign = clockwiseIfTooClose ? 1 : -1;
+            gyroErrorHandler = new GyroErrorHandler(gyroHeading);
         }
 
         @Override
+        //clockwise = positive steer speed
+        public double getSteerSpeed() {
+            double range1 = s1.getDistance(DistanceUnit.INCH);
+            double range2 = s2.getDistance(DistanceUnit.INCH);
+            if (rangeInBounds(range1) && rangeInBounds(range2)) {
+                //if ranges are reasonable, use 2 sensors
+                return getError(range1, range2) * getKP();
+            } else {
+                //if ranges are unreasonable, use gyro sensor only
+                return gyroErrorHandler.getSteerSpeed();
+            }
+        }
+
         /**
          * Error is positive if we are closer to the wall than we want to be
          */
-        public double getError() {
-            /*
+        public double getError(double range1, double range2) {
+                /*
             with the sensor mounted on the left side of the robot,
             we want the robot to move clockwise (positive error) if it is too close to the wall
             and counterclockwise (negative error) if it is too far from the wall
              */
-
             double error1 = (rangeInInches - s1.getDistance(DistanceUnit.INCH)) * errorSign;
             double error2 = (s2.getDistance(DistanceUnit.INCH) - s1.getDistance(DistanceUnit.INCH)) * errorSign;
             return error1 + error2;
         }
 
-        @Override
-        public double getKP() {
+
+        double getKP() {
             //experimental coefficient for proportional correction of the direction
             return KP;
         }
 
-        public void setKP(double kp) {
+        void setKP(double kp) {
             this.KP = kp;
+        }
+
+        /**
+         * returns true if range is reasonable, false if it is not
+         *
+         * @param rangeInInches
+         * @return
+         */
+        boolean rangeInBounds(double rangeInInches) {
+            return rangeInInches > 0 && rangeInInches < 50;
         }
     }
 
