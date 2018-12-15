@@ -110,6 +110,7 @@ public class AutonomousRover extends BaseAutonomous {
                 telemetry.addData("Sorry!", "This device is not compatible with TFOD");
             }
 
+            //Initializes all motors.
             preRun();
 
             log("vuforia/tfod " + vuforiaMs + "/" + tfodMs);
@@ -129,7 +130,6 @@ public class AutonomousRover extends BaseAutonomous {
             retractLift();
 
             park();
-
 
 
             telemetry.addData("Gyro Heading", getGyroAngles().firstAngle);
@@ -343,16 +343,31 @@ public class AutonomousRover extends BaseAutonomous {
             sleep(1000);
 
         } else {
+            double heading;
+            double distance;
+            // come back
             if (goldOnSide) {
+                distance = 21d/2d;
                 if (goldOnRight) {
-                    rotate(-0.3, 20);
+                    heading = -35;
                 } else {
-                    rotate(0.3, 10);
+                    // left
+                    heading = 35;
                 }
-                goCounts(0.5, inchesToCounts(5));
+            } else {
+                //center
+                distance = 19d/2d;
+                heading = 0;
             }
-            markerServo.setPosition(POS_MARKER_FORWARD);
-            sleep(1200);
+            moveWithProportionalCorrection(-0.7, -0.2, distance, new GyroErrorSource(heading));
+            double currentHeading = getGyroAngles().firstAngle;
+            double driveHeading = 90;
+            double angleToRotate = Math.abs(currentHeading - driveHeading) - 5; //small adjustment for over rotation
+            // rotate to be along the wall
+            rotate(-0.3, angleToRotate);
+
+//            markerServo.setPosition(POS_MARKER_FORWARD);
+//            sleep(1200);
         }
 
         log("Delivered marker");
