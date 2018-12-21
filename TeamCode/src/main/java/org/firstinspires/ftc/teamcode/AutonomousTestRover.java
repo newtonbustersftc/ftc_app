@@ -76,10 +76,10 @@ public class AutonomousTestRover extends AutonomousRover {
         double endPower = 0.1;
         double heading = 0;
         double inches = 66;
-        moveWithProportionalCorrection(startPower, endPower, inches, new GyroErrorHandler(heading));
+        moveWithErrorCorrection(startPower, endPower, inches, new GyroErrorHandler(heading));
 
         sleep( 5000);
-        moveWithProportionalCorrection(-startPower, -endPower, inches, new GyroErrorHandler(heading));
+        moveWithErrorCorrection(-startPower, -endPower, inches, new GyroErrorHandler(heading));
         sleep(5000);
     }
 
@@ -92,23 +92,25 @@ public class AutonomousTestRover extends AutonomousRover {
         TEST = true;
         out = new StringBuffer();
 
-        double [] kpArr = {0.02, 0.02, 0.02, 0.02, 0.02};
+        double [] kpArr = {0.02, 0.02, 0.02};
 
         for(double kp : kpArr) {
+            if (!opModeIsActive()) return;
             telemetry.addData("kP", kp);
             telemetry.update();
-            out.append(String.format("# kp = %.1f \n", kp));
-            RangeErrorHandler errorSourceBackward = new RangeErrorHandler(rangeSensorBackLeft,
-                    rangeSensorFrontLeft, rangeInInches,  false,0);
-            errorSourceBackward.setKP(kp);
-            moveWithProportionalCorrection(-startPower, -endPower, inches, errorSourceBackward);
+            out.append(String.format("# kp = %.3f \n", kp));
+            TEST = true;
+            RangeErrorHandler errorHandlerBackward = new RangeErrorHandler(rangeSensorBackRight,
+                    rangeSensorFrontRight, rangeInInches,  true,0);
+            errorHandlerBackward.setKP(kp);
+            moveWithErrorCorrection(-startPower, -endPower, inches, errorHandlerBackward);
             sleep(5000);
 
-            RangeErrorHandler errorSourceForward = new RangeErrorHandler(rangeSensorFrontLeft,
-                    rangeSensorBackLeft, rangeInInches,
-                    true, 0);
-            errorSourceForward.setKP(kp);
-            moveWithProportionalCorrection(startPower, endPower, inches, errorSourceForward);
+            RangeErrorHandler errorHandlerForward = new RangeErrorHandler(rangeSensorFrontRight,
+                    rangeSensorBackRight, rangeInInches,
+                    false, 0);
+            errorHandlerForward.setKP(kp);
+            moveWithErrorCorrection(startPower, endPower, inches, errorHandlerForward);
             sleep( 5000);
         }
     }

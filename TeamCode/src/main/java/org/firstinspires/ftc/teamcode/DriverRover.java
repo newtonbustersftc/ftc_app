@@ -25,6 +25,7 @@ public class DriverRover extends OpMode {
 
     private ServoImplEx hookServo;
     private Servo markerServo;
+    private Servo intakeGateServo;
     private CRServo leftIntakeServo;
     private CRServo rightIntakeServo;
 
@@ -42,6 +43,8 @@ public class DriverRover extends OpMode {
     static final int LATCHING_POS_LOW = 2878;
     static final int LATCHING_POS_HIGH = 3220;
 
+    static final int MAX_ARM_POS = 5100;
+
     @Override
     public void init() {
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
@@ -49,9 +52,11 @@ public class DriverRover extends OpMode {
         liftMotor = hardwareMap.dcMotor.get("liftMotor");
         armExtension = hardwareMap.dcMotor.get("armExtension");
 
-        // run by power
+        // run by speed
         motorLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motorRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        armExtension.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        sleep(100);
         armExtension.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         liftTouch = hardwareMap.touchSensor.get("lift_touch");
@@ -73,17 +78,6 @@ public class DriverRover extends OpMode {
     @Override
     public void start() {
 
-//        if (!liftTouch.isPressed()) {
-//            telemetry.addData("lift" , "resetting" );
-//            long startMillis = currentTimeMillis();
-//            while (!liftTouch.isPressed() && currentTimeMillis() - startMillis < 5000) {
-//                liftMotor.setPower(0.5); //positive power retracts the lift arm
-//                sleep(10);
-//            }
-//            liftMotor.setPower(0.0);
-//            liftReset();
-//        }
-
         //ServoImplEx allows to energize and deenergize servo
         // we don't want to hook servo to keep position when robot is lifting or lowering
         hookServo = (ServoImplEx)hardwareMap.servo.get("hookServo");
@@ -94,6 +88,12 @@ public class DriverRover extends OpMode {
         //for moving the arm forward, use 1, for moving it back, use 0
         setUpServo(markerServo, AutonomousRover.POS_MARKER_BACK, AutonomousRover.POS_MARKER_FORWARD);
 
+
+        intakeGateServo = hardwareMap.servo.get("intakeGate");
+        //for opening and closing gate that drops minerals into delivery, use 1 and 0
+        setUpServo(intakeGateServo, 0.25, 0.75);
+
+
         rightIntakeServo = hardwareMap.crservo.get("rightIntake");
         rightIntakeServo.setDirection(DcMotorSimple.Direction.REVERSE);
         leftIntakeServo = hardwareMap.crservo.get("leftIntake");
@@ -102,6 +102,13 @@ public class DriverRover extends OpMode {
 
     @Override
     public void loop() {
+
+        //gamepad2 will be used to control the delivery of the minerals
+        if(gamepad2.b){
+            intakeGateServo.setPosition(0);
+        } else if(gamepad2.a){
+            intakeGateServo.setPosition(1);
+        }
 
         if (gamepad1.y) {
             rightIntakeServo.setPower(1);
@@ -164,14 +171,14 @@ public class DriverRover extends OpMode {
                     liftMotorPower = -1;
                 }
             } else if (!liftTouch.isPressed()){ //a button is pressed
-                if (currentPos < 300) {
-                    liftMotorPower = 0.7;
-                } else {
+//                if (currentPos < 300) {
+//                    liftMotorPower = 0.7;
+//                } else {
                     if (currentPos < LATCHING_POS_LOW) {
                         deenergizeHook();
                     }
                     liftMotorPower = 1;
-                }
+//                }
             } else {
                 liftMotorPower = 0.00;
             }
@@ -196,11 +203,12 @@ public class DriverRover extends OpMode {
 
         // Lift motor when given negative power, the lift rises and lowers when given positive power
         if (gamepad1.left_bumper || gamepad1.right_bumper) {
-            if (gamepad1.left_bumper) {
+            if (gamepad1.left_bumper && armExtension.getCurrentPosition() < MAX_ARM_POS) {
                 armExtensionPower = 0.5;
-            } else if (gamepad1.right_bumper && !armTouch.isPressed()){ //a button is pressed
+            } else if (gamepad1.right_bumper && !armTouch.isPressed()){
                 armExtensionPower = -0.5;
             } else {
+                //touch button is pressed - cannot go further
                 armExtensionPower = 0.0;
             }
         } else {

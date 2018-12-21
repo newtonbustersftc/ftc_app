@@ -188,9 +188,8 @@ public abstract class BaseAutonomous extends LinearOpMode {
      * @param inches      distance forward
      * @param endPower    ending forward power
      * @return true if distance required was travelled, false otherwise
-     * @throws InterruptedException
      */
-    boolean moveWithProportionalCorrection(double startPower, double endPower, double inches, ErrorHandler errorHandler) throws InterruptedException {
+    boolean moveWithErrorCorrection(double startPower, double endPower, double inches, ErrorHandler errorHandler) {
 
         if (!opModeIsActive()) return false;
 
@@ -219,7 +218,6 @@ public abstract class BaseAutonomous extends LinearOpMode {
                 motorPower = slope * (countsSinceStart - inchesToCounts(inches, forward)) + endPower;
             }
             steer(motorPower, steerSpeed);
-            //if (TEST) logCorrection(currentTimeMillis()-startTime, error, steerSpeed);
             countsSinceStart = Math.abs(getWheelPosition() - initialcount);
 
         }
@@ -228,25 +226,44 @@ public abstract class BaseAutonomous extends LinearOpMode {
         return opModeIsActive();
     }
 
-    private void logCorrection(long timeMs, double error, double steerSpeed) {
+    private void logRangeCorrectionHeader() {
         if (out == null) {
             out = new StringBuffer();
         }
-        out.append(String.format(Locale.US, "%d,%.2f,%.2f\n", timeMs, error, steerSpeed));
+        out.append(String.format(Locale.US, "Time,Error,Steer,Type,Range1,Range2\n"));
+    }
+
+    private void logRangeCorrection(long timeMs, double error, double steerSpeed, double range1, double range2) {
+        if (out == null) {
+            out = new StringBuffer();
+        }
+        out.append(String.format(Locale.US, "%d,%.2f,%.2f,range,%.2f,%.2f\n", timeMs, error, steerSpeed, range1, range2));
+    }
+
+    private void logGyroCorrection(long timeMs, double error, double steerSpeed) {
+        if (out == null) {
+            out = new StringBuffer();
+        }
+        out.append(String.format(Locale.US, "%d,%.2f,%.2f,gyro\n", timeMs, error, steerSpeed));
     }
 
     public class GyroErrorHandler implements ErrorHandler {
 
         private double heading;
+        private long startTime;
 
         GyroErrorHandler(double heading) {
             this.heading = heading;
+            startTime = currentTimeMillis();
         }
 
         @Override
         public double getSteerSpeed() {
             //clockwise = positive steer speed
-            return getKP() * getError();
+            double error = getError();
+            double steerSpeed = error * getKP();
+            if (TEST) logGyroCorrection(currentTimeMillis()-startTime, error, steerSpeed);
+            return steerSpeed;
         }
 
         double getError() {
@@ -269,7 +286,8 @@ public abstract class BaseAutonomous extends LinearOpMode {
         private DistanceSensor s2;
         private double rangeInInches;
         private int errorSign;
-        private ErrorHandler gyroErrorHandler;
+        private GyroErrorHandler gyroErrorHandler;
+        private long startTime;
 
         private double KP = 0.02;
 
@@ -289,7 +307,11 @@ public abstract class BaseAutonomous extends LinearOpMode {
             this.s2 = s2;
             this.rangeInInches = rangeInInches;
             errorSign = clockwiseIfTooClose ? 1 : -1;
+
+            startTime = currentTimeMillis();
             gyroErrorHandler = new GyroErrorHandler(gyroHeading);
+            gyroErrorHandler.startTime = startTime;
+            if (TEST) logRangeCorrectionHeader();
         }
 
         @Override
@@ -297,26 +319,38 @@ public abstract class BaseAutonomous extends LinearOpMode {
         public double getSteerSpeed() {
             double range1 = s1.getDistance(DistanceUnit.INCH);
             double range2 = s2.getDistance(DistanceUnit.INCH);
+            double error, steerSpeed;
             if (rangeInBounds(range1) && rangeInBounds(range2)) {
                 //if ranges are reasonable, use 2 sensors
-                return getError(range1, range2) * getKP();
+                error = getError(range1, range2);
+                steerSpeed = error * getKP();
+                if (TEST) logRangeCorrection(currentTimeMillis()-startTime, error, steerSpeed, range1, range2);
+                return steerSpeed;
             } else {
                 //if ranges are unreasonable, use gyro sensor only
                 return gyroErrorHandler.getSteerSpeed();
             }
+
         }
 
         /**
-         * Error is positive if we are closer to the wall than we want to be
+         * @param range1 - distance from the leading sensor (the front sensor when the robot is moving)
+         * @param range2 – distance from the following sensor (back sensor)
+         * @return error, positive if we are closer to the wall than we want to be
          */
         public double getError(double range1, double range2) {
-                /*
+            /*
             with the sensor mounted on the left side of the robot,
-            we want the robot to move clockwise (positive error) if it is too close to the wall
+            we want the robot to move clockwise (positive error) if the leading sensor is too close to the wall
             and counterclockwise (negative error) if it is too far from the wall
              */
-            double error1 = (rangeInInches - s1.getDistance(DistanceUnit.INCH)) * errorSign;
-            double error2 = (s2.getDistance(DistanceUnit.INCH) - s1.getDistance(DistanceUnit.INCH)) * errorSign;
+            double error1 = (rangeInInches - range1) * errorSign;
+
+            /*
+            we want the robot to be parallel to the wall
+            error2 is how parallel it is to the wall
+             */
+            double error2 = (range2 - range1) * errorSign;
             return error1 + error2;
         }
 
