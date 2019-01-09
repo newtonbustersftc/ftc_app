@@ -21,16 +21,21 @@ public class DriverRover extends OpMode {
     private DcMotor motorRight;
     private DcMotor liftMotor;
     //private DcMotor debrisCollection;
-    private DcMotor armExtension; //extend - positive, retract-negative
+    private DcMotor intakeExtend; //extend - positive, retract - negative
+    private DcMotor deliveryExtend; //extend - positive, retract - negative
+    private DcMotor deliveryRotate; // raise - positive, lower - negative (with reverse)
 
     private ServoImplEx hookServo;
     private Servo markerServo;
     private Servo intakeGateServo;
+    private Servo boxServo;
     private CRServo leftIntakeServo;
     private CRServo rightIntakeServo;
 
     private TouchSensor liftTouch;
-    private TouchSensor armTouch;
+    private TouchSensor intakeExtendTouch;
+    private TouchSensor deliveryExtendTouch;
+    private TouchSensor deliveryDownTouch;
 
     //for now, we don't support robot reversing the forward direction
     private final boolean forward = true;
@@ -39,40 +44,77 @@ public class DriverRover extends OpMode {
     boolean hookButtonPressed = false; //when true, the hook button is pressed down
 
     //optimal lift height encoder counts
-    public static final int LATCHING_POS = 3049;
-    static final int LATCHING_POS_LOW = 2878;
-    static final int LATCHING_POS_HIGH = 3220;
+    public static final int LATCHING_POS = 8769;//3049;
+    static final int LATCHING_POS_LOW = 8318;
+    static final int LATCHING_POS_HIGH = 9127;
 
-    static final int MAX_ARM_POS = 5100;
+    static final int MAX_INTAKE_ARM_POS = 5100;
+    static final int RETRACTED_INTAKE_ARM_POS = 200;
+
+    static final int MAX_DELIVERY_ROTATE_POS = 1544;
+    static final int DELIVERY_ROTATE_UP_POS = 1200;
+    static final int MAX_DELIVERY_EXTEND_POS = 1625;
+
+    static final double POS_GATE_CLOSED = 0.525;
+    static final double POS_GATE_OPEN = 0.85;
+
+    static final double POS_BUCKET_PARKED = 0.25;
+    static final double POS_BUCKET_UP = 0.72;
+    static final double POS_BUCKET_DOWN = POS_BUCKET_PARKED;
+    //static final double POS_BUCKET_DROP = 0.2;
+
+
 
     @Override
     public void init() {
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
         motorRight = hardwareMap.dcMotor.get("wheelsRight");
         liftMotor = hardwareMap.dcMotor.get("liftMotor");
-        armExtension = hardwareMap.dcMotor.get("armExtension");
+        intakeExtend = hardwareMap.dcMotor.get("intakeExtend");
+        deliveryExtend = hardwareMap.dcMotor.get("deliveryExtend");
+        deliveryRotate = hardwareMap.dcMotor.get("deliveryRotate");
 
         // run by speed
         motorLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         motorRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        armExtension.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        sleep(100);
-        armExtension.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
+        // touch sensors
         liftTouch = hardwareMap.touchSensor.get("lift_touch");
-        armTouch = hardwareMap.touchSensor.get("armTouch");
-
-        //reset the encoder for the lift motor
-        liftReset();
+        intakeExtendTouch = hardwareMap.touchSensor.get("intakeExtendTouch");
+        deliveryDownTouch = hardwareMap.touchSensor.get("deliveryDownTouch");
+        deliveryExtendTouch = hardwareMap.touchSensor.get("deliveryExtendTouch");
 
         // float zero power
         motorLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         motorRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         liftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        armExtension.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        intakeExtend.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         //setting the motors on the right side in reverse so both wheels spin the same way.
         motorRight.setDirection(DcMotor.Direction.REVERSE);
+
+
+        deliveryRotate.setDirection(DcMotorSimple.Direction.REVERSE);
+        deliveryRotate.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+
+        if (liftTouch.isPressed()) {
+            //reset the encoder for the lift motor
+            liftMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        }
+        if (deliveryDownTouch.isPressed()) {
+            // reset encoders for the rotating delivery arm
+            deliveryRotate.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        }
+        if (intakeExtendTouch.isPressed()) {
+            intakeExtend.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        }
+        sleep(100);
+        liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        deliveryRotate.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        intakeExtend.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
+        log();
     }
 
     @Override
@@ -83,6 +125,7 @@ public class DriverRover extends OpMode {
         hookServo = (ServoImplEx)hardwareMap.servo.get("hookServo");
         //set position to 0 for releasing the hook and use position 1 to close hook
         setUpServo(hookServo, AutonomousRover.POS_HOOK_OPEN, AutonomousRover.POS_HOOK_CLOSED);
+        deenergizeHook();
 
         markerServo = hardwareMap.servo.get("markerServo");
         //for moving the arm forward, use 1, for moving it back, use 0
@@ -91,8 +134,11 @@ public class DriverRover extends OpMode {
 
         intakeGateServo = hardwareMap.servo.get("intakeGate");
         //for opening and closing gate that drops minerals into delivery, use 1 and 0
-        setUpServo(intakeGateServo, 0.25, 0.75);
+        setUpServo(intakeGateServo, POS_GATE_CLOSED, POS_GATE_OPEN);
 
+        boxServo = hardwareMap.servo.get("box");
+        //for bucket servo that delivers the minerals to the launcher
+        setUpServo(boxServo, POS_BUCKET_PARKED, POS_BUCKET_UP);
 
         rightIntakeServo = hardwareMap.crservo.get("rightIntake");
         rightIntakeServo.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -104,11 +150,55 @@ public class DriverRover extends OpMode {
     public void loop() {
 
         //gamepad2 will be used to control the delivery of the minerals
-        if(gamepad2.b){
-            intakeGateServo.setPosition(0);
-        } else if(gamepad2.a){
-            intakeGateServo.setPosition(1);
+
+        if (gamepad2.left_trigger > 0.5) {
+            setPercentOpen(intakeGateServo, 1);
+        } else {
+            setPercentOpen(intakeGateServo, 0);
         }
+
+        //if the delivery arm is down, the bucket should be in bottom parked position.
+        // 0 corresponds to the parked position (or drop) 1 - to vertical position,
+        //    when the delivery arm is up
+        if (deliveryDownTouch.isPressed()) {
+            boxServo.setPosition(0);
+        } else {
+            // todo: as the arm is going up, the bucket should be changing position.
+            // todo: replace in statement below
+            if (deliveryRotate.getCurrentPosition() < 700) {
+                boxServo.setPosition(0);
+            }
+
+            //when the arm is up, we want the be able to invoke trigger to drop minerals.
+            if (deliveryRotate.getCurrentPosition() > DELIVERY_ROTATE_UP_POS) {
+                if (gamepad2.right_trigger > 0.5) {
+                    boxServo.setPosition(0);
+                } else {
+                    boxServo.setPosition(1);
+                }
+            }
+        }
+
+        if (gamepad2.y && deliveryExtend.getCurrentPosition() < MAX_DELIVERY_EXTEND_POS ) {
+            deliveryExtend.setPower(0.7);
+        } else if (gamepad2.a && !deliveryExtendTouch.isPressed()) {
+            deliveryExtend.setPower(-0.7);
+        } else {
+            deliveryExtend.setPower(0);
+        }
+
+        if (gamepad2.b && deliveryRotate.getCurrentPosition() < MAX_DELIVERY_ROTATE_POS) {
+            deliveryRotate.setPower(0.5);
+        } else if (gamepad2.x && !deliveryDownTouch.isPressed()) {
+            if (deliveryRotate.getCurrentPosition() < 600) {
+                deliveryRotate.setPower(-0.1);
+            } else {
+                deliveryRotate.setPower(-0.3);
+            }
+        } else {
+            deliveryRotate.setPower(0);
+        }
+
 
         if (gamepad1.y) {
             rightIntakeServo.setPower(1);
@@ -128,7 +218,7 @@ public class DriverRover extends OpMode {
         double leftForward;
         double rightForward;
         double liftMotorPower;
-        double armExtensionPower;
+        double intakeExtendPower;
 
         int sign = forward ? 1 : -1;
         //Arcade Drive
@@ -203,16 +293,16 @@ public class DriverRover extends OpMode {
 
         // Lift motor when given negative power, the lift rises and lowers when given positive power
         if (gamepad1.left_bumper || gamepad1.right_bumper) {
-            if (gamepad1.left_bumper && armExtension.getCurrentPosition() < MAX_ARM_POS) {
-                armExtensionPower = 0.5;
-            } else if (gamepad1.right_bumper && !armTouch.isPressed()){
-                armExtensionPower = -0.5;
+            if (gamepad1.left_bumper && intakeExtend.getCurrentPosition() < MAX_INTAKE_ARM_POS) {
+                intakeExtendPower = 0.5;
+            } else if (gamepad1.right_bumper && !intakeExtendTouch.isPressed()){
+                intakeExtendPower = -0.5;
             } else {
                 //touch button is pressed - cannot go further
-                armExtensionPower = 0.0;
+                intakeExtendPower = 0.0;
             }
         } else {
-            armExtensionPower = 0.0;
+            intakeExtendPower = 0.0;
         }
 
         //driving backwards
@@ -235,21 +325,30 @@ public class DriverRover extends OpMode {
         rightForward = Range.clip(rightForward, -1, 1);
         leftForward = Range.clip(leftForward, -1, 1);
 
-        telemetry.addData("left", leftForward);
-        telemetry.addData("right", rightForward);
-        telemetry.addData("lift", liftMotor.getCurrentPosition());
-        telemetry.addData("lift touch", liftTouch.isPressed());
-        telemetry.addData("Extension Count", armExtension.getCurrentPosition());
-        telemetry.addData("Extension Touch", armTouch.isPressed());
+        powerMotors(rightForward, leftForward, liftMotorPower, intakeExtendPower);
 
-        powerMotors(rightForward, leftForward, liftMotorPower, armExtensionPower);
+        log();
+        telemetry.addData("drive power left / right",
+                leftForward + "/" + rightForward);
     }
 
-    private void powerMotors(double rightForward, double leftForward, double liftMotorPower, double armExtensionPower) {
+    private void log() {
+        telemetry.addData("intake extend / touch",
+                intakeExtend.getCurrentPosition() + "/" + intakeExtendTouch.isPressed());
+        telemetry.addData("delivery rotate / touch",
+                deliveryRotate.getCurrentPosition() + "/" + deliveryDownTouch.isPressed());
+        telemetry.addData("delivery extend / touch",
+                deliveryExtend.getCurrentPosition() + "/" + deliveryExtendTouch.isPressed());
+        telemetry.addData("lift / touch",
+                liftMotor.getCurrentPosition() + "/" + liftTouch.isPressed());
+
+    }
+
+    private void powerMotors(double rightForward, double leftForward, double liftMotorPower, double intakeExtendPower) {
         motorLeft.setPower(leftForward);
         motorRight.setPower(rightForward);
         liftMotor.setPower(liftMotorPower);
-        armExtension.setPower(armExtensionPower);
+        intakeExtend.setPower(intakeExtendPower);
     }
 
     /**
@@ -270,14 +369,6 @@ public class DriverRover extends OpMode {
         }
     }
 
-    void liftReset() {
-        //reset the encoder for the lift motor
-        if (liftTouch.isPressed()) {
-            liftMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-            sleep(1000);
-            liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        }
-    }
 
     private double scaled(double x) {
         return (x / 1.07) * (.62 * x * x + .45);

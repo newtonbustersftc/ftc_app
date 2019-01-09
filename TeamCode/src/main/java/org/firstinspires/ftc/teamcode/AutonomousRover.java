@@ -61,9 +61,9 @@ public class AutonomousRover extends BaseAutonomous {
 
     GoldPosition goldPosition = GoldPosition.undetected;
 
-    static final double POS_MARKER_FORWARD = 0.8;
-    static final double POS_MARKER_UP = 0.45;
-    static final double POS_MARKER_BACK = 0.2;
+    static final double POS_MARKER_FORWARD = 0.375;
+    static final double POS_MARKER_UP = 0.7;
+    static final double POS_MARKER_BACK = 0.75;
 
     static final double POS_HOOK_CLOSED = 0.5;
     static final double POS_HOOK_OPEN = 0.2;
@@ -74,6 +74,8 @@ public class AutonomousRover extends BaseAutonomous {
 
     private Servo hookServo;
     private Servo markerServo;
+    private Servo intakeGateServo;
+    private Servo boxServo;
 
     DistanceSensor rangeSensorFrontLeft;
     DistanceSensor rangeSensorBackLeft;
@@ -231,11 +233,17 @@ public class AutonomousRover extends BaseAutonomous {
             sleep(200);
 
             // open hook
+
+            intakeGateServo = hardwareMap.servo.get("intakeGate");
+            intakeGateServo.setPosition(DriverRover.POS_GATE_CLOSED);
+            boxServo = hardwareMap.servo.get("box");
+            boxServo.setPosition(DriverRover.POS_BUCKET_PARKED);
+            markerServo = hardwareMap.servo.get("markerServo");
+            markerServo.setPosition(POS_MARKER_UP);
             hookServo = hardwareMap.servo.get("hookServo");
             hookServo.setPosition(POS_HOOK_OPEN);
             sleep(1500);
-            markerServo = hardwareMap.servo.get("markerServo");
-            markerServo.setPosition(POS_MARKER_BACK);
+
 
             if (!opModeIsActive()) return;
 
