@@ -44,9 +44,9 @@ public class DriverRover extends OpMode {
     boolean hookButtonPressed = false; //when true, the hook button is pressed down
 
     //optimal lift height encoder counts
-    public static final int LATCHING_POS = 8769;//3049;
-    static final int LATCHING_POS_LOW = 8318;
-    static final int LATCHING_POS_HIGH = 9127;
+    public static final int LATCHING_POS = 8350;
+    public static final int LATCHING_POS_LOW = 7900;
+    static final int LIFT_POS_CLEAR = 5700;
 
     static final int MAX_INTAKE_ARM_POS = 5100;
     static final int RETRACTED_INTAKE_ARM_POS = 200;
@@ -58,11 +58,10 @@ public class DriverRover extends OpMode {
     static final double POS_GATE_CLOSED = 0.525;
     static final double POS_GATE_OPEN = 0.85;
 
-    static final double POS_BUCKET_PARKED = 0.25;
+    static final double POS_BUCKET_PARKED = 0.2;
     static final double POS_BUCKET_UP = 0.72;
     static final double POS_BUCKET_DOWN = POS_BUCKET_PARKED;
     //static final double POS_BUCKET_DROP = 0.2;
-
 
 
     @Override
@@ -122,13 +121,13 @@ public class DriverRover extends OpMode {
 
         //ServoImplEx allows to energize and deenergize servo
         // we don't want to hook servo to keep position when robot is lifting or lowering
-        hookServo = (ServoImplEx)hardwareMap.servo.get("hookServo");
+        hookServo = (ServoImplEx) hardwareMap.servo.get("hookServo");
         //set position to 0 for releasing the hook and use position 1 to close hook
         setUpServo(hookServo, AutonomousRover.POS_HOOK_OPEN, AutonomousRover.POS_HOOK_CLOSED);
         deenergizeHook();
 
         markerServo = hardwareMap.servo.get("markerServo");
-        //for moving the arm forward, use 1, for moving it back, use 0
+        //for moving the marker hand forward, use 1, for moving it back, use 0
         setUpServo(markerServo, AutonomousRover.POS_MARKER_BACK, AutonomousRover.POS_MARKER_FORWARD);
 
 
@@ -163,10 +162,8 @@ public class DriverRover extends OpMode {
         if (deliveryDownTouch.isPressed()) {
             boxServo.setPosition(0);
         } else {
-            // todo: as the arm is going up, the bucket should be changing position.
-            // todo: replace in statement below
-            if (deliveryRotate.getCurrentPosition() < 700) {
-                boxServo.setPosition(0);
+            if (deliveryRotate.getCurrentPosition() < DELIVERY_ROTATE_UP_POS) {
+                boxServo.setPosition(((double) deliveryRotate.getCurrentPosition()) / DELIVERY_ROTATE_UP_POS);
             }
 
             //when the arm is up, we want the be able to invoke trigger to drop minerals.
@@ -179,7 +176,7 @@ public class DriverRover extends OpMode {
             }
         }
 
-        if (gamepad2.y && deliveryExtend.getCurrentPosition() < MAX_DELIVERY_EXTEND_POS ) {
+        if (gamepad2.y && deliveryExtend.getCurrentPosition() < MAX_DELIVERY_EXTEND_POS) {
             deliveryExtend.setPower(0.7);
         } else if (gamepad2.a && !deliveryExtendTouch.isPressed()) {
             deliveryExtend.setPower(-0.7);
@@ -190,8 +187,11 @@ public class DriverRover extends OpMode {
         if (gamepad2.b && deliveryRotate.getCurrentPosition() < MAX_DELIVERY_ROTATE_POS) {
             deliveryRotate.setPower(0.5);
         } else if (gamepad2.x && !deliveryDownTouch.isPressed()) {
-            if (deliveryRotate.getCurrentPosition() < 600) {
-                deliveryRotate.setPower(-0.1);
+            if (deliveryRotate.getCurrentPosition() < DELIVERY_ROTATE_UP_POS) {
+                deliveryRotate.setPower(-deliveryRotate.getCurrentPosition() / (DELIVERY_ROTATE_UP_POS * 10.0));
+                if (deliveryRotate.getPower() > -0.06) {
+                    deliveryRotate.setPower(-0.06);
+                }
             } else {
                 deliveryRotate.setPower(-0.3);
             }
@@ -200,15 +200,19 @@ public class DriverRover extends OpMode {
         }
 
 
-        if (gamepad1.y) {
+        if (gamepad1.y)
+
+        {
             rightIntakeServo.setPower(1);
             leftIntakeServo.setPower(1);
-        }
-        else if (gamepad1.b) {
+        } else if (gamepad1.b)
+
+        {
             rightIntakeServo.setPower(-1);
             leftIntakeServo.setPower(-1);
-        }
-        else {
+        } else
+
+        {
             leftIntakeServo.setPower(0.0);
             rightIntakeServo.setPower(0.0);
         }
@@ -222,15 +226,25 @@ public class DriverRover extends OpMode {
 
         int sign = forward ? 1 : -1;
         //Arcade Drive
-        rightForward = -(scaled(gamepad1.left_stick_y) + sign * scaled(gamepad1.left_stick_x));
-        leftForward = -(scaled(gamepad1.left_stick_y) - sign * scaled(gamepad1.left_stick_x));
+        rightForward = -(
+
+                scaled(gamepad1.left_stick_y) + sign *
+
+                        scaled(gamepad1.left_stick_x));
+        leftForward = -(
+
+                scaled(gamepad1.left_stick_y) - sign *
+
+                        scaled(gamepad1.left_stick_x));
 
         //Tank Drive
         //leftForward = -scaled(gamepad1.left_stick_y);
         //rightForward = -scaled(gamepad1.right_stick_y);
 
 
-        if ((gamepad1.dpad_up || gamepad1.dpad_down || gamepad1.dpad_left || gamepad1.dpad_right)) {
+        if ((gamepad1.dpad_up || gamepad1.dpad_down || gamepad1.dpad_left || gamepad1.dpad_right))
+
+        {
             // dPadDrive: Forward, Backwards, in place CClockwise and Clockwise
             //We are using robot coordinates
             double dpadSpeed = 0.2;
@@ -252,7 +266,9 @@ public class DriverRover extends OpMode {
         }
 
         // Lift motor when given negative power, the lift rises and lowers when given positive power
-        if (gamepad1.x || gamepad1.a) {
+        if (gamepad1.x || gamepad1.a)
+
+        {
             int currentPos = Math.abs(liftMotor.getCurrentPosition());
             if (gamepad1.x) {
                 if (LATCHING_POS < currentPos) {
@@ -260,25 +276,31 @@ public class DriverRover extends OpMode {
                 } else {
                     liftMotorPower = -1;
                 }
-            } else if (!liftTouch.isPressed()){ //a button is pressed
+            } else if (!liftTouch.isPressed()) { //a button is pressed
 //                if (currentPos < 300) {
 //                    liftMotorPower = 0.7;
 //                } else {
-                    if (currentPos < LATCHING_POS_LOW) {
-                        deenergizeHook();
-                    }
-                    liftMotorPower = 1;
+                if (currentPos < LATCHING_POS_LOW) {
+                    deenergizeHook();
+                }
+                liftMotorPower = 1;
 //                }
             } else {
                 liftMotorPower = 0.00;
             }
-        } else {
+        } else
+
+        {
             liftMotorPower = 0.0;
         }
 
-        if (gamepad1.b) {
+        if (gamepad1.b)
+
+        {
             hookButtonPressed = true;
-        } else {
+        } else
+
+        {
             if (hookButtonPressed) {
                 energizeHook();
                 if (hookReleased) {
@@ -292,21 +314,27 @@ public class DriverRover extends OpMode {
         }
 
         // Lift motor when given negative power, the lift rises and lowers when given positive power
-        if (gamepad1.left_bumper || gamepad1.right_bumper) {
+        if (gamepad1.left_bumper || gamepad1.right_bumper)
+
+        {
             if (gamepad1.left_bumper && intakeExtend.getCurrentPosition() < MAX_INTAKE_ARM_POS) {
-                intakeExtendPower = 0.5;
-            } else if (gamepad1.right_bumper && !intakeExtendTouch.isPressed()){
-                intakeExtendPower = -0.5;
+                intakeExtendPower = -0.5; // going out
+            } else if (gamepad1.right_bumper && !intakeExtendTouch.isPressed()) {
+                intakeExtendPower = 0.5; // going in
             } else {
                 //touch button is pressed - cannot go further
                 intakeExtendPower = 0.0;
             }
-        } else {
+        } else
+
+        {
             intakeExtendPower = 0.0;
         }
 
         //driving backwards
-        if (!forward) { //when start, front direction is the intake side, lightStrip2
+        if (!forward)
+
+        { //when start, front direction is the intake side, lightStrip2
             leftForward = -leftForward;
             rightForward = -rightForward;
         }

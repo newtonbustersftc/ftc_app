@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DistanceSensor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.TouchSensor;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.System.currentTimeMillis;
+import static org.firstinspires.ftc.teamcode.DriverRover.setUpServo;
 
 @Autonomous(name = "AutoRoverCrater", group = "Main")
 public class AutonomousRover extends BaseAutonomous {
@@ -62,8 +64,8 @@ public class AutonomousRover extends BaseAutonomous {
     GoldPosition goldPosition = GoldPosition.undetected;
 
     static final double POS_MARKER_FORWARD = 0.375;
-    static final double POS_MARKER_UP = 0.7;
-    static final double POS_MARKER_BACK = 0.75;
+    static final double POS_MARKER_UP = 0.75;
+    static final double POS_MARKER_BACK = 0.77;
 
     static final double POS_HOOK_CLOSED = 0.5;
     static final double POS_HOOK_OPEN = 0.2;
@@ -71,6 +73,7 @@ public class AutonomousRover extends BaseAutonomous {
     private DcMotor motorLeft;
     private DcMotor motorRight;
     private DcMotor liftMotor;
+    private DcMotor deliveryRotate;
 
     private Servo hookServo;
     private Servo markerServo;
@@ -128,8 +131,6 @@ public class AutonomousRover extends BaseAutonomous {
 
             deliverTeamMarker();
 
-            // if lift is not retracted fully, do retract it.
-            retractLift();
 
             park();
 
@@ -152,6 +153,11 @@ public class AutonomousRover extends BaseAutonomous {
 
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
         motorRight = hardwareMap.dcMotor.get("wheelsRight");
+        //setting the motors on the right side in reverse so both wheels spin the same way.
+        motorRight.setDirection(DcMotor.Direction.REVERSE);
+        deliveryRotate = hardwareMap.dcMotor.get("deliveryRotate");
+        // reverse so that positive power moves the delivery arm up
+        deliveryRotate.setDirection(DcMotorSimple.Direction.REVERSE);
 
         rangeSensorFrontLeft = hardwareMap.get(DistanceSensor.class, "rangeFrontLeft");
         rangeSensorBackLeft = hardwareMap.get(DistanceSensor.class, "rangeBackLeft");
@@ -173,8 +179,8 @@ public class AutonomousRover extends BaseAutonomous {
         //retractLift(); - safety hazard
         liftMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
-        //setting the motors on the right side in reverse so both wheels spin the same way.
-        motorRight.setDirection(DcMotor.Direction.REVERSE);
+        // reset encoders for the rotating delivery arm
+        deliveryRotate.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
         gyroInit();
 
@@ -196,6 +202,11 @@ public class AutonomousRover extends BaseAutonomous {
             if (out == null) {
                 out = new StringBuffer();
             }
+
+            deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            deliveryRotate.setTargetPosition(600);
+            deliveryRotate.setPower(0.5);
+            sleep(500);
 
             // detect where the gold is
             goldPosition = getGoldPosition();
@@ -221,27 +232,29 @@ public class AutonomousRover extends BaseAutonomous {
                 telemetry.update();
                 log("2nd detection");
             }
+            deliveryRotate.setTargetPosition(0);
+            deliveryRotate.setPower(0.1);
 
             // lower the robot
             liftMotor.setPower(-1);
             liftMotor.setTargetPosition(-DriverRover.LATCHING_POS);
-            while (Math.abs(liftMotor.getCurrentPosition()) <= DriverRover.LATCHING_POS_LOW) {
+            while (Math.abs(liftMotor.getCurrentPosition()) <= DriverRover.LATCHING_POS-100) {
                 idle();
             }
-            sleep(200);
             liftMotor.setPower(0);
             sleep(200);
 
-            // open hook
 
+            markerServo = hardwareMap.servo.get("markerServo");
+            //for moving the marker hand forward, use 1, for moving it back, use 0
+            setUpServo(markerServo, AutonomousRover.POS_MARKER_BACK, AutonomousRover.POS_MARKER_FORWARD);
+            // open hook
+            hookServo = hardwareMap.servo.get("hookServo");
+            hookServo.setPosition(POS_HOOK_OPEN);
             intakeGateServo = hardwareMap.servo.get("intakeGate");
             intakeGateServo.setPosition(DriverRover.POS_GATE_CLOSED);
             boxServo = hardwareMap.servo.get("box");
             boxServo.setPosition(DriverRover.POS_BUCKET_PARKED);
-            markerServo = hardwareMap.servo.get("markerServo");
-            markerServo.setPosition(POS_MARKER_UP);
-            hookServo = hardwareMap.servo.get("hookServo");
-            hookServo.setPosition(POS_HOOK_OPEN);
             sleep(1500);
 
 
@@ -251,10 +264,10 @@ public class AutonomousRover extends BaseAutonomous {
             liftMotor.setPower(1);
             liftMotor.setTargetPosition(0);
             // let hook clear the handle
-            while (opModeIsActive() && Math.abs(liftMotor.getCurrentPosition()) > DriverRover.LATCHING_POS_LOW) {
+            while (opModeIsActive() && Math.abs(liftMotor.getCurrentPosition()) > DriverRover.LIFT_POS_CLEAR) {
                 idle();
             }
-            sleep(200);
+            liftMotor.setPower(0);
 
             // move forward where the gold is visible again
             moveWithErrorCorrection(0.5, 0.2, 7, new GyroErrorHandler(0));
@@ -278,9 +291,10 @@ public class AutonomousRover extends BaseAutonomous {
             goldOnSide = true;
         }
 
-        liftMotor.setPower(0);
         liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         telemetry.addData("Lift Position", liftMotor.getCurrentPosition());
+
+        deliveryRotate.setPower(0);
 
         double heading = 0;
         if (goldOnRight) {
@@ -293,8 +307,8 @@ public class AutonomousRover extends BaseAutonomous {
         sleep(500);
         log("Rotated to gold");
 
-        int distanceToCenterGold = 19; //distance is in inches
-        int distanceToSideGold = 21; //distance is in inches
+        int distanceToCenterGold = 19+2; //distance is in inches
+        int distanceToSideGold = 21+2; //distance is in inches
 
         int extraDistance = 0; //extraDistance is for the depot side only
 
@@ -349,7 +363,7 @@ public class AutonomousRover extends BaseAutonomous {
             //in crater zone
             double heading;
             double distanceBack;
-            double distanceToWall = 52; //longest distance from right position
+            double distanceToWall = 53; //longest distance from right position
             // come back
             if (goldOnSide) {
                 // added 3 inches because the robot is landing closer to jewels
@@ -393,9 +407,9 @@ public class AutonomousRover extends BaseAutonomous {
             moveWithErrorCorrection(0.7, 0.2, inchesForward, new GyroErrorHandler(driveHeading));
         }
         //Deliver team marker.
-        markerServo.setPosition(POS_MARKER_FORWARD);
+        markerServo.setPosition(1);
         sleep(1200);
-        markerServo.setPosition(POS_MARKER_UP);
+        markerServo.setPosition(0);
         sleep(1000);
         log("Delivered marker");
 
@@ -456,7 +470,7 @@ public class AutonomousRover extends BaseAutonomous {
             rotate(rotatePower, angleToRotate);
             sleep(1000);
 
-            double inchesToWall = 5;
+            double inchesToWall = 3;
             DistanceSensor rangeF = rangeSensorBackLeft;
             DistanceSensor rangeB = rangeSensorFrontLeft;
             boolean clockwiseWhenTooClose = false;
@@ -802,7 +816,7 @@ public class AutonomousRover extends BaseAutonomous {
      * @param y
      * @return
      */
-    boolean isRight(float y) {
+    boolean isLeft(float y) {
         return y < 800.0 / 3;
     }
 
@@ -810,7 +824,7 @@ public class AutonomousRover extends BaseAutonomous {
         return y >= (800.0 / 3) && y <= (800.0 / 3) * 2;
     }
 
-    boolean isLeft(float y) {
+    boolean isRight(float y) {
         return y > (800.0 / 3) * 2;
     }
 
