@@ -58,7 +58,7 @@ public class DriverRover extends OpMode {
 
     static final int MAX_DELIVERY_ROTATE_POS = 1400;
     static final int DELIVERY_ROTATE_UP_POS = 1200;
-    static final int MAX_DELIVERY_EXTEND_POS = 1625;
+    static final int MAX_DELIVERY_EXTEND_POS = 1600;
 
     static final double POS_GATE_CLOSED = 0.525;
     static final double POS_GATE_OPEN = 0.85;
@@ -97,6 +97,7 @@ public class DriverRover extends OpMode {
         motorLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         motorRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         liftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        deliveryExtend.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intakeExtend.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         //setting the motors on the right side in reverse so both wheels spin the same way.
@@ -191,17 +192,18 @@ public class DriverRover extends OpMode {
             }
         }
 
-        if (gamepad2.y && deliveryExtend.getCurrentPosition() < MAX_DELIVERY_EXTEND_POS) {
-            deliveryExtend.setPower(0.7);
-        } else if (gamepad2.a && !deliveryExtendTouch.isPressed()) {
-            deliveryExtend.setPower(-0.7);
+
+        if (gamepad2.right_stick_y < -0.5 && deliveryExtend.getCurrentPosition() < MAX_DELIVERY_EXTEND_POS) {
+            deliveryExtend.setPower(-gamepad2.right_stick_y);
+        } else if (gamepad2.right_stick_y > 0.5 && !deliveryExtendTouch.isPressed()) {
+            deliveryExtend.setPower(-gamepad2.right_stick_y);
         } else {
             deliveryExtend.setPower(0);
         }
 
-        if (gamepad2.b) {
+        if (gamepad2.left_stick_y < -0.5) {
             toDeliveryPosition();
-        } else if (gamepad2.x) {
+        } else if (gamepad2.left_stick_y > 0.5) {
             toHomePosition();
         } else {
             deliveryRotate.setPower(0);
@@ -399,6 +401,7 @@ public class DriverRover extends OpMode {
                 deliveryRotate.getCurrentPosition() + "/" + deliveryDownTouch.isPressed());
         telemetry.addData("delivery extend / touch",
                 deliveryExtend.getCurrentPosition() + "/" + deliveryExtendTouch.isPressed());
+        telemetry.addData("gamepad2.right_stick_y", gamepad2.right_stick_y);
         telemetry.addData("lift / touch",
                 liftMotor.getCurrentPosition() + "/" + liftTouch.isPressed());
 

@@ -190,12 +190,15 @@ public class AutonomousRover extends BaseAutonomous {
 
         //reset encoders for the intake arm
         intakeExtend.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-
-        gyroInit();
-
+        int ntries;
+        boolean success = false;
+        for(ntries=0;!success && ntries<3;ntries++) {
+            success=gyroInit();
+        }
         // make sure gyro is calibrated
         while (!this.isStarted() && !this.isStopRequested()) {
             telemetry.clearAll();
+            telemetry.addData("Gyro initilation successful/tries",success+"/"+ntries);
             logGyro(false);
             telemetry.addData("tfod", tfod != null);
             telemetry.update();

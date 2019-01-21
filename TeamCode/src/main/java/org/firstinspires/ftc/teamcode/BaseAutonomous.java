@@ -73,14 +73,15 @@ public abstract class BaseAutonomous extends LinearOpMode {
     /**
      * initializes gyro
      */
-    void gyroInit() {
+    boolean gyroInit() {
         // see the calibration sample opmode;
         BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
         parameters.angleUnit = BNO055IMU.AngleUnit.DEGREES;
         parameters.calibrationDataFile = "AdafruitIMUCalibration.json";
 
         imu = hardwareMap.get(BNO055IMU.class, "imu");
-        imu.initialize(parameters);
+        boolean success = imu.initialize(parameters);
+        return success;
     }
 
     /**
