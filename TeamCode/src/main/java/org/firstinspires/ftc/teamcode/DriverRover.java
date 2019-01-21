@@ -31,6 +31,7 @@ public class DriverRover extends OpMode {
     private Servo boxServo;
     private CRServo leftIntakeServo;
     private CRServo rightIntakeServo;
+    private Servo intakeHolder;
 
     private TouchSensor liftTouch;
     private TouchSensor intakeExtendTouch;
@@ -48,21 +49,30 @@ public class DriverRover extends OpMode {
     public static final int LATCHING_POS_LOW = 7900;
     static final int LIFT_POS_CLEAR = 5700;
 
-    static final int MAX_INTAKE_ARM_POS = 5100;
+    /**
+     * The encoder counts for intakeExtend motor are going from 0 to negative on extension
+     * When changing the motor also check the logic in IsIntakeMaxExtended/MinRetracted
+     */
+    static final int MAX_INTAKE_ARM_POS = -5300;
     static final int RETRACTED_INTAKE_ARM_POS = 200;
 
-    static final int MAX_DELIVERY_ROTATE_POS = 1544;
+    static final int MAX_DELIVERY_ROTATE_POS = 1400;
     static final int DELIVERY_ROTATE_UP_POS = 1200;
     static final int MAX_DELIVERY_EXTEND_POS = 1625;
 
     static final double POS_GATE_CLOSED = 0.525;
     static final double POS_GATE_OPEN = 0.85;
 
+    static final double POS_INTAKE_HOLD = 0.525;
+    static final double POS_INTAKE_RELEASE = 0.65;
+
     static final double POS_BUCKET_PARKED = 0.2;
     static final double POS_BUCKET_UP = 0.72;
     static final double POS_BUCKET_DOWN = POS_BUCKET_PARKED;
     //static final double POS_BUCKET_DROP = 0.2;
 
+    long deliveryRotateCommandTime;
+    long deliveryRotateLastPosition;
 
     @Override
     public void init() {
@@ -87,7 +97,7 @@ public class DriverRover extends OpMode {
         motorLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         motorRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         liftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        intakeExtend.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        intakeExtend.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         //setting the motors on the right side in reverse so both wheels spin the same way.
         motorRight.setDirection(DcMotor.Direction.REVERSE);
@@ -110,7 +120,7 @@ public class DriverRover extends OpMode {
         }
         sleep(100);
         liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        deliveryRotate.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        deliveryRotate.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         intakeExtend.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
         log();
@@ -135,6 +145,9 @@ public class DriverRover extends OpMode {
         //for opening and closing gate that drops minerals into delivery, use 1 and 0
         setUpServo(intakeGateServo, POS_GATE_CLOSED, POS_GATE_OPEN);
 
+        intakeHolder = hardwareMap.servo.get("intakeHolder");
+        intakeHolder.setPosition(POS_INTAKE_RELEASE);
+
         boxServo = hardwareMap.servo.get("box");
         //for bucket servo that delivers the minerals to the launcher
         setUpServo(boxServo, POS_BUCKET_PARKED, POS_BUCKET_UP);
@@ -143,6 +156,8 @@ public class DriverRover extends OpMode {
         rightIntakeServo.setDirection(DcMotorSimple.Direction.REVERSE);
         leftIntakeServo = hardwareMap.crservo.get("leftIntake");
 
+        int deliveryRotateLastPosition = deliveryRotate.getCurrentPosition();
+        long deliveryRotateCommandTime = System.currentTimeMillis();
     }
 
     @Override
@@ -150,7 +165,7 @@ public class DriverRover extends OpMode {
 
         //gamepad2 will be used to control the delivery of the minerals
 
-        if (gamepad2.left_trigger > 0.5) {
+        if (gamepad2.left_trigger > 0.5 || (isIntakeMinRetracted() && deliveryDownTouch.isPressed())) {
             setPercentOpen(intakeGateServo, 1);
         } else {
             setPercentOpen(intakeGateServo, 0);
@@ -184,35 +199,21 @@ public class DriverRover extends OpMode {
             deliveryExtend.setPower(0);
         }
 
-        if (gamepad2.b && deliveryRotate.getCurrentPosition() < MAX_DELIVERY_ROTATE_POS) {
-            deliveryRotate.setPower(0.5);
-        } else if (gamepad2.x && !deliveryDownTouch.isPressed()) {
-            if (deliveryRotate.getCurrentPosition() < DELIVERY_ROTATE_UP_POS) {
-                deliveryRotate.setPower(-deliveryRotate.getCurrentPosition() / (DELIVERY_ROTATE_UP_POS * 10.0));
-                if (deliveryRotate.getPower() > -0.06) {
-                    deliveryRotate.setPower(-0.06);
-                }
-            } else {
-                deliveryRotate.setPower(-0.3);
-            }
+        if (gamepad2.b) {
+            toDeliveryPosition();
+        } else if (gamepad2.x) {
+            toHomePosition();
         } else {
             deliveryRotate.setPower(0);
         }
 
-
-        if (gamepad1.y)
-
-        {
+        if (gamepad1.y) {
             rightIntakeServo.setPower(1);
             leftIntakeServo.setPower(1);
-        } else if (gamepad1.b)
-
-        {
+        } else if (gamepad1.b) {
             rightIntakeServo.setPower(-1);
             leftIntakeServo.setPower(-1);
-        } else
-
-        {
+        } else {
             leftIntakeServo.setPower(0.0);
             rightIntakeServo.setPower(0.0);
         }
@@ -226,16 +227,8 @@ public class DriverRover extends OpMode {
 
         int sign = forward ? 1 : -1;
         //Arcade Drive
-        rightForward = -(
-
-                scaled(gamepad1.left_stick_y) + sign *
-
-                        scaled(gamepad1.left_stick_x));
-        leftForward = -(
-
-                scaled(gamepad1.left_stick_y) - sign *
-
-                        scaled(gamepad1.left_stick_x));
+        rightForward = -(scaled(gamepad1.left_stick_y) + sign * scaled(gamepad1.left_stick_x));
+        leftForward = -(scaled(gamepad1.left_stick_y) - sign * scaled(gamepad1.left_stick_x));
 
         //Tank Drive
         //leftForward = -scaled(gamepad1.left_stick_y);
@@ -317,9 +310,9 @@ public class DriverRover extends OpMode {
         if (gamepad1.left_bumper || gamepad1.right_bumper)
 
         {
-            if (gamepad1.left_bumper && intakeExtend.getCurrentPosition() < MAX_INTAKE_ARM_POS) {
+            if (gamepad1.left_bumper && !isIntakeMaxExtended()) {
                 intakeExtendPower = -0.5; // going out
-            } else if (gamepad1.right_bumper && !intakeExtendTouch.isPressed()) {
+            } else if (gamepad1.right_bumper && !isIntakeMinRetracted()) {
                 intakeExtendPower = 0.5; // going in
             } else {
                 //touch button is pressed - cannot go further
@@ -333,7 +326,6 @@ public class DriverRover extends OpMode {
 
         //driving backwards
         if (!forward)
-
         { //when start, front direction is the intake side, lightStrip2
             leftForward = -leftForward;
             rightForward = -rightForward;
@@ -358,6 +350,46 @@ public class DriverRover extends OpMode {
         log();
         telemetry.addData("drive power left / right",
                 leftForward + "/" + rightForward);
+    }
+
+
+    private void toHomePosition() {
+        if (deliveryDownTouch.isPressed()) {
+            deliveryRotate.setPower(0);
+            return;
+        }
+
+        double minPower = 0.01;
+        double power;
+        int currentPos = deliveryRotate.getCurrentPosition();
+        if (currentPos >= DELIVERY_ROTATE_UP_POS) {
+            power = 0.5;
+        } else if (currentPos < DELIVERY_ROTATE_UP_POS) {
+            power = (0.5*deliveryRotate.getCurrentPosition()) / DELIVERY_ROTATE_UP_POS;
+            if (power < minPower) { power = minPower; }
+        } else {
+            power = -minPower;
+        }
+        deliveryRotate.setPower(-power);
+    }
+
+
+
+    private void toDeliveryPosition() {
+
+
+        int currentPos = deliveryRotate.getCurrentPosition();
+        if (currentPos > MAX_DELIVERY_ROTATE_POS) {
+            deliveryRotate.setPower(0);
+            return;
+        }
+
+        if (currentPos < DELIVERY_ROTATE_UP_POS) {
+            deliveryRotate.setPower(0.5);
+        } else if (currentPos > DELIVERY_ROTATE_UP_POS){
+            deliveryRotate.setPower(0.1);
+        }
+
     }
 
     private void log() {
@@ -400,6 +432,14 @@ public class DriverRover extends OpMode {
 
     private double scaled(double x) {
         return (x / 1.07) * (.62 * x * x + .45);
+    }
+
+    private boolean isIntakeMaxExtended() {
+        return intakeExtend.getCurrentPosition() < MAX_INTAKE_ARM_POS;
+    }
+
+    private boolean isIntakeMinRetracted() {
+        return intakeExtend.getCurrentPosition() > -20;
     }
 
     /**

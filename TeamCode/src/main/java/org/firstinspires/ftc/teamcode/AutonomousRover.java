@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.System.currentTimeMillis;
+import static org.firstinspires.ftc.teamcode.DriverRover.POS_INTAKE_HOLD;
 import static org.firstinspires.ftc.teamcode.DriverRover.setUpServo;
 
 @Autonomous(name = "AutoRoverCrater", group = "Main")
@@ -74,11 +75,13 @@ public class AutonomousRover extends BaseAutonomous {
     private DcMotor motorRight;
     private DcMotor liftMotor;
     private DcMotor deliveryRotate;
+    private DcMotor intakeExtend;
 
     private Servo hookServo;
     private Servo markerServo;
     private Servo intakeGateServo;
     private Servo boxServo;
+    private Servo intakeHolder;
 
     DistanceSensor rangeSensorFrontLeft;
     DistanceSensor rangeSensorBackLeft;
@@ -96,7 +99,8 @@ public class AutonomousRover extends BaseAutonomous {
 
     @Override
     public void doRunOpMode() throws InterruptedException {
-
+        telemetry.addData("Initializing","Please wait");
+        telemetry.update();
         startMillis = currentTimeMillis();
 
         // The TFObjectDetector uses the camera frames from the VuforiaLocalizer,
@@ -156,8 +160,10 @@ public class AutonomousRover extends BaseAutonomous {
         //setting the motors on the right side in reverse so both wheels spin the same way.
         motorRight.setDirection(DcMotor.Direction.REVERSE);
         deliveryRotate = hardwareMap.dcMotor.get("deliveryRotate");
+        deliveryRotate.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         // reverse so that positive power moves the delivery arm up
         deliveryRotate.setDirection(DcMotorSimple.Direction.REVERSE);
+        intakeExtend = hardwareMap.dcMotor.get("intakeExtend");
 
         rangeSensorFrontLeft = hardwareMap.get(DistanceSensor.class, "rangeFrontLeft");
         rangeSensorBackLeft = hardwareMap.get(DistanceSensor.class, "rangeBackLeft");
@@ -181,6 +187,9 @@ public class AutonomousRover extends BaseAutonomous {
 
         // reset encoders for the rotating delivery arm
         deliveryRotate.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+
+        //reset encoders for the intake arm
+        intakeExtend.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
         gyroInit();
 
@@ -248,6 +257,10 @@ public class AutonomousRover extends BaseAutonomous {
             markerServo = hardwareMap.servo.get("markerServo");
             //for moving the marker hand forward, use 1, for moving it back, use 0
             setUpServo(markerServo, AutonomousRover.POS_MARKER_BACK, AutonomousRover.POS_MARKER_FORWARD);
+
+            intakeHolder = hardwareMap.servo.get("intakeHolder");
+            intakeHolder.setPosition(POS_INTAKE_HOLD);
+
             // open hook
             hookServo = hardwareMap.servo.get("hookServo");
             hookServo.setPosition(POS_HOOK_OPEN);
