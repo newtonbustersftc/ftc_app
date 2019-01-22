@@ -193,10 +193,10 @@ public class DriverRover extends OpMode {
         }
 
 
-        if (gamepad2.right_stick_y < -0.5 && deliveryExtend.getCurrentPosition() < MAX_DELIVERY_EXTEND_POS) {
-            deliveryExtend.setPower(-gamepad2.right_stick_y);
-        } else if (gamepad2.right_stick_y > 0.5 && !deliveryExtendTouch.isPressed()) {
-            deliveryExtend.setPower(-gamepad2.right_stick_y);
+        if (gamepad2.right_stick_y < -0.5) {
+            extendDeliveryArm(-gamepad2.right_stick_y);
+        } else if (gamepad2.right_stick_y > 0.5) {
+            retractDeliveryArm(-gamepad2.right_stick_y);
         } else {
             deliveryExtend.setPower(0);
         }
@@ -367,6 +367,7 @@ public class DriverRover extends OpMode {
         if (currentPos >= DELIVERY_ROTATE_UP_POS) {
             power = 0.5;
         } else if (currentPos < DELIVERY_ROTATE_UP_POS) {
+            retractDeliveryArm(-1);
             power = (0.5*deliveryRotate.getCurrentPosition()) / DELIVERY_ROTATE_UP_POS;
             if (power < minPower) { power = minPower; }
         } else {
@@ -378,8 +379,6 @@ public class DriverRover extends OpMode {
 
 
     private void toDeliveryPosition() {
-
-
         int currentPos = deliveryRotate.getCurrentPosition();
         if (currentPos > MAX_DELIVERY_ROTATE_POS) {
             deliveryRotate.setPower(0);
@@ -391,8 +390,26 @@ public class DriverRover extends OpMode {
         } else if (currentPos > DELIVERY_ROTATE_UP_POS){
             deliveryRotate.setPower(0.1);
         }
-
     }
+
+    private void extendDeliveryArm(double power) {
+
+        int maxCounts = MAX_DELIVERY_EXTEND_POS;
+        if (deliveryExtend.getCurrentPosition() > maxCounts){
+            deliveryExtend.setPower(0);
+        } else {
+            deliveryExtend.setPower(power);
+        }
+    }
+
+    private void retractDeliveryArm(double power){
+        if(deliveryExtendTouch.isPressed()) {
+            deliveryExtend.setPower(0);
+        } else {
+            deliveryExtend.setPower(power);
+        }
+    }
+
 
     private void log() {
         telemetry.addData("intake extend / touch",
