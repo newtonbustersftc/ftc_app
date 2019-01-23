@@ -56,8 +56,9 @@ public class DriverRover extends OpMode {
     static final int MAX_INTAKE_ARM_POS = -5300;
     static final int RETRACTED_INTAKE_ARM_POS = 200;
 
-    static final int MAX_DELIVERY_ROTATE_POS = 1400;
+    static final int DELIVERY_ROTATE_MAX_POS = 1400;
     static final int DELIVERY_ROTATE_UP_POS = 1200;
+    static final int DELIVERY_ROTATE_BEFORE_HOME_POS = 400;
     static final int MAX_DELIVERY_EXTEND_POS = 1600;
 
     static final double POS_GATE_CLOSED = 0.525;
@@ -68,11 +69,15 @@ public class DriverRover extends OpMode {
 
     static final double POS_BUCKET_PARKED = 0.2;
     static final double POS_BUCKET_UP = 0.72;
-    static final double POS_BUCKET_DOWN = POS_BUCKET_PARKED;
-    //static final double POS_BUCKET_DROP = 0.2;
+    static final double POS_BUCKET_DROP = POS_BUCKET_PARKED;
 
-    long deliveryRotateCommandTime;
-    long deliveryRotateLastPosition;
+
+
+    enum DeliveryState{
+        HOME, BEFORE_HOME, ARM_UP, DELIVERY
+    }
+
+    DeliveryState deliveryArmState;
 
     @Override
     public void init() {
@@ -99,13 +104,13 @@ public class DriverRover extends OpMode {
         liftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         deliveryExtend.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intakeExtend.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        deliveryRotate.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         //setting the motors on the right side in reverse so both wheels spin the same way.
         motorRight.setDirection(DcMotor.Direction.REVERSE);
 
-
         deliveryRotate.setDirection(DcMotorSimple.Direction.REVERSE);
-        deliveryRotate.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
 
 
         if (liftTouch.isPressed()) {
@@ -116,15 +121,36 @@ public class DriverRover extends OpMode {
             // reset encoders for the rotating delivery arm
             deliveryRotate.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         }
+        if (deliveryExtendTouch.isPressed()) {
+            // reset encoders for the rotating delivery arm
+            deliveryExtend.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        }
         if (intakeExtendTouch.isPressed()) {
             intakeExtend.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         }
         sleep(100);
         liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         deliveryRotate.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        deliveryExtend.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         intakeExtend.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
+        // if the driver mode is restarted the arm might not be in HOME state
+        restoreDeliveryArmState();
+
         log();
+    }
+
+    private void restoreDeliveryArmState() {
+        int currentPos = deliveryRotate.getCurrentPosition();
+        if (currentPos > DELIVERY_ROTATE_UP_POS) {
+            deliveryArmState =  DeliveryState.DELIVERY;
+        } else if (currentPos > DELIVERY_ROTATE_BEFORE_HOME_POS) {
+            deliveryArmState = DeliveryState.ARM_UP;
+        } else if (!deliveryDownTouch.isPressed()) {
+            deliveryArmState = DeliveryState.BEFORE_HOME;
+        } else {
+            deliveryArmState = DeliveryState.HOME;
+        }
     }
 
     @Override
@@ -156,9 +182,6 @@ public class DriverRover extends OpMode {
         rightIntakeServo = hardwareMap.crservo.get("rightIntake");
         rightIntakeServo.setDirection(DcMotorSimple.Direction.REVERSE);
         leftIntakeServo = hardwareMap.crservo.get("leftIntake");
-
-        int deliveryRotateLastPosition = deliveryRotate.getCurrentPosition();
-        long deliveryRotateCommandTime = System.currentTimeMillis();
     }
 
     @Override
@@ -206,7 +229,7 @@ public class DriverRover extends OpMode {
         } else if (gamepad2.left_stick_y > 0.5) {
             toHomePosition();
         } else {
-            deliveryRotate.setPower(0);
+            if (!deliveryArmState.equals(DeliveryState.DELIVERY)) deliveryRotate.setPower(0);
         }
 
         if (gamepad1.y) {
@@ -358,39 +381,71 @@ public class DriverRover extends OpMode {
     private void toHomePosition() {
         if (deliveryDownTouch.isPressed()) {
             deliveryRotate.setPower(0);
+            deliveryArmState = DeliveryState.HOME;
             return;
         }
 
-        double minPower = 0.01;
-        double power;
         int currentPos = deliveryRotate.getCurrentPosition();
-        if (currentPos >= DELIVERY_ROTATE_UP_POS) {
-            power = 0.5;
-        } else if (currentPos < DELIVERY_ROTATE_UP_POS) {
-            retractDeliveryArm(-1);
-            power = (0.5*deliveryRotate.getCurrentPosition()) / DELIVERY_ROTATE_UP_POS;
-            if (power < minPower) { power = minPower; }
-        } else {
-            power = -minPower;
-        }
-        deliveryRotate.setPower(-power);
-    }
+        switch (deliveryArmState) {
+            case HOME:
+                break;
+            case BEFORE_HOME:
+                retractDeliveryArm(-1);
+                if (currentPos < DELIVERY_ROTATE_BEFORE_HOME_POS) {
+                    deliveryRotate.setPower(0);
+                    if (deliveryExtendTouch.isPressed()) {
+                        deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                        deliveryRotate.setTargetPosition(0);
+                        deliveryRotate.setPower(0.08);
+                        deliveryArmState = DeliveryState.HOME;
+                    }
+                } else {
+                    deliveryRotate.setPower(-0.2);
+                }
+                break;
+            case ARM_UP:
+                if (currentPos < DELIVERY_ROTATE_UP_POS) {
+                    deliveryRotate.setPower(-0.2);
+                    deliveryArmState = DeliveryState.BEFORE_HOME;
+                }
+                break;
+            case DELIVERY:
+                deliveryRotate.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                deliveryRotate.setPower(-0.5);
+                deliveryArmState = DeliveryState.ARM_UP;
+                break;
 
+        }
+
+
+    }
 
 
     private void toDeliveryPosition() {
         int currentPos = deliveryRotate.getCurrentPosition();
-        if (currentPos > MAX_DELIVERY_ROTATE_POS) {
-            deliveryRotate.setPower(0);
-            return;
-        }
 
-        if (currentPos < DELIVERY_ROTATE_UP_POS) {
-            deliveryRotate.setPower(0.5);
-        } else if (currentPos > DELIVERY_ROTATE_UP_POS){
-            deliveryRotate.setPower(0.1);
+        switch (deliveryArmState) {
+            case HOME:
+            case BEFORE_HOME:
+                deliveryRotate.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                deliveryRotate.setPower(0.6);
+                deliveryArmState = DeliveryState.ARM_UP;
+                break;
+            case ARM_UP:
+                if (currentPos > DELIVERY_ROTATE_UP_POS) {
+                    deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                    deliveryRotate.setTargetPosition(DELIVERY_ROTATE_MAX_POS);
+                    deliveryRotate.setPower(0.8);
+                    deliveryArmState = DeliveryState.DELIVERY;
+                } else {
+                    deliveryRotate.setPower(0.6);
+                }
+            case DELIVERY:
+                break;
+
         }
     }
+
 
     private void extendDeliveryArm(double power) {
 
@@ -414,11 +469,11 @@ public class DriverRover extends OpMode {
     private void log() {
         telemetry.addData("intake extend / touch",
                 intakeExtend.getCurrentPosition() + "/" + intakeExtendTouch.isPressed());
-        telemetry.addData("delivery rotate / touch",
-                deliveryRotate.getCurrentPosition() + "/" + deliveryDownTouch.isPressed());
+        telemetry.addData("delivery rotate / touch / state",
+                deliveryRotate.getCurrentPosition() + "/" +
+                        deliveryDownTouch.isPressed() + "/" + deliveryArmState);
         telemetry.addData("delivery extend / touch",
                 deliveryExtend.getCurrentPosition() + "/" + deliveryExtendTouch.isPressed());
-        telemetry.addData("gamepad2.right_stick_y", gamepad2.right_stick_y);
         telemetry.addData("lift / touch",
                 liftMotor.getCurrentPosition() + "/" + liftTouch.isPressed());
 
