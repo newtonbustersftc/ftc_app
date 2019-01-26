@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
+import android.content.SharedPreferences;
+
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -20,8 +22,10 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.System.currentTimeMillis;
+import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.DELAY_PREF;
 import static org.firstinspires.ftc.teamcode.DriverRover.POS_INTAKE_HOLD;
 import static org.firstinspires.ftc.teamcode.DriverRover.setUpServo;
+
 
 @Autonomous(name = "AutoRoverCrater", group = "Main")
 public class AutonomousRover extends BaseAutonomous {
@@ -93,6 +97,8 @@ public class AutonomousRover extends BaseAutonomous {
     boolean goldOnSide = false; //if gold isn't in the center
     boolean goldOnRight = false; //if gold on the right
 
+    private int delay; // this is the delay for before coming to the depot area from the crater zone
+
     protected boolean depotSide() {
         return false;
     }
@@ -101,6 +107,7 @@ public class AutonomousRover extends BaseAutonomous {
     public void doRunOpMode() throws InterruptedException {
         telemetry.addData("Initializing","Please wait");
         telemetry.update();
+        sleep(20);
         startMillis = currentTimeMillis();
 
         // The TFObjectDetector uses the camera frames from the VuforiaLocalizer,
@@ -155,10 +162,23 @@ public class AutonomousRover extends BaseAutonomous {
 
     public void preRun() {
 
+        this.delay = 0;
+        try {
+            SharedPreferences prefs = AutonomousOptionsRover.getSharedPrefs(hardwareMap);
+            String delaystring = prefs.getString(DELAY_PREF, "");
+            delaystring = delaystring.replace(" sec", "");
+            this.delay = Integer.parseInt(delaystring);
+        } catch (Exception e) {}
+
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
         motorRight = hardwareMap.dcMotor.get("wheelsRight");
         //setting the motors on the right side in reverse so both wheels spin the same way.
         motorRight.setDirection(DcMotor.Direction.REVERSE);
+        motorLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        motorRight.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        // brake on zero power
+        setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
         deliveryRotate = hardwareMap.dcMotor.get("deliveryRotate");
         deliveryRotate.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         // reverse so that positive power moves the delivery arm up
@@ -169,14 +189,6 @@ public class AutonomousRover extends BaseAutonomous {
         rangeSensorBackLeft = hardwareMap.get(DistanceSensor.class, "rangeBackLeft");
         rangeSensorFrontRight = hardwareMap.get(DistanceSensor.class, "rangeFrontRight");
         rangeSensorBackRight = hardwareMap.get(DistanceSensor.class, "rangeBackRight");
-
-        // run by power
-        motorLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        motorRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-
-        // float zero power
-        motorLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        motorRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         liftMotor = hardwareMap.dcMotor.get("liftMotor");
         liftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
@@ -190,6 +202,11 @@ public class AutonomousRover extends BaseAutonomous {
 
         //reset encoders for the intake arm
         intakeExtend.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+
+        // run by power
+        motorLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        motorRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
         int ntries;
         boolean success = false;
         for(ntries=0;!success && ntries<3;ntries++) {
@@ -198,15 +215,17 @@ public class AutonomousRover extends BaseAutonomous {
         // make sure gyro is calibrated
         while (!this.isStarted() && !this.isStopRequested()) {
             telemetry.clearAll();
-            telemetry.addData("Gyro initilation successful/tries",success+"/"+ntries);
+            telemetry.addData("Gyro initilation success/tries",success+"/"+ntries);
             logGyro(false);
             telemetry.addData("tfod", tfod != null);
+            // the delay applies only to crater side
+            if (!depotSide()) { telemetry.addData("delay", delay); }
             telemetry.update();
             idle();
         }
     }
 
-    public void landing() throws InterruptedException {
+    void landing() throws InterruptedException {
         if (!opModeIsActive()) return;
 
         try {
@@ -217,7 +236,7 @@ public class AutonomousRover extends BaseAutonomous {
 
             deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
             deliveryRotate.setTargetPosition(600);
-            deliveryRotate.setPower(0.5);
+            deliveryRotate.setPower(0.6);
             sleep(500);
 
             // detect where the gold is
@@ -232,12 +251,11 @@ public class AutonomousRover extends BaseAutonomous {
             if (goldPosition == GoldPosition.undetected) {
                 // second attempt to detect where the gold is
                 liftMotor.setPower(-0.7);
-                int lowerPos = DriverRover.LATCHING_POS / 5;
+                int lowerPos = Math.abs(DriverRover.LATCHING_POS-DriverRover.LATCHING_POS_LOW)/2;
                 liftMotor.setTargetPosition(-lowerPos);
                 while (Math.abs(liftMotor.getCurrentPosition()) <= lowerPos) {
                     idle();
                 }
-                sleep(200);
                 liftMotor.setPower(0);
                 goldPosition = getGoldPosition();
                 telemetry.addData("Gold", goldPosition);
@@ -256,7 +274,6 @@ public class AutonomousRover extends BaseAutonomous {
             liftMotor.setPower(0);
             sleep(200);
 
-
             markerServo = hardwareMap.servo.get("markerServo");
             //for moving the marker hand forward, use 1, for moving it back, use 0
             setUpServo(markerServo, AutonomousRover.POS_MARKER_BACK, AutonomousRover.POS_MARKER_FORWARD);
@@ -271,8 +288,7 @@ public class AutonomousRover extends BaseAutonomous {
             intakeGateServo.setPosition(DriverRover.POS_GATE_CLOSED);
             boxServo = hardwareMap.servo.get("box");
             boxServo.setPosition(DriverRover.POS_BUCKET_PARKED);
-            sleep(1500);
-
+            sleep(1200);
 
             if (!opModeIsActive()) return;
 
@@ -297,7 +313,7 @@ public class AutonomousRover extends BaseAutonomous {
         }
     }
 
-    public void rotateAndMoveGold() throws InterruptedException {
+    void rotateAndMoveGold() throws InterruptedException {
         if (!opModeIsActive()) return;
 
         if (goldPosition.equals(GoldPosition.right)) {
@@ -320,7 +336,7 @@ public class AutonomousRover extends BaseAutonomous {
             rotate(-0.3, 30); //Gold is on the left
             heading = 35; // counterclockwise from 0 - positive heading
         }
-        sleep(500);
+        sleep(200);
         log("Rotated to gold");
 
         int distanceToCenterGold = 19+2; //distance is in inches
@@ -332,20 +348,16 @@ public class AutonomousRover extends BaseAutonomous {
             if (depotSide()) {
                 extraDistance = 8;
             }
-//            goCounts(0.5, inchesToCounts(distanceToSideGold+extraDistance));
             moveWithErrorCorrection(0.7, 0.2, distanceToSideGold + extraDistance, new GyroErrorHandler(heading));
 
         } else {
             if (depotSide()) {
                 extraDistance = 29;
             }
-//            goCounts(0.5, inchesToCounts(distanceToCenterGold + extraDistance));
             moveWithErrorCorrection(0.7, 0.2, distanceToCenterGold + extraDistance, new GyroErrorHandler(heading));
 
         }
-
         log("Moved mineral");
-
     }
 
     void deliverTeamMarker() throws InterruptedException {
@@ -357,20 +369,10 @@ public class AutonomousRover extends BaseAutonomous {
                 if (goldOnRight) {
                     //return to previous heading
                     rotate(-0.3, Math.abs(currentAngle) - 5);
-////                    goCounts(0.5, inchesToCounts(13));
-//                    moveWithErrorCorrection(0.7,0.2, 13, new GyroErrorHandler(0));
-//                    rotate(-0.3, 20);
-////                    goCounts(0.5, inchesToCounts(8));
-//                    moveWithErrorCorrection(0.7,0.2, 8, new GyroErrorHandler(35));
                     moveWithErrorCorrection(0.7, 0.2, 11, new GyroErrorHandler(0));
                 } else {
                     //return to previous heading
                     rotate(0.3, Math.abs(currentAngle) - 5);
-////                    goCounts(0.5, inchesToCounts(13));
-//                    moveWithErrorCorrection(0.7,0.2, 13, new GyroErrorHandler(0));
-//                    rotate(0.3, 30);
-////                    goCounts(0.5, inchesToCounts(8));
-//                    moveWithErrorCorrection(0.7,0.2, 8, new GyroErrorHandler(-45));
                     moveWithErrorCorrection(0.7, 0.2, 23, new GyroErrorHandler(-45));
                 }
             }
@@ -397,12 +399,19 @@ public class AutonomousRover extends BaseAutonomous {
                 heading = 0;
                 distanceToWall -= 6;
             }
+
+            // move back
             moveWithErrorCorrection(-0.7, -0.2, distanceBack, new GyroErrorHandler(heading));
+            log("Moved back");
+
             double currentHeading = getGyroAngles().firstAngle;
             double driveHeading = 90;
             double angleToRotate = Math.abs(currentHeading - driveHeading) - 5; //small adjustment for over rotation
             // rotate toward the wall
             rotate(-0.3, angleToRotate);
+            // delay if needed, delay is in seconds, sleep accepts milliseconds
+            sleep (1000 * delay);
+            log("Rotated to wall");
             // drive toward the wall
             moveWithErrorCorrection(0.7, 0.2, distanceToWall, new GyroErrorHandler(driveHeading));
             // rotate along the wall
@@ -484,15 +493,16 @@ public class AutonomousRover extends BaseAutonomous {
             double angleToRotate = Math.abs(currentHeading - parkHeading) - 5; //small adjustment for over rotation
             // rotate to be along the wall
             rotate(rotatePower, angleToRotate);
-            sleep(1000);
+            sleep(200);
+
+            log("Out to park");
 
             double inchesToWall = 3;
             DistanceSensor rangeF = rangeSensorBackLeft;
             DistanceSensor rangeB = rangeSensorFrontLeft;
-            boolean clockwiseWhenTooClose = false;
 
             moveWithErrorCorrection(-0.7, -0.2, distanceToTravel,
-                    new RangeErrorHandler(rangeF, rangeB, inchesToWall, clockwiseWhenTooClose, parkHeading));
+                    new RangeErrorHandler(rangeF, rangeB, inchesToWall, false, parkHeading));
         }
         log("Parked");
     }
@@ -597,7 +607,7 @@ public class AutonomousRover extends BaseAutonomous {
     /**
      * set break or float behavior
      *
-     * @param behavior
+     * @param behavior zero power behavior for the wheels: BRAKE or FLOAT
      */
     void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior) {
         motorLeft.setZeroPowerBehavior(behavior);
@@ -720,7 +730,7 @@ public class AutonomousRover extends BaseAutonomous {
                 sleep(500);
             }
             long startMs = currentTimeMillis();
-            while (opModeIsActive() && tfod != null && currentTimeMillis() - startMs < 2000) {
+            while (opModeIsActive() && tfod != null && currentTimeMillis() - startMs < 1000) {
                 // getUpdatedRecognitions() will return null if no new information is available since
                 // the last time that call was made.
                 List<Recognition> updatedRecognitions = tfod.getRecognitions();
@@ -855,7 +865,7 @@ public class AutonomousRover extends BaseAutonomous {
         if (out == null) {
             out = new StringBuffer();
             out.append("# "); // start of the comment
-            out.append(depotSide() ? "Depot" : "Creator");
+            out.append(depotSide() ? "Depot" : "Crater");
             out.append("\n"); // end of comment
             // table header followed by new line
             out.append("Time,Step,Gyro,GoldPos,RangeFL,RangeBL,RangeFR,RangeBR,DriveLeft,DriveRight,\n");
