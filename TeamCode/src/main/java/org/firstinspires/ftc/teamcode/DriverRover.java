@@ -53,8 +53,9 @@ public class DriverRover extends OpMode {
      * The encoder counts for intakeExtend motor are going from 0 to negative on extension
      * When changing the motor also check the logic in IsIntakeMaxExtended/MinRetracted
      */
-    static final int MAX_INTAKE_ARM_POS = -5300;
-    static final int RETRACTED_INTAKE_ARM_POS = 200;
+    static final int MAX_INTAKE_ARM_POS = -5200;
+    static final int ALMOST_MAX_INTAKE_ARM_POS = -4700;
+    static final int ALMOST_MIN_INTAKE_ARM_POS = -500;
 
     static final int DELIVERY_ROTATE_MAX_POS = 1400;
     static final int DELIVERY_ROTATE_UP_POS = 1200;
@@ -332,20 +333,28 @@ public class DriverRover extends OpMode {
         }
 
         // Lift motor when given negative power, the lift rises and lowers when given positive power
-        if (gamepad1.left_bumper || gamepad1.right_bumper)
-
-        {
-            if (gamepad1.left_bumper && !isIntakeMaxExtended()) {
-                intakeExtendPower = -0.5; // going out
-            } else if (gamepad1.right_bumper && !isIntakeMinRetracted()) {
-                intakeExtendPower = 0.5; // going in
+        double mintriggervalue = 0.3;
+        if (gamepad1.left_trigger >mintriggervalue || gamepad1.right_trigger>mintriggervalue) {
+            if (gamepad1.left_trigger>mintriggervalue && !isIntakeMaxExtended()) {
+                // going out
+                if(isIntakeAlmostMaxExtended()) {
+                    intakeExtendPower = -mintriggervalue;
+                } else {
+                    intakeExtendPower = -gamepad1.left_trigger;
+                }
+            } else if (gamepad1.right_trigger > mintriggervalue && !isIntakeMinRetracted()) {
+                // going in
+                if (isIntakeAlmostMinRetracted()){
+                    intakeExtendPower = mintriggervalue;
+                } else {
+                    intakeExtendPower = gamepad1.right_trigger;
+                }
             } else {
                 //touch button is pressed - cannot go further
                 intakeExtendPower = 0.0;
             }
-        } else
-
-        {
+        }
+        else {
             intakeExtendPower = 0.0;
         }
 
@@ -476,6 +485,7 @@ public class DriverRover extends OpMode {
                 deliveryExtend.getCurrentPosition() + "/" + deliveryExtendTouch.isPressed());
         telemetry.addData("lift / touch",
                 liftMotor.getCurrentPosition() + "/" + liftTouch.isPressed());
+        telemetry.addData("left_trigger/right_trigger",gamepad1.left_trigger + "/" + gamepad1.right_trigger);
 
     }
 
@@ -512,9 +522,15 @@ public class DriverRover extends OpMode {
     private boolean isIntakeMaxExtended() {
         return intakeExtend.getCurrentPosition() < MAX_INTAKE_ARM_POS;
     }
+    private boolean isIntakeAlmostMaxExtended(){
+        return intakeExtend.getCurrentPosition() < ALMOST_MAX_INTAKE_ARM_POS;
 
-    private boolean isIntakeMinRetracted() {
-        return intakeExtend.getCurrentPosition() > -20;
+    }
+
+    private boolean isIntakeMinRetracted() { return intakeExtendTouch.isPressed();}
+    private boolean isIntakeAlmostMinRetracted(){
+        return intakeExtend.getCurrentPosition() > ALMOST_MIN_INTAKE_ARM_POS;
+
     }
 
     /**
