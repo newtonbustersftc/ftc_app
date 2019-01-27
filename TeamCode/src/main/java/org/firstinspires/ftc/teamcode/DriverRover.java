@@ -208,8 +208,12 @@ public class DriverRover extends OpMode {
 
             //when the arm is up, we want the be able to invoke trigger to drop minerals.
             if (deliveryRotate.getCurrentPosition() > DELIVERY_ROTATE_UP_POS) {
-                if (gamepad2.right_trigger > 0.5) {
-                    boxServo.setPosition(0);
+                if (gamepad2.right_trigger > 0.2) {
+                    /*
+                     * When dropping debris, servo position 1 when
+                     * box is vertical and position 0 when box is down.
+                    */
+                    boxServo.setPosition(1 - gamepad1.right_trigger); //Uses analog trigger position
                 } else {
                     boxServo.setPosition(1);
                 }
@@ -405,7 +409,7 @@ public class DriverRover extends OpMode {
                     if (deliveryExtendTouch.isPressed()) {
                         deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
                         deliveryRotate.setTargetPosition(0);
-                        deliveryRotate.setPower(0.08);
+                        deliveryRotate.setPower(0.16); //Was 0.08
                         deliveryArmState = DeliveryState.HOME;
                     }
                 } else {
@@ -413,8 +417,8 @@ public class DriverRover extends OpMode {
                 }
                 break;
             case ARM_UP:
+                deliveryRotate.setPower(-0.2);
                 if (currentPos < DELIVERY_ROTATE_UP_POS) {
-                    deliveryRotate.setPower(-0.2);
                     deliveryArmState = DeliveryState.BEFORE_HOME;
                 }
                 break;
@@ -436,6 +440,7 @@ public class DriverRover extends OpMode {
         switch (deliveryArmState) {
             case HOME:
             case BEFORE_HOME:
+                extendDeliveryArm(1);
                 deliveryRotate.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
                 deliveryRotate.setPower(0.6);
                 deliveryArmState = DeliveryState.ARM_UP;
