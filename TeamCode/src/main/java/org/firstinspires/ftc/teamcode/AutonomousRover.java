@@ -22,8 +22,10 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.System.currentTimeMillis;
+import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.CRATER_MODE_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.DELAY_PREF;
 import static org.firstinspires.ftc.teamcode.DriverRover.POS_INTAKE_HOLD;
+import static org.firstinspires.ftc.teamcode.DriverRover.POS_INTAKE_RELEASE;
 import static org.firstinspires.ftc.teamcode.DriverRover.setUpServo;
 
 
@@ -98,6 +100,7 @@ public class AutonomousRover extends BaseAutonomous {
     boolean goldOnRight = false; //if gold on the right
 
     private int delay; // this is the delay for before coming to the depot area from the crater zone
+    private boolean shortCraterMode;
 
     protected boolean depotSide() {
         return false;
@@ -139,11 +142,16 @@ public class AutonomousRover extends BaseAutonomous {
 
             landing();
             rotateAndMoveGold();
+            if(!shortCraterMode){
+                deliverTeamMarker();
 
-            deliverTeamMarker();
 
+                park();
 
-            park();
+            }
+            else{
+                shortCraterModePark();
+            }
 
 
             telemetry.addData("Gyro Heading", getGyroAngles().firstAngle);
@@ -168,6 +176,9 @@ public class AutonomousRover extends BaseAutonomous {
             String delaystring = prefs.getString(DELAY_PREF, "");
             delaystring = delaystring.replace(" sec", "");
             this.delay = Integer.parseInt(delaystring);
+            String craterMode = prefs.getString(CRATER_MODE_PREF, AutonomousOptionsRover.CraterModes.LONG.toString());
+            this.shortCraterMode = craterMode.equals(AutonomousOptionsRover.CraterModes.SHORT.toString());
+
         } catch (Exception e) {}
 
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
@@ -219,7 +230,7 @@ public class AutonomousRover extends BaseAutonomous {
             logGyro(false);
             telemetry.addData("tfod", tfod != null);
             // the delay applies only to crater side
-            if (!depotSide()) { telemetry.addData("delay", delay); }
+            if (!depotSide()) { telemetry.addData("prefs: delay/short", delay + "/" + shortCraterMode); }
             telemetry.update();
             idle();
         }
@@ -329,12 +340,18 @@ public class AutonomousRover extends BaseAutonomous {
         deliveryRotate.setPower(0);
 
         double heading = 0;
-        if (goldOnRight) {
-            rotate(0.3, 30);
-            heading = -35; // clockwise from 0 - negative heading
-        } else if (goldOnSide) {
-            rotate(-0.3, 30); //Gold is on the left
-            heading = 35; // counterclockwise from 0 - positive heading
+        if(shortCraterMode && goldOnRight){
+                rotate(0.3, 40);
+                heading = -45; // clockwise from 0 - negative heading
+        }
+        else {
+            if (goldOnRight) {
+                rotate(0.3, 30);
+                heading = -35; // clockwise from 0 - negative heading
+            } else if (goldOnSide) {
+                rotate(-0.3, 30); //Gold is on the left
+                heading = 35; // counterclockwise from 0 - positive heading
+            }
         }
         sleep(200);
         log("Rotated to gold");
@@ -347,6 +364,9 @@ public class AutonomousRover extends BaseAutonomous {
         if (goldOnSide) {
             if (depotSide()) {
                 extraDistance = 8;
+            }
+            if(shortCraterMode && goldOnRight){
+                extraDistance += 14;
             }
             moveWithErrorCorrection(0.7, 0.2, distanceToSideGold + extraDistance, new GyroErrorHandler(heading));
 
@@ -437,6 +457,24 @@ public class AutonomousRover extends BaseAutonomous {
         markerServo.setPosition(0);
         sleep(1000);
         log("Delivered marker");
+
+    }
+
+    void shortCraterModePark(){
+        if(goldOnSide){
+            //rotating to heading 0
+            double currentHeading = getGyroAngles().firstAngle;
+            double angleToRotate = Math.abs(currentHeading);
+            if(goldOnRight){
+                //turn 45 degrees clockwise
+                rotate(-0.3, angleToRotate + 40);
+            }
+            else{
+                //turn 45 degrees counterclockwise
+                rotate(0.3, angleToRotate);
+            }
+            intakeHolder.setPosition(POS_INTAKE_RELEASE);
+        }
 
     }
 

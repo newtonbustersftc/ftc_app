@@ -25,10 +25,17 @@ public class AutonomousOptionsRover extends OpMode {
 
     // ADD preference names here
     public static final String DELAY_PREF = "delay";
+    public static final String CRATER_MODE_PREF = "shortCraterMode";
     private static final String NONE = "none";
+
+    enum CraterModes {
+        LONG, SHORT
+    }
+
     // ADD preference values here
     // for example:
     private static final String[] DELAYS = {"0 sec", "1 sec", "2 sec", "3 sec", "4 sec", "5 sec"};
+    private static final String[] CRATER_MODES = {CraterModes.LONG.toString(), CraterModes.SHORT.toString()};
 
     public static SharedPreferences getSharedPrefs(HardwareMap hardwareMap) {
         return hardwareMap.appContext.getSharedPreferences("autonomous", 0);
@@ -40,6 +47,7 @@ public class AutonomousOptionsRover extends OpMode {
         // ADD entries to preference map here
         // for example:
         prefMap.put(DELAY_PREF, DELAYS);
+        prefMap.put(CRATER_MODE_PREF, CRATER_MODES);
 
     }
     private static String[] prefKeys = prefMap.keySet().toArray(new String[prefMap.keySet().size()]);
