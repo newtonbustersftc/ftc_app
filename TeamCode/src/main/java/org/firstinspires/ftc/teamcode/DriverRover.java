@@ -60,13 +60,17 @@ public class DriverRover extends OpMode {
     static final int DELIVERY_ROTATE_MAX_POS = 1400;
     static final int DELIVERY_ROTATE_UP_POS = 1200;
     static final int DELIVERY_ROTATE_BEFORE_HOME_POS = 400;
-    static final int MAX_DELIVERY_EXTEND_POS = 1600;
+
+    static final int MAX_DELIVERY_EXTEND_POS = 1550;
+    static final int ALMOST_MAX_DELIVERY_EXTEND_POS = 1150;
+    static final int ALMOST_MIN_DELIVERY_EXTEND_POS = 400;
 
     static final double POS_GATE_CLOSED = 0.525;
     static final double POS_GATE_OPEN = 0.85;
 
     static final double POS_INTAKE_HOLD = 0.525;
     static final double POS_INTAKE_RELEASE = 0.65;
+    static final double POS_INTAKE_RELEASE_EXTREME = 0.75;
 
     static final double POS_BUCKET_PARKED = 0.2;
     static final double POS_BUCKET_UP = 0.72;
@@ -213,28 +217,29 @@ public class DriverRover extends OpMode {
                      * When dropping debris, servo position 1 when
                      * box is vertical and position 0 when box is down.
                     */
-                    boxServo.setPosition(1 - gamepad1.right_trigger); //Uses analog trigger position
+                    boxServo.setPosition(1 - gamepad2.right_trigger); //Uses analog trigger position
                 } else {
                     boxServo.setPosition(1);
                 }
             }
         }
 
-
-        if (gamepad2.right_stick_y < -0.5) {
-            extendDeliveryArm(-gamepad2.right_stick_y);
-        } else if (gamepad2.right_stick_y > 0.5) {
-            retractDeliveryArm(-gamepad2.right_stick_y);
-        } else {
-            deliveryExtend.setPower(0);
-        }
-
+        // if using automatic arm control, shouldn't allow for manual control for arm extension
         if (gamepad2.left_stick_y < -0.5) {
             toDeliveryPosition();
         } else if (gamepad2.left_stick_y > 0.5) {
             toHomePosition();
         } else {
             if (!deliveryArmState.equals(DeliveryState.DELIVERY)) deliveryRotate.setPower(0);
+
+            //manual control for arm extension (right stick) only used when not using auto (left stick)
+            if (gamepad2.right_stick_y < -0.2) {
+                extendDeliveryArm(-gamepad2.right_stick_y);
+            } else if (gamepad2.right_stick_y > 0.2) {
+                retractDeliveryArm(-gamepad2.right_stick_y);
+            } else {
+                deliveryExtend.setPower(0);
+            }
         }
 
         if (gamepad1.y) {
@@ -334,6 +339,11 @@ public class DriverRover extends OpMode {
                 hookReleased = !hookReleased;
             }
             hookButtonPressed = false;
+        }
+
+        //driver control to release the intake holder (hook)
+        if (gamepad1.left_bumper) {
+            intakeHolder.setPosition(POS_INTAKE_RELEASE_EXTREME);
         }
 
         // Lift motor when given negative power, the lift rises and lowers when given positive power
@@ -440,40 +450,46 @@ public class DriverRover extends OpMode {
         switch (deliveryArmState) {
             case HOME:
             case BEFORE_HOME:
-                extendDeliveryArm(1);
                 deliveryRotate.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
                 deliveryRotate.setPower(0.6);
                 deliveryArmState = DeliveryState.ARM_UP;
                 break;
             case ARM_UP:
-                if (currentPos > DELIVERY_ROTATE_UP_POS) {
+               if (currentPos > DELIVERY_ROTATE_UP_POS) {
                     deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
                     deliveryRotate.setTargetPosition(DELIVERY_ROTATE_MAX_POS);
                     deliveryRotate.setPower(0.8);
                     deliveryArmState = DeliveryState.DELIVERY;
                 } else {
                     deliveryRotate.setPower(0.6);
+                    if (currentPos > DELIVERY_ROTATE_BEFORE_HOME_POS) {
+                        extendDeliveryArm(1);
+                    }
                 }
             case DELIVERY:
+                extendDeliveryArm(1);
                 break;
-
         }
     }
 
 
     private void extendDeliveryArm(double power) {
+        int currCounts = deliveryExtend.getCurrentPosition();
 
-        int maxCounts = MAX_DELIVERY_EXTEND_POS;
-        if (deliveryExtend.getCurrentPosition() > maxCounts){
+        if (currCounts > MAX_DELIVERY_EXTEND_POS){
             deliveryExtend.setPower(0);
+        } else if (currCounts > ALMOST_MAX_DELIVERY_EXTEND_POS) {
+            deliveryExtend.setPower(0.2);
         } else {
             deliveryExtend.setPower(power);
         }
     }
 
     private void retractDeliveryArm(double power){
-        if(deliveryExtendTouch.isPressed()) {
+        if (deliveryExtendTouch.isPressed()) {
             deliveryExtend.setPower(0);
+        } else if (deliveryExtend.getCurrentPosition() < ALMOST_MIN_DELIVERY_EXTEND_POS) {
+            deliveryExtend.setPower(-0.2);
         } else {
             deliveryExtend.setPower(power);
         }
