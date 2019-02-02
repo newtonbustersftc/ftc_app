@@ -55,14 +55,14 @@ public class DriverRover extends OpMode {
      */
     static final int MAX_INTAKE_ARM_POS = -5200;
     static final int ALMOST_MAX_INTAKE_ARM_POS = -4700;
-    static final int ALMOST_MIN_INTAKE_ARM_POS = -500;
+    static final int ALMOST_MIN_INTAKE_ARM_POS = -250;
 
-    static final int DELIVERY_ROTATE_MAX_POS = 1400;
+    static final int DELIVERY_ROTATE_MAX_POS = 1250;
     static final int DELIVERY_ROTATE_UP_POS = 1200;
     static final int DELIVERY_ROTATE_BEFORE_HOME_POS = 400;
 
-    static final int MAX_DELIVERY_EXTEND_POS = 1550;
-    static final int ALMOST_MAX_DELIVERY_EXTEND_POS = 1150;
+    static int MAX_DELIVERY_EXTEND_POS = 1550;
+    static int ALMOST_MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS-400;
     static final int ALMOST_MIN_DELIVERY_EXTEND_POS = 400;
 
     static final double POS_GATE_CLOSED = 0.525;
@@ -76,7 +76,8 @@ public class DriverRover extends OpMode {
     static final double POS_BUCKET_UP = 0.72;
     static final double POS_BUCKET_DROP = POS_BUCKET_PARKED;
 
-
+    boolean switchExtention = false;
+    boolean fullExtention = true;
 
     enum DeliveryState{
         HOME, BEFORE_HOME, ARM_UP, DELIVERY
@@ -193,6 +194,21 @@ public class DriverRover extends OpMode {
     public void loop() {
 
         //gamepad2 will be used to control the delivery of the minerals
+        if (gamepad2.y){
+            switchExtention = true;
+        } else{
+            if (switchExtention){
+                if (fullExtention) {
+                    MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS / 2;
+                    ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS / 2;
+                }else{
+                    MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS * 2;
+                    ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS * 2;
+                }
+                fullExtention = !fullExtention;
+                switchExtention=false;
+            }
+        }
 
         if (gamepad2.left_trigger > 0.5 || (isIntakeMinRetracted() && deliveryDownTouch.isPressed())) {
             setPercentOpen(intakeGateServo, 1);
