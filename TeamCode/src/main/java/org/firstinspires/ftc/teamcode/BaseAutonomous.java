@@ -37,7 +37,6 @@ public abstract class BaseAutonomous extends LinearOpMode {
     public void runOpMode() throws InterruptedException {
         try {
             doRunOpMode();
-            telemetry.clear();
         } finally {
             try {
                 if (out != null) {
@@ -52,6 +51,7 @@ public abstract class BaseAutonomous extends LinearOpMode {
                     //log file with the time stamp for history
                     String timestamp = new SimpleDateFormat("MMMdd_HHmm", Locale.US).format(new Date());
                     file = new File(Environment.getExternalStorageDirectory().getPath() + "/FIRST/" + logPrefix + "_" + timestamp + ".txt");
+                    telemetry.clear();
                     telemetry.addData("File", file.getAbsolutePath());
                     telemetry.update();
 
@@ -62,6 +62,7 @@ public abstract class BaseAutonomous extends LinearOpMode {
 
                 }
             } catch (Exception e) {
+                telemetry.clear();
                 telemetry.addData("Exception", "File write failed: " + e.toString());
                 telemetry.update();
             }
@@ -207,13 +208,10 @@ public abstract class BaseAutonomous extends LinearOpMode {
         double countsSinceStart = Math.abs(getWheelPosition() - initialcount);
         double motorPower = startPower;
         long startTime = currentTimeMillis();
-        while (currentTimeMillis() - startTime < 8000 && opModeIsActive()
-                && countsSinceStart < inchesToCounts(inches, forward)) {
+        while (opModeIsActive() && currentTimeMillis() - startTime < 5000 &&
+                countsSinceStart < inchesToCounts(inches, forward)) {
             // steer CCW - negative, CW - positive
             steerSpeed = errorHandler.getSteerSpeed();
-
-            telemetry.addData("Steer Speed", steerSpeed);
-            telemetry.update();
 
             if (countsSinceStart > countsForGradient) {
                 motorPower = slope * (countsSinceStart - inchesToCounts(inches, forward)) + endPower;

@@ -63,6 +63,7 @@ public class AutonomousRover extends BaseAutonomous {
     private TFObjectDetector tfod;
 
     long startMillis;
+    private boolean firstLog = false;
 
     enum GoldPosition {
         left, center, right, undetected
@@ -110,7 +111,9 @@ public class AutonomousRover extends BaseAutonomous {
     public void doRunOpMode() throws InterruptedException {
         telemetry.addData("Initializing","Please wait");
         telemetry.update();
-        sleep(20);
+
+        if (isStopRequested()) { return; }
+
         startMillis = currentTimeMillis();
 
         // The TFObjectDetector uses the camera frames from the VuforiaLocalizer,
@@ -118,6 +121,8 @@ public class AutonomousRover extends BaseAutonomous {
         long startMs = currentTimeMillis();
         initVuforia();
         long vuforiaMs = currentTimeMillis() - startMs;
+
+        if (isStopRequested()) { return; }
 
         try {
             long tfodMs = 0;
@@ -130,36 +135,39 @@ public class AutonomousRover extends BaseAutonomous {
             }
 
             //Initializes all motors.
+            logComment(depotSide() ? "Depot" : "Crater");
+            logComment("vuforia init ms: " + vuforiaMs);
+            logComment("tfod init ms: " + tfodMs);
             preRun();
 
-            log("vuforia/tfod " + vuforiaMs + "/" + tfodMs);
 
             waitForStart();
 
             goldOnSide = false;
             goldOnRight = false;
+
+            logComment("init ms: " + (currentTimeMillis()-startMillis));
             startMillis = currentTimeMillis();
 
             landing();
             rotateAndMoveGold();
-            if(!shortCraterMode){
-                deliverTeamMarker();
-
-
-                park();
-
-            }
-            else{
+            if(shortCraterMode){
                 shortCraterModePark();
             }
+            else{
+                deliverTeamMarker();
+                park();
+            }
 
-
-            telemetry.addData("Gyro Heading", getGyroAngles().firstAngle);
-            telemetry.addData("Distance FR", rangeSensorFrontRight.getDistance(DistanceUnit.INCH));
-            telemetry.addData("Distance FL", rangeSensorFrontLeft.getDistance(DistanceUnit.INCH));
-            telemetry.addData("Distance BL", rangeSensorBackLeft.getDistance(DistanceUnit.INCH));
-            telemetry.update();
-            sleep(5000);
+            //retractLift();
+            while (opModeIsActive()) {
+                telemetry.addData("Gyro Heading", getGyroAngles().firstAngle);
+                telemetry.addData("Distance FR", rangeSensorFrontRight.getDistance(DistanceUnit.INCH));
+                telemetry.addData("Distance BR", rangeSensorBackRight.getDistance(DistanceUnit.INCH));
+                telemetry.addData("Distance FL", rangeSensorFrontLeft.getDistance(DistanceUnit.INCH));
+                telemetry.addData("Distance BL", rangeSensorBackLeft.getDistance(DistanceUnit.INCH));
+                telemetry.update();
+            }
         } finally {
             if (tfod != null) {
                 tfod.shutdown();
@@ -170,6 +178,8 @@ public class AutonomousRover extends BaseAutonomous {
 
     public void preRun() {
 
+        if (isStopRequested()) { return; }
+
         this.delay = 0;
         try {
             SharedPreferences prefs = AutonomousOptionsRover.getSharedPrefs(hardwareMap);
@@ -179,7 +189,10 @@ public class AutonomousRover extends BaseAutonomous {
             String craterMode = prefs.getString(CRATER_MODE_PREF, AutonomousOptionsRover.CraterModes.LONG.toString());
             this.shortCraterMode = craterMode.equals(AutonomousOptionsRover.CraterModes.SHORT.toString());
 
+            if (!depotSide()) { logComment("prefs: delay(ms)/short: " + delay + "/" + shortCraterMode); }
+
         } catch (Exception e) {}
+
 
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
         motorRight = hardwareMap.dcMotor.get("wheelsRight");
@@ -189,6 +202,7 @@ public class AutonomousRover extends BaseAutonomous {
         motorRight.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         // brake on zero power
         setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        if (isStopRequested()) { return; }
 
         deliveryRotate = hardwareMap.dcMotor.get("deliveryRotate");
         deliveryRotate.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
@@ -205,7 +219,7 @@ public class AutonomousRover extends BaseAutonomous {
         liftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         liftTouch = hardwareMap.touchSensor.get("lift_touch");
-        //retractLift(); - safety hazard
+        retractLift(); // safety hazard - remove before match
         liftMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
         // reset encoders for the rotating delivery arm
@@ -220,17 +234,26 @@ public class AutonomousRover extends BaseAutonomous {
 
         int ntries;
         boolean success = false;
-        for(ntries=0;!success && ntries<3;ntries++) {
+        for(ntries=0;!isStopRequested() && !success && ntries<3;ntries++) {
+            long startMs = currentTimeMillis();
             success=gyroInit();
+            logComment("gyro init ms: "+(currentTimeMillis() - startMs));
         }
         // make sure gyro is calibrated
         while (!this.isStarted() && !this.isStopRequested()) {
             telemetry.clearAll();
-            telemetry.addData("Gyro initilation success/tries",success+"/"+ntries);
+            telemetry.addData("Gyro success/tries",success+"/"+ntries);
             logGyro(false);
-            telemetry.addData("tfod", tfod != null);
+
             // the delay applies only to crater side
             if (!depotSide()) { telemetry.addData("prefs: delay/short", delay + "/" + shortCraterMode); }
+            telemetry.addData("FrontLeft", String.format("%.1f in", rangeSensorFrontLeft.getDistance(DistanceUnit.INCH)));
+            telemetry.addData("BackLeft", String.format("%.1f in", rangeSensorBackLeft.getDistance(DistanceUnit.INCH)));
+            telemetry.addData("FrontRight", String.format("%.1f in", rangeSensorFrontRight.getDistance(DistanceUnit.INCH)));
+            telemetry.addData("BackRight", String.format("%.1f in", rangeSensorBackRight.getDistance(DistanceUnit.INCH)));
+
+            telemetry.addData("tfod", tfod != null);
+
             telemetry.update();
             idle();
         }
@@ -401,23 +424,23 @@ public class AutonomousRover extends BaseAutonomous {
             //in crater zone
             double heading;
             double distanceBack;
-            double distanceToWall = 53; //longest distance from right position
+            double distanceToWall = 55; //longest distance from right position
             // come back
             if (goldOnSide) {
                 // added 3 inches because the robot is landing closer to jewels
-                distanceBack = 21.0/2.0 + 3;
+                distanceBack = 21.0/2.0 + 1;
                 if (goldOnRight) {
                     heading = -35;
                 } else {
                     // left
                     heading = 35;
-                    distanceToWall -= 12;
+                    distanceToWall -= 13;
                 }
             } else {
                 //center
-                distanceBack = 19.0/2.0 + 3;
+                distanceBack = 19.0/2.0 + 1;
                 heading = 0;
-                distanceToWall -= 6;
+                distanceToWall -= 7;
             }
 
             // move back
@@ -499,7 +522,8 @@ public class AutonomousRover extends BaseAutonomous {
             RangeErrorHandler errorHandler = new RangeErrorHandler (rangeSensorBackRight,
                     rangeSensorFrontRight, inchesToWall, clockwiseWhenTooClose, driveHeading);
             //usually use distance sensor not gyro
-            moveWithErrorCorrection(-0.7, -0.2, distanceToTravel, errorHandler);
+            boolean success = moveWithErrorCorrection(-0.7, -0.2, distanceToTravel, errorHandler);
+            if (!success) return;
         } else {
             // depot side
             double moveForwardHeading;
@@ -539,17 +563,17 @@ public class AutonomousRover extends BaseAutonomous {
             DistanceSensor rangeF = rangeSensorBackLeft;
             DistanceSensor rangeB = rangeSensorFrontLeft;
 
-            moveWithErrorCorrection(-0.7, -0.2, distanceToTravel,
+            boolean success = moveWithErrorCorrection(-0.7, -0.2, distanceToTravel,
                     new RangeErrorHandler(rangeF, rangeB, inchesToWall, false, parkHeading));
+            if (!success) return;
         }
         log("Parked");
     }
 
     void retractLift() {
         long startMs = currentTimeMillis();
-        while (!liftTouch.isPressed() && currentTimeMillis() - startMs < 5000) {
+        while (!liftTouch.isPressed() && currentTimeMillis() - startMs < 4000) {
             liftMotor.setPower(1); //positive power retracts the lift arm
-            sleep(10);
         }
         liftMotor.setPower(0.0);
     }
@@ -892,6 +916,15 @@ public class AutonomousRover extends BaseAutonomous {
         return y > (800.0 / 3) * 2;
     }
 
+    void logComment(String message) {
+        if (out == null) {
+            out = new StringBuffer();
+        }
+        out.append("# "); // start of the comment
+        out.append(message);
+        out.append("\n"); // new line at the end
+    }
+
     /**
      * Add a log row to comma delimited table of steps
      *
@@ -902,11 +935,11 @@ public class AutonomousRover extends BaseAutonomous {
 
         if (out == null) {
             out = new StringBuffer();
-            out.append("# "); // start of the comment
-            out.append(depotSide() ? "Depot" : "Crater");
-            out.append("\n"); // end of comment
+        }
+        if (firstLog) {
             // table header followed by new line
             out.append("Time,Step,Gyro,GoldPos,RangeFL,RangeBL,RangeFR,RangeBR,DriveLeft,DriveRight,\n");
+            firstLog = false;
         }
 
         out.append(String.format(Locale.US, "%5d,%22s,%4.1f,%s,%5.1f,%5.1f,%5.1f,%5.1f,%d,%d\n",
