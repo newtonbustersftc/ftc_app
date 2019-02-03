@@ -58,7 +58,7 @@ public class DriverRover extends OpMode {
     static final int ALMOST_MIN_INTAKE_ARM_POS = -250;
 
     static final int DELIVERY_ROTATE_MAX_POS = 1250;
-    static final int DELIVERY_ROTATE_UP_POS = 1200;
+    static final int DELIVERY_ROTATE_UP_POS = 1050;
     static final int DELIVERY_ROTATE_BEFORE_HOME_POS = 400;
 
     static int MAX_DELIVERY_EXTEND_POS = 1550;
@@ -427,6 +427,11 @@ public class DriverRover extends OpMode {
         int currentPos = deliveryRotate.getCurrentPosition();
         switch (deliveryArmState) {
             case HOME:
+                if(!deliveryDownTouch.isPressed()) {
+                    deliveryRotate.setPower(0.16); //Was 0.08
+                } else {
+                    deliveryRotate.setPower(0);
+                }
                 break;
             case BEFORE_HOME:
                 retractDeliveryArm(-1);
@@ -435,7 +440,6 @@ public class DriverRover extends OpMode {
                     if (deliveryExtendTouch.isPressed()) {
                         deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
                         deliveryRotate.setTargetPosition(0);
-                        deliveryRotate.setPower(0.16); //Was 0.08
                         deliveryArmState = DeliveryState.HOME;
                     }
                 } else {
@@ -482,6 +486,7 @@ public class DriverRover extends OpMode {
                         extendDeliveryArm(1);
                     }
                 }
+                break;
             case DELIVERY:
                 extendDeliveryArm(1);
                 break;
@@ -497,7 +502,7 @@ public class DriverRover extends OpMode {
         } else if (currCounts > ALMOST_MAX_DELIVERY_EXTEND_POS) {
             deliveryExtend.setPower(0.2);
         } else {
-            deliveryExtend.setPower(power);
+            deliveryExtend.setPower(Math.abs(power));
         }
     }
 
@@ -507,7 +512,7 @@ public class DriverRover extends OpMode {
         } else if (deliveryExtend.getCurrentPosition() < ALMOST_MIN_DELIVERY_EXTEND_POS) {
             deliveryExtend.setPower(-0.2);
         } else {
-            deliveryExtend.setPower(power);
+            deliveryExtend.setPower(-Math.abs(power));
         }
     }
 
@@ -522,7 +527,6 @@ public class DriverRover extends OpMode {
                 deliveryExtend.getCurrentPosition() + "/" + deliveryExtendTouch.isPressed());
         telemetry.addData("lift / touch",
                 liftMotor.getCurrentPosition() + "/" + liftTouch.isPressed());
-        telemetry.addData("left_trigger/right_trigger",gamepad1.left_trigger + "/" + gamepad1.right_trigger);
 
     }
 

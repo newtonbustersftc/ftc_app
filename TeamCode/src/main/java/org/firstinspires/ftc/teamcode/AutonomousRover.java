@@ -189,7 +189,7 @@ public class AutonomousRover extends BaseAutonomous {
             String craterMode = prefs.getString(CRATER_MODE_PREF, AutonomousOptionsRover.CraterModes.LONG.toString());
             this.shortCraterMode = craterMode.equals(AutonomousOptionsRover.CraterModes.SHORT.toString());
 
-            if (!depotSide()) { logComment("prefs: delay(ms)/short: " + delay + "/" + shortCraterMode); }
+            if (!depotSide()) { logComment("prefs: delay " + delay + "ms, short mode: " + shortCraterMode); }
 
         } catch (Exception e) {}
 
