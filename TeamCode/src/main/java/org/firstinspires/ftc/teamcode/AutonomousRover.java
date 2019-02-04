@@ -71,9 +71,9 @@ public class AutonomousRover extends BaseAutonomous {
 
     GoldPosition goldPosition = GoldPosition.undetected;
 
-    static final double POS_MARKER_FORWARD = 0.375;
+    static final double POS_MARKER_FORWARD = 0.400;
     static final double POS_MARKER_UP = 0.75;
-    static final double POS_MARKER_BACK = 0.77;
+    static final double POS_MARKER_BACK = 0.775;
 
     static final double POS_HOOK_CLOSED = 0.5;
     static final double POS_HOOK_OPEN = 0.2;
@@ -102,6 +102,27 @@ public class AutonomousRover extends BaseAutonomous {
 
     private int delay; // this is the delay for before coming to the depot area from the crater zone
     private boolean shortCraterMode;
+
+    Servo[] lights = new Servo[3];
+    final int RED = 0;
+    final int GREEN = 1;
+    final int BLUE = 2;
+
+    private void setUpLights() {
+        for(int i = 1;i <= 3; i++) {
+            int lightIndex = i - 1;
+            lights[lightIndex] = hardwareMap.servo.get("light" + i);
+            DriverRover.setUpServo(lights[lightIndex], 0.5, 1);
+        }
+    }
+
+    private void resetLights() {
+        for(int i = 1;i <= 3; i++) {
+            int lightIndex = i - 1;
+            lights[lightIndex].setPosition(0);
+
+        }
+    }
 
     protected boolean depotSide() {
         return false;
@@ -180,19 +201,29 @@ public class AutonomousRover extends BaseAutonomous {
 
         if (isStopRequested()) { return; }
 
+        setUpLights();
+
         this.delay = 0;
-        try {
+
+        //We only care about the delay or the short/long crater mode if we are on the crater side
+        if(!depotSide()) {
             SharedPreferences prefs = AutonomousOptionsRover.getSharedPrefs(hardwareMap);
-            String delaystring = prefs.getString(DELAY_PREF, "");
-            delaystring = delaystring.replace(" sec", "");
-            this.delay = Integer.parseInt(delaystring);
-            String craterMode = prefs.getString(CRATER_MODE_PREF, AutonomousOptionsRover.CraterModes.LONG.toString());
-            this.shortCraterMode = craterMode.equals(AutonomousOptionsRover.CraterModes.SHORT.toString());
+            try {
+                String delaystring = prefs.getString(DELAY_PREF, "");
+                delaystring = delaystring.replace(" sec", "");
+                this.delay = Integer.parseInt(delaystring);
+            } catch (Exception e) {
+                this.delay = 0;
+            }
+            try {
+                String craterMode = prefs.getString(CRATER_MODE_PREF, AutonomousOptionsRover.CraterModes.LONG.toString());
+                this.shortCraterMode = craterMode.equals(AutonomousOptionsRover.CraterModes.SHORT.toString());
+            } catch (Exception e) {
+                lights[RED].setPosition(0.51);
+            }
+            logComment("prefs: delay " + delay + "ms, short mode: " + shortCraterMode);
 
-            if (!depotSide()) { logComment("prefs: delay " + delay + "ms, short mode: " + shortCraterMode); }
-
-        } catch (Exception e) {}
-
+        }
 
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
         motorRight = hardwareMap.dcMotor.get("wheelsRight");
@@ -219,7 +250,7 @@ public class AutonomousRover extends BaseAutonomous {
         liftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         liftTouch = hardwareMap.touchSensor.get("lift_touch");
-        retractLift(); // safety hazard - remove before match
+        //retractLift(); // safety hazard - remove before match
         liftMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
         // reset encoders for the rotating delivery arm
@@ -234,11 +265,21 @@ public class AutonomousRover extends BaseAutonomous {
 
         int ntries;
         boolean success = false;
-        for(ntries=0;!isStopRequested() && !success && ntries<3;ntries++) {
+        for(ntries=0;!isStopRequested() && !success && ntries<2;ntries++) {
             long startMs = currentTimeMillis();
             success=gyroInit();
             logComment("gyro init ms: "+(currentTimeMillis() - startMs));
         }
+        if (!success || tfod == null) {
+            lights[RED].setPosition(1);
+            if(tfod == null){
+                lights[BLUE].setPosition(1);
+            }
+        }
+        else {
+            lights[GREEN].setPosition(1);
+        }
+
         // make sure gyro is calibrated
         while (!this.isStarted() && !this.isStopRequested()) {
             telemetry.clearAll();
@@ -262,14 +303,19 @@ public class AutonomousRover extends BaseAutonomous {
     void landing() throws InterruptedException {
         if (!opModeIsActive()) return;
 
+        resetLights();
+
         try {
 
             if (out == null) {
                 out = new StringBuffer();
             }
 
+            boxServo = hardwareMap.servo.get("box");
+            boxServo.setPosition(DriverRover.POS_BUCKET_PARKED);
+
             deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-            deliveryRotate.setTargetPosition(600);
+            deliveryRotate.setTargetPosition(350);
             deliveryRotate.setPower(0.6);
             sleep(500);
 
@@ -283,9 +329,10 @@ public class AutonomousRover extends BaseAutonomous {
             liftMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
 
             if (goldPosition == GoldPosition.undetected) {
+                lights[RED].setPosition(0.51);
                 // second attempt to detect where the gold is
                 liftMotor.setPower(-0.7);
-                int lowerPos = Math.abs(DriverRover.LATCHING_POS-DriverRover.LATCHING_POS_LOW)/2;
+                int lowerPos = Math.abs(DriverRover.LATCHING_POS - DriverRover.LATCHING_POS_LOW) / 2;
                 liftMotor.setTargetPosition(-lowerPos);
                 while (Math.abs(liftMotor.getCurrentPosition()) <= lowerPos) {
                     idle();
@@ -296,6 +343,17 @@ public class AutonomousRover extends BaseAutonomous {
                 telemetry.update();
                 log("2nd detection");
             }
+            if (goldPosition == GoldPosition.undetected) {
+                lights[RED].setPosition(1);
+            }
+            else{
+                lights[RED].setPosition(0);
+                lights[GREEN].setPosition(1);
+                if(goldPosition == GoldPosition.center){
+                    lights[BLUE].setPosition(1);
+                }
+            }
+
             deliveryRotate.setTargetPosition(0);
             deliveryRotate.setPower(0.1);
 
@@ -336,6 +394,7 @@ public class AutonomousRover extends BaseAutonomous {
             liftMotor.setPower(0);
 
             // move forward where the gold is visible again
+            checkForGyroError();
             moveWithErrorCorrection(0.5, 0.2, 7, new GyroErrorHandler(0));
 
             log("At the line");
@@ -350,6 +409,8 @@ public class AutonomousRover extends BaseAutonomous {
     void rotateAndMoveGold() throws InterruptedException {
         if (!opModeIsActive()) return;
 
+        resetLights();
+
         if (goldPosition.equals(GoldPosition.right)) {
             goldOnRight = true;
             goldOnSide = true;
@@ -360,21 +421,30 @@ public class AutonomousRover extends BaseAutonomous {
         liftMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         telemetry.addData("Lift Position", liftMotor.getCurrentPosition());
 
+        double currentHeading = getGyroAngles().firstAngle;
+        double driveHeading = 0;
         deliveryRotate.setPower(0);
-
         double heading = 0;
         if(shortCraterMode && goldOnRight){
-                rotate(0.3, 40);
+                driveHeading = 40;
+                //rotate(0.3, 40);
                 heading = -45; // clockwise from 0 - negative heading
         }
         else {
             if (goldOnRight) {
-                rotate(0.3, 30);
+                driveHeading = 30;
+                //rotate(0.3, 30);
                 heading = -35; // clockwise from 0 - negative heading
             } else if (goldOnSide) {
-                rotate(-0.3, 30); //Gold is on the left
+                driveHeading = 30;
+                //rotate(-0.3, 30); //Gold is on the left
                 heading = 35; // counterclockwise from 0 - positive heading
             }
+        }
+        if(goldOnSide){
+            double angleToRotate = Math.abs(currentHeading - driveHeading);
+            double rotatePower = (goldOnRight)? 0.3 : -0.3;
+            rotate(rotatePower, angleToRotate);
         }
         sleep(200);
         log("Rotated to gold");
@@ -391,12 +461,14 @@ public class AutonomousRover extends BaseAutonomous {
             if(shortCraterMode && goldOnRight){
                 extraDistance += 14;
             }
+            checkForGyroError();
             moveWithErrorCorrection(0.7, 0.2, distanceToSideGold + extraDistance, new GyroErrorHandler(heading));
 
         } else {
             if (depotSide()) {
                 extraDistance = 29;
             }
+            checkForGyroError();
             moveWithErrorCorrection(0.7, 0.2, distanceToCenterGold + extraDistance, new GyroErrorHandler(heading));
 
         }
@@ -405,6 +477,7 @@ public class AutonomousRover extends BaseAutonomous {
 
     void deliverTeamMarker() throws InterruptedException {
         if (!opModeIsActive()) return;
+        resetLights();
         //if facing crater, we are done
         if (depotSide()) {
             if (goldOnSide) {
@@ -444,6 +517,7 @@ public class AutonomousRover extends BaseAutonomous {
             }
 
             // move back
+            checkForGyroError();
             moveWithErrorCorrection(-0.7, -0.2, distanceBack, new GyroErrorHandler(heading));
             log("Moved back");
 
@@ -456,6 +530,7 @@ public class AutonomousRover extends BaseAutonomous {
             sleep (1000 * delay);
             log("Rotated to wall");
             // drive toward the wall
+            checkForGyroError();
             moveWithErrorCorrection(0.7, 0.2, distanceToWall, new GyroErrorHandler(driveHeading));
             // rotate along the wall
             currentHeading = getGyroAngles().firstAngle;
@@ -472,6 +547,7 @@ public class AutonomousRover extends BaseAutonomous {
 //                    rangeSensorBackRight, inchesToWall, clockwiseWhenTooClose, driveHeading);
 //            moveWithErrorCorrection(0.7, 0.2, inchesForward, errorHandler);
             // Drive a bit towards the wall using gyro
+            checkForGyroError();
             moveWithErrorCorrection(0.7, 0.2, inchesForward, new GyroErrorHandler(driveHeading));
         }
         //Deliver team marker.
@@ -484,6 +560,7 @@ public class AutonomousRover extends BaseAutonomous {
     }
 
     void shortCraterModePark(){
+        resetLights();
         if(goldOnSide){
             //rotating to heading 0
             double currentHeading = getGyroAngles().firstAngle;
@@ -504,11 +581,11 @@ public class AutonomousRover extends BaseAutonomous {
     void park() {
         if (!opModeIsActive())
             return; // delivering marker is not implemented for crater zone yet
-
+        resetLights();
         double distanceToTravel;
 
         if (!depotSide()){
-            distanceToTravel = 55;
+            distanceToTravel = 59;
             double driveHeading = 135;
 
 //            // rotate toward the wall
@@ -549,6 +626,7 @@ public class AutonomousRover extends BaseAutonomous {
                 distanceToTravel = 78;
             }
             // move forward a bit
+            checkForGyroError();
             moveWithErrorCorrection(0.7, 0.2, inchesForward, new GyroErrorHandler(moveForwardHeading));
             double currentHeading = getGyroAngles().firstAngle;
             double parkHeading = -45;
@@ -578,6 +656,14 @@ public class AutonomousRover extends BaseAutonomous {
         liftMotor.setPower(0.0);
     }
 
+    boolean checkForGyroError(){
+        if(isGyroError()){
+            lights[RED].setPosition(1);
+            return true;
+        }
+        return false;
+    }
+
     /**
      * rotates robot the given angle, give negative power for counterclockwise rotation and
      * positive power for clockwise rotation
@@ -586,6 +672,7 @@ public class AutonomousRover extends BaseAutonomous {
      * @param angle
      */
     void rotate(double power, double angle) {
+        checkForGyroError();
         if (!opModeIsActive()) return;
         double originalHeading = getGyroAngles().firstAngle;
         double currentHeading = originalHeading;

@@ -6,12 +6,14 @@ import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DistanceSensor;
+import com.qualcomm.robotcore.util.ReadWriteFile;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
 import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
+import org.firstinspires.ftc.robotcore.internal.system.AppUtil;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -75,14 +77,34 @@ public abstract class BaseAutonomous extends LinearOpMode {
      * initializes gyro
      */
     boolean gyroInit() {
+        String fileName = "AdafruitIMUCalibration.json";
         // see the calibration sample opmode;
         BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
         parameters.angleUnit = BNO055IMU.AngleUnit.DEGREES;
-        parameters.calibrationDataFile = "AdafruitIMUCalibration.json";
+        parameters.calibrationDataFile = fileName;
 
         imu = hardwareMap.get(BNO055IMU.class, "imu");
         boolean success = imu.initialize(parameters);
+        long startMs = currentTimeMillis();
+        while(!imu.isGyroCalibrated() && currentTimeMillis() - startMs < 7000){
+            idle();
+        }
+        if(imu.isGyroCalibrated()){
+            BNO055IMU.CalibrationData calibrationData = imu.readCalibrationData();
+            File file = AppUtil.getInstance().getSettingsFile(fileName);
+            ReadWriteFile.writeFile(file, calibrationData.serialize());
+        }
         return success;
+    }
+    boolean isGyroError(){
+        BNO055IMU.SystemError error = imu.getSystemError();
+        if (error != BNO055IMU.SystemError.NO_ERROR) {
+            if (out == null) { out = new StringBuffer();}
+            out.append(String.format(Locale.US, "# BNO055IMU.SystemError %s\n", error));
+            return true;
+        } else{
+            return false;
+        }
     }
 
     /**
@@ -258,6 +280,7 @@ public abstract class BaseAutonomous extends LinearOpMode {
 
         @Override
         public double getSteerSpeed() {
+            if (isGyroError()) return 0;
             //clockwise = positive steer speed
             double error = getError();
             double steerSpeed = error * getKP();
@@ -326,6 +349,8 @@ public abstract class BaseAutonomous extends LinearOpMode {
                 if (TEST) logRangeCorrection(currentTimeMillis()-startTime, error, steerSpeed, range1, range2);
                 return steerSpeed;
             } else {
+                if (out == null) { out = new StringBuffer();}
+                out.append(String.format(Locale.US, "# Bad range s1: %.2f s2: %.2f\n", range1, range2));
                 //if ranges are unreasonable, use gyro sensor only
                 return gyroErrorHandler.getSteerSpeed();
             }

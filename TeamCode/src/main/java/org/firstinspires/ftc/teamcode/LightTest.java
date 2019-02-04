@@ -19,8 +19,6 @@ public class LightTest extends OpMode {
             lights[lightIndex] = hardwareMap.servo.get("light" + i);
             DriverRover.setUpServo(lights[lightIndex], 0.5, 1);
         }
-
-
     }
 
     @Override
