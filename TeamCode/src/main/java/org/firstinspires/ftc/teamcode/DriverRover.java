@@ -84,9 +84,33 @@ public class DriverRover extends OpMode {
     }
 
     DeliveryState deliveryArmState;
+    boolean intakeReleased;
+    private static boolean isError; //IS there an error?
+
+    Servo[] lights = new Servo[3];
+    final int RED = 0;
+    final int GREEN = 1;
+    final int BLUE = 2;
+
+    private void setUpLights() {
+        for(int i = 1;i <= 3; i++) {
+            int lightIndex = i - 1;
+            lights[lightIndex] = hardwareMap.servo.get("light" + i);
+            DriverRover.setUpServo(lights[lightIndex], 0.5, 1);
+        }
+    }
+
+    private void resetLights() {
+        for(int i = 1;i <= 3; i++) {
+            int lightIndex = i - 1;
+            lights[lightIndex].setPosition(0);
+
+        }
+    }
 
     @Override
     public void init() {
+        setUpLights();
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
         motorRight = hardwareMap.dcMotor.get("wheelsRight");
         liftMotor = hardwareMap.dcMotor.get("liftMotor");
@@ -103,6 +127,9 @@ public class DriverRover extends OpMode {
         intakeExtendTouch = hardwareMap.touchSensor.get("intakeExtendTouch");
         deliveryDownTouch = hardwareMap.touchSensor.get("deliveryDownTouch");
         deliveryExtendTouch = hardwareMap.touchSensor.get("deliveryExtendTouch");
+        if(!deliveryDownTouch.isPressed()){
+            lights[RED].setPosition(0.6);
+        }
 
         // float zero power
         motorLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
@@ -142,6 +169,7 @@ public class DriverRover extends OpMode {
 
         // if the driver mode is restarted the arm might not be in HOME state
         restoreDeliveryArmState();
+        lights[GREEN].setPosition(1);
 
         log();
     }
@@ -161,7 +189,7 @@ public class DriverRover extends OpMode {
 
     @Override
     public void start() {
-
+        resetLights();
         //ServoImplEx allows to energize and deenergize servo
         // we don't want to hook servo to keep position when robot is lifting or lowering
         hookServo = (ServoImplEx) hardwareMap.servo.get("hookServo");
@@ -179,7 +207,8 @@ public class DriverRover extends OpMode {
         setUpServo(intakeGateServo, POS_GATE_CLOSED, POS_GATE_OPEN);
 
         intakeHolder = hardwareMap.servo.get("intakeHolder");
-        intakeHolder.setPosition(POS_INTAKE_RELEASE);
+        //intakeHolder.setPosition(POS_INTAKE_HOLD);
+        intakeReleased = isIntakeReleased();
 
         boxServo = hardwareMap.servo.get("box");
         //for bucket servo that delivers the minerals to the launcher
@@ -190,24 +219,37 @@ public class DriverRover extends OpMode {
         leftIntakeServo = hardwareMap.crservo.get("leftIntake");
     }
 
+    boolean isIntakeReleased(){
+        double pos = intakeHolder.getPosition();
+        return pos > POS_INTAKE_RELEASE - 0.01;
+    }
+
     @Override
     public void loop() {
+        isError = false;
 
         //gamepad2 will be used to control the delivery of the minerals
-        if (gamepad2.y){
+        if (gamepad2.y) {
             switchExtention = true;
-        } else{
-            if (switchExtention){
+        } else {
+            if (switchExtention) {
                 if (fullExtention) {
                     MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS / 2;
                     ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS / 2;
-                }else{
+                } else {
                     MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS * 2;
                     ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS * 2;
                 }
                 fullExtention = !fullExtention;
-                switchExtention=false;
+                switchExtention = false;
             }
+        }
+
+        if(fullExtention){
+            lights[BLUE].setPosition(0);
+        }
+        else{
+            lights[BLUE].setPosition(1);
         }
 
         if (gamepad2.left_trigger > 0.5 || (isIntakeMinRetracted() && deliveryDownTouch.isPressed())) {
@@ -232,7 +274,7 @@ public class DriverRover extends OpMode {
                     /*
                      * When dropping debris, servo position 1 when
                      * box is vertical and position 0 when box is down.
-                    */
+                     */
                     boxServo.setPosition(1 - gamepad2.right_trigger); //Uses analog trigger position
                 } else {
                     boxServo.setPosition(1);
@@ -360,21 +402,25 @@ public class DriverRover extends OpMode {
         //driver control to release the intake holder (hook)
         if (gamepad1.left_bumper) {
             intakeHolder.setPosition(POS_INTAKE_RELEASE_EXTREME);
+            intakeReleased = true;
         }
 
         // Lift motor when given negative power, the lift rises and lowers when given positive power
         double mintriggervalue = 0.3;
-        if (gamepad1.left_trigger >mintriggervalue || gamepad1.right_trigger>mintriggervalue) {
-            if (gamepad1.left_trigger>mintriggervalue && !isIntakeMaxExtended()) {
+        if (gamepad1.left_trigger > mintriggervalue || gamepad1.right_trigger > mintriggervalue) {
+            if (gamepad1.left_trigger > mintriggervalue && !isIntakeMaxExtended()) {
                 // going out
-                if(isIntakeAlmostMaxExtended()) {
+                if (!intakeReleased){
+                    isError=true;
+                    intakeExtendPower = 0;
+                } else if (isIntakeAlmostMaxExtended()) {
                     intakeExtendPower = -mintriggervalue;
                 } else {
                     intakeExtendPower = -gamepad1.left_trigger;
                 }
             } else if (gamepad1.right_trigger > mintriggervalue && !isIntakeMinRetracted()) {
                 // going in
-                if (isIntakeAlmostMinRetracted()){
+                if (isIntakeAlmostMinRetracted()) {
                     intakeExtendPower = mintriggervalue;
                 } else {
                     intakeExtendPower = gamepad1.right_trigger;
@@ -383,14 +429,12 @@ public class DriverRover extends OpMode {
                 //touch button is pressed - cannot go further
                 intakeExtendPower = 0.0;
             }
-        }
-        else {
+        } else {
             intakeExtendPower = 0.0;
         }
 
         //driving backwards
-        if (!forward)
-        { //when start, front direction is the intake side, lightStrip2
+        if (!forward) { //when start, front direction is the intake side, lightStrip2
             leftForward = -leftForward;
             rightForward = -rightForward;
         }
@@ -414,7 +458,15 @@ public class DriverRover extends OpMode {
         log();
         telemetry.addData("drive power left / right",
                 leftForward + "/" + rightForward);
+
+        // IF error, then RED LIGHT
+        if(isError) {
+            lights[RED].setPosition(1);
+        } else {
+            lights[RED].setPosition(0);
+        }
     }
+
 
 
     private void toHomePosition() {
@@ -527,7 +579,9 @@ public class DriverRover extends OpMode {
                 deliveryExtend.getCurrentPosition() + "/" + deliveryExtendTouch.isPressed());
         telemetry.addData("lift / touch",
                 liftMotor.getCurrentPosition() + "/" + liftTouch.isPressed());
-
+        if(intakeHolder != null) {
+            telemetry.addData("Holder Pos", intakeHolder.getPosition());
+        }
     }
 
     private void powerMotors(double rightForward, double leftForward, double liftMotorPower, double intakeExtendPower) {
