@@ -205,8 +205,7 @@ public abstract class BaseAutonomous extends LinearOpMode {
 
 
     /**
-     * moves robot given number of inches using the gyro to keep us straight
-     *
+     * moves robot given number of inches using the error handler to keep it straight
      * @param startPower  starting forward power
      * @param errorHandler object that has getError method
      * @param inches      distance forward
@@ -225,7 +224,8 @@ public abstract class BaseAutonomous extends LinearOpMode {
 
         double inchesForGradient = 10;
         double slope = (endPower - startPower) / inchesToCounts(Math.min(inchesForGradient, inches), forward);
-        double countsForGradient = (inches < inchesForGradient) ? 0 : Math.abs(inchesToCounts(inches - inchesForGradient, forward));
+        double countsForGradient = (inches < inchesForGradient) ?
+                0 : Math.abs(inchesToCounts(inches - inchesForGradient, forward));
 
         double countsSinceStart = Math.abs(getWheelPosition() - initialcount);
         double motorPower = startPower;

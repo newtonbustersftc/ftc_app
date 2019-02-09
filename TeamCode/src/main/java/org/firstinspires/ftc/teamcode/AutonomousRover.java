@@ -63,7 +63,7 @@ public class AutonomousRover extends BaseAutonomous {
     private TFObjectDetector tfod;
 
     long startMillis;
-    private boolean firstLog = false;
+    private boolean firstLog = true;
 
     enum GoldPosition {
         left, center, right, undetected
@@ -222,7 +222,15 @@ public class AutonomousRover extends BaseAutonomous {
                 lights[RED].setPosition(0.51);
             }
             logComment("prefs: delay " + delay + "ms, short mode: " + shortCraterMode);
-
+            if(depotSide()){
+                logPrefix += "_depot";
+            }
+            else if(shortCraterMode){
+                logPrefix += "_short_crater";
+            }
+            else{
+                logPrefix += "_long_crater";
+            }
         }
 
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
@@ -444,7 +452,13 @@ public class AutonomousRover extends BaseAutonomous {
         if(goldOnSide){
             double angleToRotate = Math.abs(currentHeading - driveHeading);
             double rotatePower = (goldOnRight)? 0.3 : -0.3;
-            rotate(rotatePower, angleToRotate);
+            if(Math.abs(currentHeading) < 0.001){
+            //rotate by encoder counts because we cannot rely on the gyro function
+                int encoderCountsChange = 460;
+                rotateByEncoderCounts(rotatePower, encoderCountsChange);
+            } else {
+                rotate(rotatePower, angleToRotate);
+            }
         }
         sleep(200);
         log("Rotated to gold");
@@ -699,6 +713,21 @@ public class AutonomousRover extends BaseAutonomous {
         telemetry.addData("current heading", currentHeading);
         telemetry.update();
 //        sleep(500);
+    }
+
+    //For when gyro fails, use the right wheel's encoder counts
+    void rotateByEncoderCounts(double power, int encoderCountsChange) {
+        checkForGyroError();
+        if (!opModeIsActive()) return;
+        int originalCounts = motorRight.getCurrentPosition();
+        int currentCounts = originalCounts;
+        motorRight.setPower(-power);
+        motorLeft.setPower(power);
+        while (opModeIsActive() && Math.abs(currentCounts - originalCounts) < encoderCountsChange) {
+            currentCounts = motorRight.getCurrentPosition();
+        }
+        motorRight.setPower(0);
+        motorLeft.setPower(0);
     }
 
 

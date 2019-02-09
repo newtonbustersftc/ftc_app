@@ -20,7 +20,6 @@ public class DriverRover extends OpMode {
     private DcMotor motorLeft;
     private DcMotor motorRight;
     private DcMotor liftMotor;
-    //private DcMotor debrisCollection;
     private DcMotor intakeExtend; //extend - positive, retract - negative
     private DcMotor deliveryExtend; //extend - positive, retract - negative
     private DcMotor deliveryRotate; // raise - positive, lower - negative (with reverse)
@@ -87,13 +86,16 @@ public class DriverRover extends OpMode {
     boolean intakeReleased;
     private static boolean isError; //IS there an error?
 
-    Servo[] lights = new Servo[3];
+    final int NUM_LIGHTS = 5;
+    Servo[] lights = new Servo[NUM_LIGHTS];
     final int RED = 0;
     final int GREEN = 1;
     final int BLUE = 2;
+    final int YELLOW = 3;
+    final int WHITE = 4;
 
     private void setUpLights() {
-        for(int i = 1;i <= 3; i++) {
+        for(int i = 1;i <= NUM_LIGHTS; i++) {
             int lightIndex = i - 1;
             lights[lightIndex] = hardwareMap.servo.get("light" + i);
             DriverRover.setUpServo(lights[lightIndex], 0.5, 1);
@@ -101,7 +103,7 @@ public class DriverRover extends OpMode {
     }
 
     private void resetLights() {
-        for(int i = 1;i <= 3; i++) {
+        for(int i = 1;i <= NUM_LIGHTS; i++) {
             int lightIndex = i - 1;
             lights[lightIndex].setPosition(0);
 
@@ -127,8 +129,8 @@ public class DriverRover extends OpMode {
         intakeExtendTouch = hardwareMap.touchSensor.get("intakeExtendTouch");
         deliveryDownTouch = hardwareMap.touchSensor.get("deliveryDownTouch");
         deliveryExtendTouch = hardwareMap.touchSensor.get("deliveryExtendTouch");
-        if(!deliveryDownTouch.isPressed()){
-            lights[RED].setPosition(0.6);
+        if(deliveryDownTouch.isPressed()){
+            lights[BLUE].setPosition(1);
         }
 
         // float zero power
@@ -143,8 +145,6 @@ public class DriverRover extends OpMode {
         motorRight.setDirection(DcMotor.Direction.REVERSE);
 
         deliveryRotate.setDirection(DcMotorSimple.Direction.REVERSE);
-
-
 
         if (liftTouch.isPressed()) {
             //reset the encoder for the lift motor
@@ -201,7 +201,6 @@ public class DriverRover extends OpMode {
         //for moving the marker hand forward, use 1, for moving it back, use 0
         setUpServo(markerServo, AutonomousRover.POS_MARKER_BACK, AutonomousRover.POS_MARKER_FORWARD);
 
-
         intakeGateServo = hardwareMap.servo.get("intakeGate");
         //for opening and closing gate that drops minerals into delivery, use 1 and 0
         setUpServo(intakeGateServo, POS_GATE_CLOSED, POS_GATE_OPEN);
@@ -243,13 +242,6 @@ public class DriverRover extends OpMode {
                 fullExtention = !fullExtention;
                 switchExtention = false;
             }
-        }
-
-        if(fullExtention){
-            lights[BLUE].setPosition(0);
-        }
-        else{
-            lights[BLUE].setPosition(1);
         }
 
         if (gamepad2.left_trigger > 0.5 || (isIntakeMinRetracted() && deliveryDownTouch.isPressed())) {
@@ -328,9 +320,7 @@ public class DriverRover extends OpMode {
         //rightForward = -scaled(gamepad1.right_stick_y);
 
 
-        if ((gamepad1.dpad_up || gamepad1.dpad_down || gamepad1.dpad_left || gamepad1.dpad_right))
-
-        {
+        if ((gamepad1.dpad_up || gamepad1.dpad_down || gamepad1.dpad_left || gamepad1.dpad_right)) {
             // dPadDrive: Forward, Backwards, in place CClockwise and Clockwise
             //We are using robot coordinates
             double dpadSpeed = 0.2;
@@ -352,9 +342,7 @@ public class DriverRover extends OpMode {
         }
 
         // Lift motor when given negative power, the lift rises and lowers when given positive power
-        if (gamepad1.x || gamepad1.a)
-
-        {
+        if (gamepad1.x || gamepad1.a) {
             int currentPos = Math.abs(liftMotor.getCurrentPosition());
             if (gamepad1.x) {
                 if (LATCHING_POS < currentPos) {
@@ -362,31 +350,21 @@ public class DriverRover extends OpMode {
                 } else {
                     liftMotorPower = -1;
                 }
-            } else if (!liftTouch.isPressed()) { //a button is pressed
-//                if (currentPos < 300) {
-//                    liftMotorPower = 0.7;
-//                } else {
+            } else if (!liftTouch.isPressed()) {
                 if (currentPos < LATCHING_POS_LOW) {
                     deenergizeHook();
                 }
                 liftMotorPower = 1;
-//                }
             } else {
                 liftMotorPower = 0.00;
             }
-        } else
-
-        {
+        } else {
             liftMotorPower = 0.0;
         }
 
-        if (gamepad1.b)
-
-        {
+        if (gamepad1.b) {
             hookButtonPressed = true;
-        } else
-
-        {
+        } else {
             if (hookButtonPressed) {
                 energizeHook();
                 if (hookReleased) {
@@ -419,7 +397,7 @@ public class DriverRover extends OpMode {
                     intakeExtendPower = -gamepad1.left_trigger;
                 }
             } else if (gamepad1.right_trigger > mintriggervalue && !isIntakeMinRetracted()) {
-                // going in
+                // retracting intake arm
                 if (isIntakeAlmostMinRetracted()) {
                     intakeExtendPower = mintriggervalue;
                 } else {
@@ -434,10 +412,10 @@ public class DriverRover extends OpMode {
         }
 
         //driving backwards
-        if (!forward) { //when start, front direction is the intake side, lightStrip2
-            leftForward = -leftForward;
-            rightForward = -rightForward;
-        }
+//        if (!forward) { //when start, front direction is the intake side, lightStrip2
+//            leftForward = -leftForward;
+//            rightForward = -rightForward;
+//        }
 
         //todo adjust the deadband
         if ((rightForward > -0.01) && (rightForward < 0.01))
@@ -459,15 +437,13 @@ public class DriverRover extends OpMode {
         telemetry.addData("drive power left / right",
                 leftForward + "/" + rightForward);
 
-        // IF error, then RED LIGHT
-        if(isError) {
-            lights[RED].setPosition(1);
-        } else {
-            lights[RED].setPosition(0);
-        }
+        // If error, then RED LIGHT
+        lights[RED].setPosition(isError?1:0);
+        // If not fully extended (halfway), then YELLOW LIGHT
+        lights[YELLOW].setPosition(fullExtention?0:1);
+        // If delivery arm is all the way down, then BLUE LIGHT
+        lights[BLUE].setPosition(deliveryDownTouch.isPressed()?1:0);
     }
-
-
 
     private void toHomePosition() {
         if (deliveryDownTouch.isPressed()) {
@@ -509,10 +485,7 @@ public class DriverRover extends OpMode {
                 deliveryRotate.setPower(-0.5);
                 deliveryArmState = DeliveryState.ARM_UP;
                 break;
-
         }
-
-
     }
 
 
@@ -527,7 +500,7 @@ public class DriverRover extends OpMode {
                 deliveryArmState = DeliveryState.ARM_UP;
                 break;
             case ARM_UP:
-               if (currentPos > DELIVERY_ROTATE_UP_POS) {
+                if (currentPos > DELIVERY_ROTATE_UP_POS) {
                     deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
                     deliveryRotate.setTargetPosition(DELIVERY_ROTATE_MAX_POS);
                     deliveryRotate.setPower(0.8);
@@ -544,7 +517,6 @@ public class DriverRover extends OpMode {
                 break;
         }
     }
-
 
     private void extendDeliveryArm(double power) {
         int currCounts = deliveryExtend.getCurrentPosition();
