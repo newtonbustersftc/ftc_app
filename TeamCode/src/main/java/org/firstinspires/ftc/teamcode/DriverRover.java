@@ -57,7 +57,7 @@ public class DriverRover extends OpMode {
     static final int ALMOST_MIN_INTAKE_ARM_POS = -250;
 
     static final int DELIVERY_ROTATE_MAX_POS = 1250;
-    static final int DELIVERY_ROTATE_UP_POS = 1050;
+    static final int  DELIVERY_ROTATE_UP_POS = 1050;
     static final int DELIVERY_ROTATE_BEFORE_HOME_POS = 400;
 
     static int MAX_DELIVERY_EXTEND_POS = 1550;
@@ -67,12 +67,12 @@ public class DriverRover extends OpMode {
     static final double POS_GATE_CLOSED = 0.525;
     static final double POS_GATE_OPEN = 0.85;
 
-    static final double POS_INTAKE_HOLD = 0.525;
+    static final double POS_INTAKE_HOLD = 0.421;
     static final double POS_INTAKE_RELEASE = 0.65;
-    static final double POS_INTAKE_RELEASE_EXTREME = 0.75;
+    static final double POS_INTAKE_RELEASE_EXTREME = 0.7;
 
-    static final double POS_BUCKET_PARKED = 0.2;
-    static final double POS_BUCKET_UP = 0.72;
+    static final double POS_BUCKET_PARKED = 0.2115;
+    static final double POS_BUCKET_UP = 0.6825;
     static final double POS_BUCKET_DROP = POS_BUCKET_PARKED;
 
     boolean switchExtention = false;
@@ -86,33 +86,9 @@ public class DriverRover extends OpMode {
     boolean intakeReleased;
     private static boolean isError; //IS there an error?
 
-    final int NUM_LIGHTS = 5;
-    Servo[] lights = new Servo[NUM_LIGHTS];
-    final int RED = 0;
-    final int GREEN = 1;
-    final int BLUE = 2;
-    final int YELLOW = 3;
-    final int WHITE = 4;
-
-    private void setUpLights() {
-        for(int i = 1;i <= NUM_LIGHTS; i++) {
-            int lightIndex = i - 1;
-            lights[lightIndex] = hardwareMap.servo.get("light" + i);
-            DriverRover.setUpServo(lights[lightIndex], 0.5, 1);
-        }
-    }
-
-    private void resetLights() {
-        for(int i = 1;i <= NUM_LIGHTS; i++) {
-            int lightIndex = i - 1;
-            lights[lightIndex].setPosition(0);
-
-        }
-    }
-
     @Override
     public void init() {
-        setUpLights();
+        Lights.setUpLights(hardwareMap);
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
         motorRight = hardwareMap.dcMotor.get("wheelsRight");
         liftMotor = hardwareMap.dcMotor.get("liftMotor");
@@ -129,9 +105,8 @@ public class DriverRover extends OpMode {
         intakeExtendTouch = hardwareMap.touchSensor.get("intakeExtendTouch");
         deliveryDownTouch = hardwareMap.touchSensor.get("deliveryDownTouch");
         deliveryExtendTouch = hardwareMap.touchSensor.get("deliveryExtendTouch");
-        if(deliveryDownTouch.isPressed()){
-            lights[BLUE].setPosition(1);
-        }
+        Lights.blue(deliveryDownTouch.isPressed());
+
 
         // float zero power
         motorLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
@@ -169,7 +144,7 @@ public class DriverRover extends OpMode {
 
         // if the driver mode is restarted the arm might not be in HOME state
         restoreDeliveryArmState();
-        lights[GREEN].setPosition(1);
+        Lights.green(true);
 
         log();
     }
@@ -189,7 +164,7 @@ public class DriverRover extends OpMode {
 
     @Override
     public void start() {
-        resetLights();
+        Lights.resetLights();
         //ServoImplEx allows to energize and deenergize servo
         // we don't want to hook servo to keep position when robot is lifting or lowering
         hookServo = (ServoImplEx) hardwareMap.servo.get("hookServo");
@@ -244,7 +219,9 @@ public class DriverRover extends OpMode {
             }
         }
 
-        if (gamepad2.left_trigger > 0.5 || (isIntakeMinRetracted() && deliveryDownTouch.isPressed())) {
+        int deliveryRotatePos = deliveryRotate.getCurrentPosition();
+        if (gamepad2.left_trigger > 0.5 ||
+                (isIntakeMinRetracted() && isDeliveryArmDown(deliveryRotatePos))) {
             setPercentOpen(intakeGateServo, 1);
         } else {
             setPercentOpen(intakeGateServo, 0);
@@ -253,15 +230,15 @@ public class DriverRover extends OpMode {
         //if the delivery arm is down, the bucket should be in bottom parked position.
         // 0 corresponds to the parked position (or drop) 1 - to vertical position,
         //    when the delivery arm is up
-        if (deliveryDownTouch.isPressed()) {
+        if (deliveryDownTouch.isPressed() || deliveryRotatePos < 100) {
             boxServo.setPosition(0);
         } else {
-            if (deliveryRotate.getCurrentPosition() < DELIVERY_ROTATE_UP_POS) {
-                boxServo.setPosition(((double) deliveryRotate.getCurrentPosition()) / DELIVERY_ROTATE_UP_POS);
+            if (deliveryRotatePos < DELIVERY_ROTATE_UP_POS) {
+                boxServo.setPosition(((double) deliveryRotatePos) / DELIVERY_ROTATE_UP_POS);
             }
 
             //when the arm is up, we want the be able to invoke trigger to drop minerals.
-            if (deliveryRotate.getCurrentPosition() > DELIVERY_ROTATE_UP_POS) {
+            if (deliveryRotatePos > DELIVERY_ROTATE_UP_POS) {
                 if (gamepad2.right_trigger > 0.2) {
                     /*
                      * When dropping debris, servo position 1 when
@@ -438,11 +415,11 @@ public class DriverRover extends OpMode {
                 leftForward + "/" + rightForward);
 
         // If error, then RED LIGHT
-        lights[RED].setPosition(isError?1:0);
+        Lights.red(isError);
         // If not fully extended (halfway), then YELLOW LIGHT
-        lights[YELLOW].setPosition(fullExtention?0:1);
+        Lights.yellow(!fullExtention);
         // If delivery arm is all the way down, then BLUE LIGHT
-        lights[BLUE].setPosition(deliveryDownTouch.isPressed()?1:0);
+        Lights.blue(isDeliveryArmDown(deliveryRotatePos));
     }
 
     private void toHomePosition() {
@@ -584,6 +561,10 @@ public class DriverRover extends OpMode {
 
     private double scaled(double x) {
         return (x / 1.07) * (.62 * x * x + .45);
+    }
+
+    private boolean isDeliveryArmDown(int deliveryRotatePos) {
+        return deliveryDownTouch.isPressed() || deliveryRotatePos < 20;
     }
 
     private boolean isIntakeMaxExtended() {
