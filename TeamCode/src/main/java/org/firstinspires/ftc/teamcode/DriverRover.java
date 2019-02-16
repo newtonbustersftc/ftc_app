@@ -57,11 +57,11 @@ public class DriverRover extends OpMode {
     static final int ALMOST_MIN_INTAKE_ARM_POS = -250;
 
     static final int DELIVERY_ROTATE_MAX_POS = 1250;
-    static final int  DELIVERY_ROTATE_UP_POS = 1050;
+    static final int DELIVERY_ROTATE_UP_POS = 1050;
     static final int DELIVERY_ROTATE_BEFORE_HOME_POS = 400;
 
     static int MAX_DELIVERY_EXTEND_POS = 1550;
-    static int ALMOST_MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS-400;
+    static int ALMOST_MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS - 400;
     static final int ALMOST_MIN_DELIVERY_EXTEND_POS = 400;
 
     static final double POS_GATE_CLOSED = 0.525;
@@ -78,13 +78,23 @@ public class DriverRover extends OpMode {
     boolean switchExtention = false;
     boolean fullExtention = true;
 
-    enum DeliveryState{
+    enum DeliveryState {
         HOME, BEFORE_HOME, ARM_UP, DELIVERY
     }
 
     DeliveryState deliveryArmState;
     boolean intakeReleased;
     private static boolean isError; //IS there an error?
+
+    // power is positive for forward direction, negative for backward direction
+    double leftForward; //power given to the left side wheels
+    double rightForward; //power given to the right side wheels
+
+
+    static final double HALF_WIDTH = 7.5; //width between wheels is 15 inches
+
+    static final double ARC_MIN_RADIUS = 10.0;
+    static final double ARC_MAX_RADIUS = 40.0;
 
     @Override
     public void init() {
@@ -146,13 +156,17 @@ public class DriverRover extends OpMode {
         restoreDeliveryArmState();
         Lights.green(true);
 
+        if (!gamepad1.atRest() || !gamepad2.atRest()) {
+            Lights.red(true);
+        }
+
         log();
     }
 
     private void restoreDeliveryArmState() {
         int currentPos = deliveryRotate.getCurrentPosition();
         if (currentPos > DELIVERY_ROTATE_UP_POS) {
-            deliveryArmState =  DeliveryState.DELIVERY;
+            deliveryArmState = DeliveryState.DELIVERY;
         } else if (currentPos > DELIVERY_ROTATE_BEFORE_HOME_POS) {
             deliveryArmState = DeliveryState.ARM_UP;
         } else if (!deliveryDownTouch.isPressed()) {
@@ -193,7 +207,7 @@ public class DriverRover extends OpMode {
         leftIntakeServo = hardwareMap.crservo.get("leftIntake");
     }
 
-    boolean isIntakeReleased(){
+    boolean isIntakeReleased() {
         double pos = intakeHolder.getPosition();
         return pos > POS_INTAKE_RELEASE - 0.01;
     }
@@ -280,64 +294,6 @@ public class DriverRover extends OpMode {
             rightIntakeServo.setPower(0.0);
         }
 
-        //power given to the left side wheels, power given to the right side wheels
-        //forward as a direction
-        double leftForward;
-        double rightForward;
-        double liftMotorPower;
-        double intakeExtendPower;
-
-        int sign = forward ? 1 : -1;
-        //Arcade Drive
-        rightForward = -(scaled(gamepad1.left_stick_y) + sign * scaled(gamepad1.left_stick_x));
-        leftForward = -(scaled(gamepad1.left_stick_y) - sign * scaled(gamepad1.left_stick_x));
-
-        //Tank Drive
-        //leftForward = -scaled(gamepad1.left_stick_y);
-        //rightForward = -scaled(gamepad1.right_stick_y);
-
-
-        if ((gamepad1.dpad_up || gamepad1.dpad_down || gamepad1.dpad_left || gamepad1.dpad_right)) {
-            // dPadDrive: Forward, Backwards, in place CClockwise and Clockwise
-            //We are using robot coordinates
-            double dpadSpeed = 0.2;
-            if (gamepad1.dpad_up) {
-                rightForward = dpadSpeed;
-                leftForward = dpadSpeed;
-            } else if (gamepad1.dpad_down) {
-                rightForward = -dpadSpeed;
-                leftForward = -dpadSpeed;
-            } else if (gamepad1.dpad_left) {
-                //rotating ccw
-                rightForward = sign * dpadSpeed;
-                leftForward = -sign * dpadSpeed;
-            } else {
-                //rotating cw
-                leftForward = sign * dpadSpeed;
-                rightForward = -sign * dpadSpeed;
-            }
-        }
-
-        // Lift motor when given negative power, the lift rises and lowers when given positive power
-        if (gamepad1.x || gamepad1.a) {
-            int currentPos = Math.abs(liftMotor.getCurrentPosition());
-            if (gamepad1.x) {
-                if (LATCHING_POS < currentPos) {
-                    liftMotorPower = 0;
-                } else {
-                    liftMotorPower = -1;
-                }
-            } else if (!liftTouch.isPressed()) {
-                if (currentPos < LATCHING_POS_LOW) {
-                    deenergizeHook();
-                }
-                liftMotorPower = 1;
-            } else {
-                liftMotorPower = 0.00;
-            }
-        } else {
-            liftMotorPower = 0.0;
-        }
 
         if (gamepad1.b) {
             hookButtonPressed = true;
@@ -360,59 +316,17 @@ public class DriverRover extends OpMode {
             intakeReleased = true;
         }
 
-        // Lift motor when given negative power, the lift rises and lowers when given positive power
-        double mintriggervalue = 0.3;
-        if (gamepad1.left_trigger > mintriggervalue || gamepad1.right_trigger > mintriggervalue) {
-            if (gamepad1.left_trigger > mintriggervalue && !isIntakeMaxExtended()) {
-                // going out
-                if (!intakeReleased){
-                    isError=true;
-                    intakeExtendPower = 0;
-                } else if (isIntakeAlmostMaxExtended()) {
-                    intakeExtendPower = -mintriggervalue;
-                } else {
-                    intakeExtendPower = -gamepad1.left_trigger;
-                }
-            } else if (gamepad1.right_trigger > mintriggervalue && !isIntakeMinRetracted()) {
-                // retracting intake arm
-                if (isIntakeAlmostMinRetracted()) {
-                    intakeExtendPower = mintriggervalue;
-                } else {
-                    intakeExtendPower = gamepad1.right_trigger;
-                }
-            } else {
-                //touch button is pressed - cannot go further
-                intakeExtendPower = 0.0;
-            }
-        } else {
-            intakeExtendPower = 0.0;
+        if (Math.abs(gamepad1.right_stick_x) > 0.1) {
+            doArc ();
+        }
+        else {
+            controlWheels();
         }
 
-        //driving backwards
-//        if (!forward) { //when start, front direction is the intake side, lightStrip2
-//            leftForward = -leftForward;
-//            rightForward = -rightForward;
-//        }
-
-        //todo adjust the deadband
-        if ((rightForward > -0.01) && (rightForward < 0.01))
-            rightForward = 0;
-        else if ((rightForward > -MINPOWER) && (rightForward < MINPOWER))
-            rightForward = MINPOWER * rightForward / Math.abs(rightForward);
-
-        if ((leftForward > -0.01) && (leftForward < 0.01))
-            leftForward = 0;
-        else if ((leftForward > -MINPOWER) && (leftForward < MINPOWER))
-            leftForward = MINPOWER * leftForward / Math.abs(leftForward);
-
-        rightForward = Range.clip(rightForward, -1, 1);
-        leftForward = Range.clip(leftForward, -1, 1);
-
-        powerMotors(rightForward, leftForward, liftMotorPower, intakeExtendPower);
+        controlIntake();
+        controlLift();
 
         log();
-        telemetry.addData("drive power left / right",
-                leftForward + "/" + rightForward);
 
         // If error, then RED LIGHT
         Lights.red(isError);
@@ -420,6 +334,7 @@ public class DriverRover extends OpMode {
         Lights.yellow(!fullExtention);
         // If delivery arm is all the way down, then BLUE LIGHT
         Lights.blue(isDeliveryArmDown(deliveryRotatePos));
+
     }
 
     private void toHomePosition() {
@@ -432,7 +347,7 @@ public class DriverRover extends OpMode {
         int currentPos = deliveryRotate.getCurrentPosition();
         switch (deliveryArmState) {
             case HOME:
-                if(!deliveryDownTouch.isPressed()) {
+                if (!deliveryDownTouch.isPressed()) {
                     deliveryRotate.setPower(0.16); //Was 0.08
                 } else {
                     deliveryRotate.setPower(0);
@@ -498,7 +413,7 @@ public class DriverRover extends OpMode {
     private void extendDeliveryArm(double power) {
         int currCounts = deliveryExtend.getCurrentPosition();
 
-        if (currCounts > MAX_DELIVERY_EXTEND_POS){
+        if (currCounts > MAX_DELIVERY_EXTEND_POS) {
             deliveryExtend.setPower(0);
         } else if (currCounts > ALMOST_MAX_DELIVERY_EXTEND_POS) {
             deliveryExtend.setPower(0.2);
@@ -507,7 +422,7 @@ public class DriverRover extends OpMode {
         }
     }
 
-    private void retractDeliveryArm(double power){
+    private void retractDeliveryArm(double power) {
         if (deliveryExtendTouch.isPressed()) {
             deliveryExtend.setPower(0);
         } else if (deliveryExtend.getCurrentPosition() < ALMOST_MIN_DELIVERY_EXTEND_POS) {
@@ -519,6 +434,8 @@ public class DriverRover extends OpMode {
 
 
     private void log() {
+        telemetry.addData("drive power left / right",
+          leftForward + "/" + rightForward);
         telemetry.addData("intake extend / touch",
                 intakeExtend.getCurrentPosition() + "/" + intakeExtendTouch.isPressed());
         telemetry.addData("delivery rotate / touch / state",
@@ -528,15 +445,145 @@ public class DriverRover extends OpMode {
                 deliveryExtend.getCurrentPosition() + "/" + deliveryExtendTouch.isPressed());
         telemetry.addData("lift / touch",
                 liftMotor.getCurrentPosition() + "/" + liftTouch.isPressed());
-        if(intakeHolder != null) {
+        if (intakeHolder != null) {
             telemetry.addData("Holder Pos", intakeHolder.getPosition());
         }
     }
 
-    private void powerMotors(double rightForward, double leftForward, double liftMotorPower, double intakeExtendPower) {
+    //assuming specialist dpad is controlling robot movements
+    private void doArc() {
+        double POWER = 0.5;
+        //backward moving from our crater to depot side launcher
+        //forward moving from depot side launcher to our crater
+        int sign = gamepad1.right_stick_x < 0 ? 1 : -1;
+
+        double radius = ARC_MAX_RADIUS - Math.abs(gamepad1.right_stick_x) * (ARC_MAX_RADIUS - ARC_MIN_RADIUS);
+        double powerRatio = (radius - HALF_WIDTH) / (radius + HALF_WIDTH);
+        rightForward = POWER;
+        leftForward = POWER / powerRatio;
+        if(leftForward > 1) {
+            rightForward = rightForward/leftForward;
+            leftForward = leftForward/leftForward;
+        }
+        //outer motor is always left
+        motorLeft.setPower (sign * leftForward);
+        motorRight.setPower (sign * rightForward);
+
+    }
+
+    private void controlWheels() {
+
+        int sign = forward ? 1 : -1;
+        //Arcade Drive
+        rightForward = -(scaled(gamepad1.left_stick_y) + sign * scaled(gamepad1.left_stick_x));
+        leftForward = -(scaled(gamepad1.left_stick_y) - sign * scaled(gamepad1.left_stick_x));
+
+        //Tank Drive
+        //leftForward = -scaled(gamepad1.left_stick_y);
+        //rightForward = -scaled(gamepad1.right_stick_y);
+
+
+        if ((gamepad1.dpad_up || gamepad1.dpad_down || gamepad1.dpad_left || gamepad1.dpad_right)) {
+            // dPadDrive: Forward, Backwards, in place CClockwise and Clockwise
+            //We are using robot coordinates
+            double dpadSpeed = 0.2;
+            if (gamepad1.dpad_up) {
+                rightForward = dpadSpeed;
+                leftForward = dpadSpeed;
+            } else if (gamepad1.dpad_down) {
+                rightForward = -dpadSpeed;
+                leftForward = -dpadSpeed;
+            } else if (gamepad1.dpad_left) {
+                //rotating ccw
+                rightForward = sign * dpadSpeed;
+                leftForward = -sign * dpadSpeed;
+            } else {
+                //rotating cw
+                leftForward = sign * dpadSpeed;
+                rightForward = -sign * dpadSpeed;
+            }
+        }
+        //driving backwards
+//        if (!forward) { //when start, front direction is the intake side, lightStrip2
+//            leftForward = -leftForward;
+//            rightForward = -rightForward;
+//        }
+
+        //todo adjust the deadband
+        if ((rightForward > -0.01) && (rightForward < 0.01))
+            rightForward = 0;
+        else if ((rightForward > -MINPOWER) && (rightForward < MINPOWER))
+            rightForward = MINPOWER * rightForward / Math.abs(rightForward);
+
+        if ((leftForward > -0.01) && (leftForward < 0.01))
+            leftForward = 0;
+        else if ((leftForward > -MINPOWER) && (leftForward < MINPOWER))
+            leftForward = MINPOWER * leftForward / Math.abs(leftForward);
+
+        rightForward = Range.clip(rightForward, -1, 1);
+        leftForward = Range.clip(leftForward, -1, 1);
+
+
         motorLeft.setPower(leftForward);
         motorRight.setPower(rightForward);
+    }
+
+
+    private void controlLift() {
+
+        double liftMotorPower;
+        // Lift motor when given negative power, the lift rises and lowers when given positive power
+        if (gamepad1.x || gamepad1.a) {
+            int currentPos = Math.abs(liftMotor.getCurrentPosition());
+            if (gamepad1.x) {
+                if (LATCHING_POS < currentPos) {
+                    liftMotorPower = 0;
+                } else {
+                    liftMotorPower = -1;
+                }
+            } else if (!liftTouch.isPressed()) {
+                if (currentPos < LATCHING_POS_LOW) {
+                    deenergizeHook();
+                }
+                liftMotorPower = 1;
+            } else {
+                liftMotorPower = 0.00;
+            }
+        } else {
+            liftMotorPower = 0.0;
+        }
         liftMotor.setPower(liftMotorPower);
+    }
+
+    private void controlIntake() {
+
+        double intakeExtendPower;
+        double mintriggervalue = 0.3;
+        if (gamepad1.left_trigger > mintriggervalue || gamepad1.right_trigger > mintriggervalue) {
+            if (gamepad1.left_trigger > mintriggervalue && !isIntakeMaxExtended()) {
+                // going out
+                if (!intakeReleased) {
+                    isError = true;
+                    intakeExtendPower = 0;
+                } else if (isIntakeAlmostMaxExtended()) {
+                    intakeExtendPower = -mintriggervalue;
+                } else {
+                    intakeExtendPower = -gamepad1.left_trigger;
+                }
+            } else if (gamepad1.right_trigger > mintriggervalue && !intakeExtendTouch.isPressed()) {
+                // retracting intake arm
+                if (isIntakeAlmostMinRetracted()) {
+                    intakeExtendPower = mintriggervalue;
+                } else {
+                    intakeExtendPower = gamepad1.right_trigger;
+                }
+            } else {
+                //touch button is pressed - cannot go further
+                intakeExtendPower = 0.0;
+            }
+        } else {
+            intakeExtendPower = 0.0;
+        }
         intakeExtend.setPower(intakeExtendPower);
     }
 
@@ -570,13 +617,17 @@ public class DriverRover extends OpMode {
     private boolean isIntakeMaxExtended() {
         return intakeExtend.getCurrentPosition() < MAX_INTAKE_ARM_POS;
     }
-    private boolean isIntakeAlmostMaxExtended(){
+
+    private boolean isIntakeAlmostMaxExtended() {
         return intakeExtend.getCurrentPosition() < ALMOST_MAX_INTAKE_ARM_POS;
 
     }
 
-    private boolean isIntakeMinRetracted() { return intakeExtendTouch.isPressed();}
-    private boolean isIntakeAlmostMinRetracted(){
+    private boolean isIntakeMinRetracted() {
+        return intakeExtendTouch.isPressed();
+    }
+
+    private boolean isIntakeAlmostMinRetracted() {
         return intakeExtend.getCurrentPosition() > ALMOST_MIN_INTAKE_ARM_POS;
 
     }

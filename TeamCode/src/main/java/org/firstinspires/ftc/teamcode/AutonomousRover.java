@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import android.content.SharedPreferences;
 
+import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -78,6 +79,8 @@ public class AutonomousRover extends BaseAutonomous {
     static final double POS_HOOK_CLOSED = 0.5;
     static final double POS_HOOK_OPEN = 0.2;
 
+    LynxModule lynxModule;
+
     private DcMotor motorLeft;
     private DcMotor motorRight;
     private DcMotor liftMotor;
@@ -141,7 +144,7 @@ public class AutonomousRover extends BaseAutonomous {
             preRun();
 
 
-            waitForStart();
+            //waitForStart();
 
             goldOnSide = false;
             goldOnRight = false;
@@ -210,15 +213,15 @@ public class AutonomousRover extends BaseAutonomous {
                 Lights.red(true);
             }
             logComment("prefs: delay " + delay + "ms, short mode: " + shortCraterMode);
-            if(depotSide()){
-                logPrefix += "_depot";
-            }
-            else if(shortCraterMode){
-                logPrefix += "_short_crater";
-            }
-            else{
-                logPrefix += "_long_crater";
-            }
+        }
+        if(depotSide()){
+            logPrefix += "_depot";
+        }
+        else if(shortCraterMode){
+            logPrefix += "_short_crater";
+        }
+        else{
+            logPrefix += "_long_crater";
         }
 
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
@@ -264,7 +267,7 @@ public class AutonomousRover extends BaseAutonomous {
         for(ntries=0;!isStopRequested() && !success && ntries<2;ntries++) {
             long startMs = currentTimeMillis();
             success=gyroInit();
-            logComment("gyro init ms: "+(currentTimeMillis() - startMs));
+            logComment("gyro init "+(!success?"":"failed ")+"ms: "+(currentTimeMillis() - startMs));
         }
         if (!success || tfod == null) {
             Lights.red(true);
@@ -321,15 +324,14 @@ public class AutonomousRover extends BaseAutonomous {
             telemetry.update();
 
             log("1st detection");
-
             liftMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
 
             if (goldPosition == GoldPosition.undetected) {
                 Lights.red(true);
                 // second attempt to detect where the gold is
-                liftMotor.setPower(-0.7);
                 int lowerPos = Math.abs(DriverRover.LATCHING_POS - DriverRover.LATCHING_POS_LOW) / 2;
                 liftMotor.setTargetPosition(-lowerPos);
+                liftMotor.setPower(-0.7);
                 while (Math.abs(liftMotor.getCurrentPosition()) <= lowerPos) {
                     idle();
                 }
@@ -358,8 +360,8 @@ public class AutonomousRover extends BaseAutonomous {
             deliveryRotate.setPower(0.1);
 
             // lower the robot
-            liftMotor.setPower(-1);
             liftMotor.setTargetPosition(-DriverRover.LATCHING_POS);
+            liftMotor.setPower(-1);
             while (Math.abs(liftMotor.getCurrentPosition()) <= DriverRover.LATCHING_POS-100) {
                 idle();
             }
@@ -382,8 +384,8 @@ public class AutonomousRover extends BaseAutonomous {
             if (!opModeIsActive()) return;
 
             // retract lift
-            liftMotor.setPower(1);
             liftMotor.setTargetPosition(0);
+            liftMotor.setPower(1);
             // let hook clear the handle
             while (opModeIsActive() && Math.abs(liftMotor.getCurrentPosition()) > DriverRover.LIFT_POS_CLEAR) {
                 idle();
@@ -954,7 +956,6 @@ public class AutonomousRover extends BaseAutonomous {
 
                     int numberOfGolds = 0;
                     int numberOfOthers = 0;
-                    int nr = 1;
 
                     for (Recognition recognition : updatedRecognitions) {
                         if (recognition != null) {
@@ -987,6 +988,7 @@ public class AutonomousRover extends BaseAutonomous {
                     sleep(50);
 
                     if (numberOfGolds > 1 || numberOfOthers > 2) {
+                        out.append(String.format("# number gold=%d, silver=%d\n", numberOfGolds, numberOfOthers));
                         continue;
                     }
 
