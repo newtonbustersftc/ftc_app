@@ -23,8 +23,10 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.System.currentTimeMillis;
+import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.AUTO_MODE_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.CRATER_MODE_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.DELAY_PREF;
+import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.getSharedPrefs;
 import static org.firstinspires.ftc.teamcode.DriverRover.POS_INTAKE_HOLD;
 import static org.firstinspires.ftc.teamcode.DriverRover.POS_INTAKE_RELEASE;
 import static org.firstinspires.ftc.teamcode.DriverRover.setUpServo;
@@ -197,8 +199,8 @@ public class AutonomousRover extends BaseAutonomous {
         this.delay = 0;
 
         //We only care about the delay or the short/long crater mode if we are on the crater side
+        SharedPreferences prefs = getSharedPrefs(hardwareMap);
         if(!depotSide()) {
-            SharedPreferences prefs = AutonomousOptionsRover.getSharedPrefs(hardwareMap);
             try {
                 String delaystring = prefs.getString(DELAY_PREF, "");
                 delaystring = delaystring.replace(" sec", "");
@@ -214,15 +216,19 @@ public class AutonomousRover extends BaseAutonomous {
             }
             logComment("prefs: delay " + delay + "ms, short mode: " + shortCraterMode);
         }
+
+        SharedPreferences.Editor editor = prefs.edit();
+        String autoMode;
         if(depotSide()){
             logPrefix += "_depot";
+            autoMode = AutonomousOptionsRover.AutoMode.DEPOT.toString();
         }
-        else if(shortCraterMode){
-            logPrefix += "_short_crater";
+        else {
+            logPrefix += shortCraterMode ? "_short_crater" : "_long_crater";
+            autoMode = AutonomousOptionsRover.AutoMode.CRATER.toString();
         }
-        else{
-            logPrefix += "_long_crater";
-        }
+        editor.putString(AUTO_MODE_PREF, autoMode);
+        editor.apply();
 
         motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
         motorRight = hardwareMap.dcMotor.get("wheelsRight");

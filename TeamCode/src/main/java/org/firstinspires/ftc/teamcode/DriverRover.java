@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
+import android.content.SharedPreferences;
+
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
@@ -11,6 +13,8 @@ import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.Range;
 
 import static android.os.SystemClock.sleep;
+import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.AUTO_MODE_PREF;
+import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.getSharedPrefs;
 
 @TeleOp(name = "DriverRover", group = "Main")
 public class DriverRover extends OpMode {
@@ -75,8 +79,11 @@ public class DriverRover extends OpMode {
     static final double POS_BUCKET_UP = 0.6825;
     static final double POS_BUCKET_DROP = POS_BUCKET_PARKED;
 
-    boolean switchExtention = false;
-    boolean fullExtention = true;
+    boolean switchExtension = false;
+    static boolean fullExtension = true;
+
+    boolean switchCrater = false;
+    boolean ourCrater = false;
 
     enum DeliveryState {
         HOME, BEFORE_HOME, ARM_UP, DELIVERY
@@ -93,8 +100,8 @@ public class DriverRover extends OpMode {
 
     static final double HALF_WIDTH = 7.5; //width between wheels is 15 inches
 
-    static final double ARC_MIN_RADIUS = 10.0;
-    static final double ARC_MAX_RADIUS = 40.0;
+    static final double ARC_MIN_RADIUS = 20.0;
+    static final double ARC_MAX_RADIUS = 35.0;
 
     @Override
     public void init() {
@@ -154,7 +161,17 @@ public class DriverRover extends OpMode {
 
         // if the driver mode is restarted the arm might not be in HOME state
         restoreDeliveryArmState();
+
+        SharedPreferences prefs = getSharedPrefs(hardwareMap);
+        String autoMode = prefs.getString(AUTO_MODE_PREF, "");
+        ourCrater = autoMode.equals(AutonomousOptionsRover.AutoMode.CRATER.toString());
+
+        if (!ourCrater) {
+            switchExtension();
+        }
+
         Lights.green(true);
+        Lights.white(!ourCrater);
 
         if (!gamepad1.atRest() || !gamepad2.atRest()) {
             Lights.red(true);
@@ -218,18 +235,11 @@ public class DriverRover extends OpMode {
 
         //gamepad2 will be used to control the delivery of the minerals
         if (gamepad2.y) {
-            switchExtention = true;
+            switchExtension = true;
         } else {
-            if (switchExtention) {
-                if (fullExtention) {
-                    MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS / 2;
-                    ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS / 2;
-                } else {
-                    MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS * 2;
-                    ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS * 2;
-                }
-                fullExtention = !fullExtention;
-                switchExtention = false;
+            if (switchExtension) {
+                switchExtension();
+                switchExtension = false;
             }
         }
 
@@ -316,8 +326,18 @@ public class DriverRover extends OpMode {
             intakeReleased = true;
         }
 
+        //switch crater
+        if (gamepad1.right_bumper) {
+            if (!switchCrater) {
+                ourCrater = !ourCrater;
+                switchCrater = true;
+            }
+        } else {
+            switchCrater = false;
+        }
+
         if (Math.abs(gamepad1.right_stick_x) > 0.1) {
-            doArc ();
+            doArc();
         }
         else {
             controlWheels();
@@ -330,11 +350,25 @@ public class DriverRover extends OpMode {
 
         // If error, then RED LIGHT
         Lights.red(isError);
+        // If opposite crater WHITE LIGHT
+        // used for arc moves
+        Lights.white(!ourCrater);
         // If not fully extended (halfway), then YELLOW LIGHT
-        Lights.yellow(!fullExtention);
+        Lights.yellow(!fullExtension);
         // If delivery arm is all the way down, then BLUE LIGHT
         Lights.blue(isDeliveryArmDown(deliveryRotatePos));
 
+    }
+
+    private void switchExtension() {
+//        if (fullExtension) {
+//            MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS / 2;
+//            ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS / 2;
+//        } else {
+//            MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS * 2;
+//            ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS * 2;
+//        }
+        fullExtension = !fullExtension;
     }
 
     private void toHomePosition() {
@@ -400,12 +434,12 @@ public class DriverRover extends OpMode {
                 } else {
                     deliveryRotate.setPower(0.6);
                     if (currentPos > DELIVERY_ROTATE_BEFORE_HOME_POS) {
-                        extendDeliveryArm(1);
+                        if (fullExtension) extendDeliveryArm(1);
                     }
                 }
                 break;
             case DELIVERY:
-                extendDeliveryArm(1);
+                if (fullExtension) extendDeliveryArm(1);
                 break;
         }
     }
@@ -453,21 +487,31 @@ public class DriverRover extends OpMode {
     //assuming specialist dpad is controlling robot movements
     private void doArc() {
         double POWER = 0.5;
-        //backward moving from our crater to depot side launcher
-        //forward moving from depot side launcher to our crater
-        int sign = gamepad1.right_stick_x < 0 ? 1 : -1;
+
 
         double radius = ARC_MAX_RADIUS - Math.abs(gamepad1.right_stick_x) * (ARC_MAX_RADIUS - ARC_MIN_RADIUS);
         double powerRatio = (radius - HALF_WIDTH) / (radius + HALF_WIDTH);
-        rightForward = POWER;
-        leftForward = POWER / powerRatio;
-        if(leftForward > 1) {
-            rightForward = rightForward/leftForward;
-            leftForward = leftForward/leftForward;
+        double innerForward = POWER;
+        double outerForward = POWER / powerRatio;
+        if(outerForward > 1) {
+            innerForward = innerForward/outerForward;
+            outerForward = outerForward/outerForward;
         }
-        //outer motor is always left
-        motorLeft.setPower (sign * leftForward);
-        motorRight.setPower (sign * rightForward);
+        // outer motor is left between our crater and our depot side launcher
+        // outer motor is right between opposite crater and our depot side launcher
+        if (ourCrater) {
+            //backward moving from our crater to depot side launcher
+            //forward moving from depot side launcher to our crater
+            int sign = gamepad1.right_stick_x < 0 ? 1 : -1;
+            rightForward = sign * innerForward;
+            leftForward = sign * outerForward;
+        } else {
+            int sign = gamepad1.right_stick_x < 0 ? -1 : 1;
+            rightForward = sign * outerForward;
+            leftForward = sign * innerForward;
+        }
+        motorLeft.setPower (leftForward);
+        motorRight.setPower (rightForward);
 
     }
 

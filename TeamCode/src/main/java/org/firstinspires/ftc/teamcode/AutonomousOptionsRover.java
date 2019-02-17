@@ -24,6 +24,7 @@ public class AutonomousOptionsRover extends OpMode {
     private int selectionIdx = 0;
 
     // ADD preference names here
+    public static final String AUTO_MODE_PREF = "autoMode";
     public static final String DELAY_PREF = "delay";
     public static final String CRATER_MODE_PREF = "shortCraterMode";
     private static final String NONE = "none";
@@ -32,8 +33,13 @@ public class AutonomousOptionsRover extends OpMode {
         LONG, SHORT
     }
 
+    enum AutoMode {
+        DEPOT, CRATER
+    }
+
     // ADD preference values here
     // for example:
+    private static final String[] AUTO_MODES = {AutoMode.DEPOT.toString(), AutoMode.CRATER.toString()};
     private static final String[] DELAYS = {"0 sec", "1 sec", "2 sec", "3 sec", "4 sec", "5 sec"};
     private static final String[] CRATER_MODES = {CraterModes.LONG.toString(), CraterModes.SHORT.toString()};
 
