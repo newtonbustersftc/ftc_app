@@ -13,6 +13,7 @@ import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.util.Range;
 
 import static android.os.SystemClock.sleep;
+import static java.lang.System.currentTimeMillis;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.AUTO_MODE_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.getSharedPrefs;
 
@@ -84,6 +85,19 @@ public class DriverRover extends OpMode {
 
     boolean switchCrater = false;
     boolean ourCrater = false;
+
+    static final long BLINK_START_MILLIS = 5000;
+    static final int INIT_BLINK_WAIT = 1600;
+
+    enum BlinkerState {
+        NONE, ON , OFF , SUCCESS
+    }
+
+    BlinkerState blinkerState = BlinkerState.NONE;
+    long startTime;
+    long blinkerTime;
+    int blinkerWait = INIT_BLINK_WAIT;
+    int liftStartPos;
 
     enum DeliveryState {
         HOME, BEFORE_HOME, ARM_UP, DELIVERY
@@ -162,6 +176,9 @@ public class DriverRover extends OpMode {
         // if the driver mode is restarted the arm might not be in HOME state
         restoreDeliveryArmState();
 
+        //save Intitial lift pos for blinker
+        liftStartPos = liftMotor.getCurrentPosition();
+
         SharedPreferences prefs = getSharedPrefs(hardwareMap);
         String autoMode = prefs.getString(AUTO_MODE_PREF, "");
         ourCrater = autoMode.equals(AutonomousOptionsRover.AutoMode.CRATER.toString());
@@ -195,6 +212,9 @@ public class DriverRover extends OpMode {
 
     @Override
     public void start() {
+        startTime = currentTimeMillis();
+        blinkerTime = currentTimeMillis();
+
         Lights.resetLights();
         //ServoImplEx allows to energize and deenergize servo
         // we don't want to hook servo to keep position when robot is lifting or lowering
@@ -345,19 +365,69 @@ public class DriverRover extends OpMode {
 
         controlIntake();
         controlLift();
-
+        controlBlinker();
         log();
 
-        // If error, then RED LIGHT
-        Lights.red(isError);
-        // If opposite crater WHITE LIGHT
-        // used for arc moves
-        Lights.white(!ourCrater);
-        // If not fully extended (halfway), then YELLOW LIGHT
-        Lights.yellow(!fullExtension);
-        // If delivery arm is all the way down, then BLUE LIGHT
-        Lights.blue(isDeliveryArmDown(deliveryRotatePos));
+        if (blinkerState != BlinkerState.SUCCESS) {
+            // If opposite crater WHITE LIGHT
+            // used for arc moves
+            Lights.white(!ourCrater);
+            // If not fully extended (halfway), then YELLOW LIGHT
+            Lights.yellow(!fullExtension);
+            // If delivery arm is all the way down, then BLUE LIGHT
+            Lights.blue(isDeliveryArmDown(deliveryRotatePos));
+        }
+    }
 
+    private void controlBlinker() {
+        switch (blinkerState) {
+            //Start blinking 25 sec before the end
+            case NONE:
+                if (currentTimeMillis() - startTime > BLINK_START_MILLIS) {
+                    blinkerState = BlinkerState.ON;
+                    Lights.green(true);
+                    Lights.red(true);
+                    blinkerTime = currentTimeMillis();
+                } else {
+                    // If error, then RED LIGHT
+                    Lights.red(isError);
+                }
+                break;
+            case ON:
+                if(currentTimeMillis() - blinkerTime > blinkerWait){
+                    blinkerState = BlinkerState.OFF;
+
+                    //blinkerWait depends on how close you are to the end of the game (time-wise)
+                    long millisFromStart = currentTimeMillis() - startTime;
+
+                    if (millisFromStart < BLINK_START_MILLIS + 10000) {
+                        blinkerWait = INIT_BLINK_WAIT;
+                    } else if (millisFromStart < BLINK_START_MILLIS + 15000) {
+                        blinkerWait = INIT_BLINK_WAIT / 2;
+                    } else {
+                        blinkerWait = INIT_BLINK_WAIT / 4;
+                    }
+
+                    Lights.green(false);
+                    Lights.red(false);
+                    blinkerTime = currentTimeMillis();
+                }
+                break;
+            case OFF:
+                if(Math.abs(liftMotor.getCurrentPosition() - liftStartPos) > LIFT_POS_CLEAR/1.5 ){
+                    blinkerState = BlinkerState.SUCCESS;
+                    Lights.resetLights();
+                    Lights.green(true);
+                } else if(currentTimeMillis() - blinkerTime > blinkerWait) {
+                    blinkerState = BlinkerState.ON;
+                    Lights.green(true);
+                    Lights.red(true);
+                    blinkerTime = currentTimeMillis();
+                }
+                break;
+            case SUCCESS: //just a placeholder
+                break;
+        }
     }
 
     private void switchExtension() {
