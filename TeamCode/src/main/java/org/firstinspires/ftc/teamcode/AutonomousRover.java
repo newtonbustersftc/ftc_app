@@ -145,14 +145,21 @@ public class AutonomousRover extends BaseAutonomous {
             logComment("tfod init ms: " + tfodMs);
             preRun();
 
+            // preRun is doing loop with telemetry update until stop or start is pressed
+            // this is a recommended way to avid connection timeouts
 
             //waitForStart();
 
-            goldOnSide = false;
-            goldOnRight = false;
+            // start or stop requested at this point
+            if (isStopRequested()) {
+                return;
+            }
 
             logComment("init ms: " + (currentTimeMillis()-startMillis));
             startMillis = currentTimeMillis();
+
+            goldOnSide = false;
+            goldOnRight = false;
 
             landing();
 
@@ -168,6 +175,8 @@ public class AutonomousRover extends BaseAutonomous {
             }
 
             intakeHolder.setPosition(POS_INTAKE_RELEASE);
+
+            Lights.green(true);
 
             //retractLift();
             while (opModeIsActive()) {
@@ -186,7 +195,7 @@ public class AutonomousRover extends BaseAutonomous {
         }
     }
 
-    public void preRun() {
+    void preRun() {
 
         if (isStopRequested()) { return; }
 
@@ -305,17 +314,12 @@ public class AutonomousRover extends BaseAutonomous {
         }
     }
 
-    void landing() throws InterruptedException {
+    void landing() {
         if (!opModeIsActive()) return;
 
         Lights.resetLights();
 
         try {
-
-            if (out == null) {
-                out = new StringBuffer();
-            }
-
             boxServo = hardwareMap.servo.get("box");
             boxServo.setPosition(DriverRover.POS_BUCKET_PARKED);
 
@@ -338,13 +342,13 @@ public class AutonomousRover extends BaseAutonomous {
                 int lowerPos = Math.abs(DriverRover.LATCHING_POS - DriverRover.LATCHING_POS_LOW) / 2;
                 liftMotor.setTargetPosition(-lowerPos);
                 liftMotor.setPower(-0.7);
-                while (Math.abs(liftMotor.getCurrentPosition()) <= lowerPos) {
+                while (Math.abs(liftMotor.getCurrentPosition()) <= lowerPos && goldPosition == GoldPosition.undetected) {
                     idle();
                 }
                 liftMotor.setPower(0);
+                telemetry.update();
                 goldPosition = getGoldPosition();
                 telemetry.addData("Gold", goldPosition);
-                telemetry.update();
                 log("2nd detection");
             }
             if (goldPosition == GoldPosition.undetected) {
@@ -372,7 +376,7 @@ public class AutonomousRover extends BaseAutonomous {
                 idle();
             }
             liftMotor.setPower(0);
-            sleep(200);
+            sleep(100);
 
             markerServo = hardwareMap.servo.get("markerServo");
             //for moving the marker hand forward, use 1, for moving it back, use 0
@@ -433,15 +437,15 @@ public class AutonomousRover extends BaseAutonomous {
         double currentHeading = getGyroAngles().firstAngle;
         double driveHeading = 0;
         deliveryRotate.setPower(0);
-        double heading = 0;
+        double heading = 0; // center
         if(shortCraterMode && goldOnRight){
-                driveHeading = 40;
+                driveHeading = -40;
                 //rotate(0.3, 40);
                 heading = -45; // clockwise from 0 - negative heading
         }
         else {
             if (goldOnRight) {
-                driveHeading = 30;
+                driveHeading = -30;
                 //rotate(0.3, 30);
                 heading = -35; // clockwise from 0 - negative heading
             } else if (goldOnSide) {
@@ -461,7 +465,7 @@ public class AutonomousRover extends BaseAutonomous {
                 rotate(rotatePower, angleToRotate);
             }
         }
-        sleep(200);
+        sleep(100);
         log("Rotated to gold");
 
         int distanceToCenterGold = 19+2; //distance is in inches
@@ -500,10 +504,10 @@ public class AutonomousRover extends BaseAutonomous {
         }
     }
 
-    void deliverTeamMarker() throws InterruptedException {
+    void deliverTeamMarker() {
         if (!opModeIsActive()) return;
         Lights.resetLights();
-        //if facing crater, we are done
+
         if (depotSide()) {
             if (goldOnSide) {
                 double currentAngle = getGyroAngles().firstAngle;
@@ -517,6 +521,7 @@ public class AutonomousRover extends BaseAutonomous {
                     moveWithErrorCorrection(0.7, 0.2, 23, new GyroErrorHandler(-45));
                 }
             }
+            // drop marker after being aligned for parking
 
         } else {
             //in crater zone
@@ -559,12 +564,15 @@ public class AutonomousRover extends BaseAutonomous {
             moveWithErrorCorrection(0.7, 0.2, distanceToWall, new GyroErrorHandler(driveHeading));
             if (isRightFrontTooFarFromWall()) {
                 //too far away from the wall
+                log("Too far");
                 Lights.red(true);
+                long stime = currentTimeMillis();
                 motorLeft.setPower(0.2);
                 motorRight.setPower(0.2);
-                while (isRightFrontTooFarFromWall()) {idle();}
+                while (currentTimeMillis()-stime<2000 && isRightFrontTooFarFromWall()) {idle();}
                 motorLeft.setPower(0);
                 motorRight.setPower(0);
+                Lights.red(false);
             }
             log("At the wall");
 
@@ -584,14 +592,19 @@ public class AutonomousRover extends BaseAutonomous {
             moveWithErrorCorrection(0.7, 0.2, inchesForward, errorHandler);
             checkForGyroError();
             //moveWithErrorCorrection(0.7, 0.2, inchesForward, new GyroErrorHandler(driveHeading));
+
+            dropMarker();
         }
+
+    }
+
+    void dropMarker() {
         //Deliver team marker.
         markerServo.setPosition(1);
         sleep(500);
         markerServo.setPosition(0);
-        sleep(500);
+        sleep(400);
         log("Delivered marker");
-
     }
 
     boolean isRightFrontTooFarFromWall() {
@@ -657,7 +670,7 @@ public class AutonomousRover extends BaseAutonomous {
                     rotate(-0.3, 35);
                     rotatePower = 0.3;
                     inchesForward = 26;
-                    distanceToTravel = 79;
+                    distanceToTravel = 77;
                     moveForwardHeading = 45;
                 } else {
                     rotatePower = 0.3;
@@ -665,9 +678,10 @@ public class AutonomousRover extends BaseAutonomous {
                     distanceToTravel = 78;
                 }
             } else {
+                //center position
                 rotatePower = 0.3;
                 moveForwardHeading = 0;
-                inchesForward = 5;
+                inchesForward = 7;
                 distanceToTravel = 78;
             }
             // move forward a bit
@@ -678,13 +692,21 @@ public class AutonomousRover extends BaseAutonomous {
             double angleToRotate = Math.abs(currentHeading - parkHeading) - 5; //small adjustment for over rotation
             // rotate to be along the wall
             rotate(rotatePower, angleToRotate);
-            sleep(200);
-
-            log("Out to park");
+            sleep(100);
 
             double inchesToWall = 3;
             DistanceSensor rangeF = rangeSensorBackLeft;
             DistanceSensor rangeB = rangeSensorFrontLeft;
+
+            if(!goldOnSide || goldOnRight){
+                boolean success = moveWithErrorCorrection(-0.7, -0.2, 10,
+                        new RangeErrorHandler(rangeF, rangeB, inchesToWall, false, parkHeading));
+                if(!success){
+                    return;
+                }
+            }
+
+            dropMarker();
 
             boolean success = moveWithErrorCorrection(-0.7, -0.2, distanceToTravel,
                     new RangeErrorHandler(rangeF, rangeB, inchesToWall, false, parkHeading));
@@ -939,96 +961,93 @@ public class AutonomousRover extends BaseAutonomous {
                 sleep(500);
             }
             long startMs = currentTimeMillis();
-            while (opModeIsActive() && tfod != null && currentTimeMillis() - startMs < 1000) {
-                // getUpdatedRecognitions() will return null if no new information is available since
-                // the last time that call was made.
-                List<Recognition> updatedRecognitions = tfod.getRecognitions();
-                if (updatedRecognitions != null) {
-                    if (updatedRecognitions.size() < 1) continue;
+            // getUpdatedRecognitions() will return null if no new information is available since
+            // the last time that call was made.
+            List<Recognition> updatedRecognitions = tfod.getRecognitions();
+            if (updatedRecognitions != null) {
+                if (updatedRecognitions.size() < 1) return GoldPosition.undetected;
 
-                    // phone rotation is disabled
-                    // the phone is mounted on the side
-                    // top (right) is the lowest y coord - 0, bottom (left) is the highest - 800
-                    Collections.sort(updatedRecognitions, new Comparator<Recognition>() {
-                        @Override
-                        public int compare(Recognition r1, Recognition r2) {
-                            return (int) (r1.getTop() - r2.getTop());
-                        }
-                    });
+                // phone rotation is disabled
+                // the phone is mounted on the side
+                // top (right) is the lowest y coord - 0, bottom (left) is the highest - 800
+                Collections.sort(updatedRecognitions, new Comparator<Recognition>() {
+                    @Override
+                    public int compare(Recognition r1, Recognition r2) {
+                        return (int) (r1.getTop() - r2.getTop());
+                    }
+                });
 
-                    float goldY = -1;
-                    float silver1Y = -1;
-                    float silver2Y = -1;
+                float goldY = -1;
+                float silver1Y = -1;
+                float silver2Y = -1;
 
-                    int numberOfGolds = 0;
-                    int numberOfOthers = 0;
+                int numberOfGolds = 0;
+                int numberOfOthers = 0;
 
-                    for (Recognition recognition : updatedRecognitions) {
-                        if (recognition != null) {
+                for (Recognition recognition : updatedRecognitions) {
+                    if (recognition != null) {
 //                            telemetry.addData(recognition.getLabel() + (nr++),
 //                                    "y: " + (int) getMineralCenter(recognition) + "," +
 //                                            " conf: " + recognition.getConfidence() + ", (" +
 //                                            recognition.getImageWidth() + "," + recognition.getImageHeight()
 //                            );
 
-                            if (recognition.getLabel().equals(LABEL_GOLD_MINERAL)) {
-                                numberOfGolds++;
-                                goldY = getMineralCenter(recognition);
-                            } else {
-                                if (recognition.getLabel().equals(LABEL_SILVER_MINERAL)) {
-                                    if (silver1Y < 0) {
-                                        silver1Y = getMineralCenter(recognition);
-                                    } else if (silver2Y < 0) {
-                                        silver2Y = getMineralCenter(recognition);
-                                    }
-                                }
-                                numberOfOthers++;
-                            }
-                        }
-                    }
-
-                    telemetry.addData("numberOfGolds", numberOfGolds);
-                    telemetry.addData("numberOfOthers", numberOfOthers);
-                    telemetry.addData("Time", (currentTimeMillis() - startMs) / 1000);
-                    telemetry.update();
-                    sleep(50);
-
-                    if (numberOfGolds > 1 || numberOfOthers > 2) {
-                        out.append(String.format("# number gold=%d, silver=%d\n", numberOfGolds, numberOfOthers));
-                        continue;
-                    }
-
-                    out.append(String.format("# gold=%d, silver1=%d, silver2=%d\n", (int) goldY, (int) silver1Y, (int) silver2Y));
-
-                    if (goldY >= 0) {
-                        if (isRight(goldY)) {
-                            return GoldPosition.right;
-                        } else if (isCenter(goldY)) {
-                            return GoldPosition.center;
-                        } else if (isLeft(goldY)) {
-                            return GoldPosition.left;
+                        if (recognition.getLabel().equals(LABEL_GOLD_MINERAL)) {
+                            numberOfGolds++;
+                            goldY = getMineralCenter(recognition);
                         } else {
-                            return GoldPosition.undetected; //This should never happen
+                            if (recognition.getLabel().equals(LABEL_SILVER_MINERAL)) {
+                                if (silver1Y < 0) {
+                                    silver1Y = getMineralCenter(recognition);
+                                } else if (silver2Y < 0) {
+                                    silver2Y = getMineralCenter(recognition);
+                                }
+                            }
+                            numberOfOthers++;
                         }
                     }
+                }
 
-                    // if no gold is detected, need two silver recognitions to tell the position of gold
-                    // if two silver positions are not available, try again
-                    if (silver1Y < 0 || silver2Y < 0) {
-                        // two silver positions are not available
-                        continue;
+                telemetry.addData("numberOfGolds", numberOfGolds);
+                telemetry.addData("numberOfOthers", numberOfOthers);
+                telemetry.update();
+
+                if (numberOfGolds > 1 || numberOfOthers > 2) {
+                    logComment(String.format("number gold=%d, silver=%d", numberOfGolds, numberOfOthers));
+                    if (numberOfOthers != 2) {
+                        // if we have detected 2 silvers, we use them to find position of gold
+                        return GoldPosition.undetected;
                     }
+                }
 
+                logComment(String.format("gold=%d, silver1=%d, silver2=%d", (int) goldY, (int) silver1Y, (int) silver2Y));
 
-                    if (!isLeft(silver1Y) && !isLeft(silver2Y)) {
-                        return GoldPosition.left;
-                    } else if (!isCenter(silver1Y) && !isCenter(silver2Y)) {
-                        return GoldPosition.center;
-                    } else if (!isRight(silver1Y) && !isRight(silver2Y)) {
+                if (goldY >= 0) {
+                    if (isRight(goldY)) {
                         return GoldPosition.right;
+                    } else if (isCenter(goldY)) {
+                        return GoldPosition.center;
+                    } else if (isLeft(goldY)) {
+                        return GoldPosition.left;
+                    } else {
+                        return GoldPosition.undetected; //This should never happen
                     }
+                }
 
-                    sleep(50);
+                // if no gold is detected, need two silver recognitions to tell the position of gold
+                // if two silver positions are not available, try again
+                if (silver1Y < 0 || silver2Y < 0) {
+                    // two silver positions are not available
+                    //TODO: make random selection between two undeteced positions if only one silver is detected
+                    return GoldPosition.undetected;
+                }
+
+                if (!isLeft(silver1Y) && !isLeft(silver2Y)) {
+                    return GoldPosition.left;
+                } else if (!isCenter(silver1Y) && !isCenter(silver2Y)) {
+                    return GoldPosition.center;
+                } else if (!isRight(silver1Y) && !isRight(silver2Y)) {
+                    return GoldPosition.right;
                 }
             }
         } finally {
