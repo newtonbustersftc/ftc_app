@@ -560,11 +560,11 @@ public class DriverRover extends OpMode {
             // We are using robot coordinates
             double dpadSpeed = 0.2;
             if (gamepad1.dpad_up) {
-                rightForward = dpadSpeed;
-                leftForward = dpadSpeed;
+                rightForward = dpadSpeed*1.5;
+                leftForward = dpadSpeed*1.5;
             } else if (gamepad1.dpad_down) {
-                rightForward = -dpadSpeed;
-                leftForward = -dpadSpeed;
+                rightForward = -dpadSpeed*1.5;
+                leftForward = -dpadSpeed*1.5;
             } else if (gamepad1.dpad_left) {
                 //rotating ccw
                 rightForward = sign * dpadSpeed;

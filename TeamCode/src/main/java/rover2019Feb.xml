@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<Robot type="FirstInspires-FTC">
+    <LynxUsbDevice name="Expansion Hub Portal 1" serialNumber="DQ2D2CIR" parentModuleAddress="1">
+        <LynxModule name="Expansion Hub 2" port="2">
+            <NeveRest40Gearmotor name="wheelsLeft" port="0" />
+            <NeveRest40Gearmotor name="wheelsRight" port="1" />
+            <NeveRest20Gearmotor name="liftMotor" port="2" />
+            <NeveRest20Gearmotor name="intakeExtend" port="3" />
+            <Servo name="hookServo" port="0" />
+            <Servo name="markerServo" port="1" />
+            <Servo name="box" port="2" />
+            <ContinuousRotationServo name="rightIntake" port="3" />
+            <ContinuousRotationServo name="leftIntake" port="4" />
+            <Servo name="intakeGate" port="5" />
+            <RevTouchSensor name="lift_touch" port="1" />
+            <RevTouchSensor name="intakeExtendTouch" port="3" />
+            <RevTouchSensor name="deliveryExtendTouch" port="5" />
+            <RevTouchSensor name="deliveryDownTouch" port="7" />
+            <REV_VL53L0X_RANGE_SENSOR name="rangeBackRight" port="0" bus="3" />
+            <REV_VL53L0X_RANGE_SENSOR name="rangeFrontRight" port="0" bus="2" />
+            <REV_VL53L0X_RANGE_SENSOR name="rangeBackLeft" port="0" bus="1" />
+            <LynxEmbeddedIMU name="imu" port="0" bus="0" />
+        </LynxModule>
+        <LynxModule name="Expansion Hub 3" port="3">
+            <NeveRest60Gearmotor name="deliveryExtend" port="0" />
+            <NeveRest20Gearmotor name="deliveryRotate" port="1" />
+            <Servo name="intakeHolder" port="0" />
+            <Servo name="light1" port="1" />
+            <Servo name="light2" port="2" />
+            <Servo name="light3" port="3" />
+            <Servo name="light4" port="4" />
+            <Servo name="light5" port="5" />
+            <REV_VL53L0X_RANGE_SENSOR name="rangeFrontLeft" port="0" bus="1" />
+        </LynxModule>
+    </LynxUsbDevice>
+</Robot>
