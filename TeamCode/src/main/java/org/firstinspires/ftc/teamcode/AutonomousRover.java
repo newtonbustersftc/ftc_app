@@ -112,6 +112,8 @@ public class AutonomousRover extends BaseAutonomous {
         return false;
     }
 
+    static double imageHeight = 800; // Samsing's
+
     @Override
     public void doRunOpMode() throws InterruptedException {
         telemetry.addData("Initializing","Please wait");
@@ -178,7 +180,6 @@ public class AutonomousRover extends BaseAutonomous {
 
             Lights.green(true);
 
-            //retractLift();
             while (opModeIsActive()) {
                 telemetry.addData("Gyro Heading", getGyroAngles().firstAngle);
                 telemetry.addData("Distance FR", rangeSensorFrontRight.getDistance(DistanceUnit.INCH));
@@ -264,7 +265,6 @@ public class AutonomousRover extends BaseAutonomous {
         liftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         liftTouch = hardwareMap.touchSensor.get("lift_touch");
-        //retractLift(); // safety hazard - remove before match
         liftMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
         // reset encoders for the rotating delivery arm
@@ -282,7 +282,7 @@ public class AutonomousRover extends BaseAutonomous {
         for(ntries=0;!isStopRequested() && !success && ntries<2;ntries++) {
             long startMs = currentTimeMillis();
             success=gyroInit();
-            logComment("gyro init "+(!success?"":"failed ")+"ms: "+(currentTimeMillis() - startMs));
+            logComment("gyro init "+(success?"":"failed ")+"ms: "+(currentTimeMillis() - startMs));
         }
         if (!success || tfod == null) {
             Lights.red(true);
@@ -349,6 +349,7 @@ public class AutonomousRover extends BaseAutonomous {
                 telemetry.update();
                 goldPosition = getGoldPosition();
                 telemetry.addData("Gold", goldPosition);
+                telemetry.update();
                 log("2nd detection");
             }
             if (goldPosition == GoldPosition.undetected) {
@@ -605,6 +606,8 @@ public class AutonomousRover extends BaseAutonomous {
         markerServo.setPosition(0);
         sleep(400);
         log("Delivered marker");
+        // use for testing autonomous
+        //retractLift();
     }
 
     boolean isRightFrontTooFarFromWall() {
@@ -991,6 +994,7 @@ public class AutonomousRover extends BaseAutonomous {
 //                                            " conf: " + recognition.getConfidence() + ", (" +
 //                                            recognition.getImageWidth() + "," + recognition.getImageHeight()
 //                            );
+                        imageHeight = recognition.getImageHeight();
 
                         if (recognition.getLabel().equals(LABEL_GOLD_MINERAL)) {
                             numberOfGolds++;
@@ -1071,15 +1075,15 @@ public class AutonomousRover extends BaseAutonomous {
      * @return
      */
     boolean isLeft(float y) {
-        return y < 800.0 / 3;
+        return y < imageHeight / 3;
     }
 
     boolean isCenter(float y) {
-        return y >= (800.0 / 3) && y <= (800.0 / 3) * 2;
+        return y >= (imageHeight / 3) && y <= (imageHeight / 3) * 2;
     }
 
     boolean isRight(float y) {
-        return y > (800.0 / 3) * 2;
+        return y > (imageHeight / 3) * 2;
     }
 
     void logComment(String message) {
