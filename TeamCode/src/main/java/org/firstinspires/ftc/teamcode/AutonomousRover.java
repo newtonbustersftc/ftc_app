@@ -696,6 +696,7 @@ public class AutonomousRover extends BaseAutonomous {
             // rotate to be along the wall
             rotate(rotatePower, angleToRotate);
             sleep(100);
+            log("Along the wall");
 
             double inchesToWall = 3;
             DistanceSensor rangeF = rangeSensorBackLeft;
@@ -710,6 +711,8 @@ public class AutonomousRover extends BaseAutonomous {
             }
 
             dropMarker();
+
+            TEST = true;
 
             boolean success = moveWithErrorCorrection(-0.7, -0.2, distanceToTravel,
                     new RangeErrorHandler(rangeF, rangeB, inchesToWall, false, parkHeading));
