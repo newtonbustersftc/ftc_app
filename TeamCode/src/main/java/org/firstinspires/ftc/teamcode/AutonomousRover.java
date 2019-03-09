@@ -39,6 +39,12 @@ public class AutonomousRover extends BaseAutonomous {
     private static final String LABEL_GOLD_MINERAL = "Gold Mineral";
     private static final String LABEL_SILVER_MINERAL = "Silver Mineral";
 
+    //these are constants used for rotation
+    static final double MAX_ROTATE_POWER = 0.8;
+    static final double MIN_ROTATE_POWER = 0.15;
+    static final double CLOSE_ANGlE = 10;
+    static final double FAR_ANGLE = 90;
+
     /*
      * IMPORTANT: You need to obtain your own license key to use Vuforia. The string below with which
      * 'parameters.vuforiaLicenseKey' is initialized is for illustration only, and will not function.
@@ -745,33 +751,71 @@ public class AutonomousRover extends BaseAutonomous {
      * @param angle
      */
     void rotate(double power, double angle) {
+        boolean clockwise = power > 0;
+        rotate(clockwise, angle);
+    }
+
+    /**
+     * rotates robot the given angle
+     *
+     * @param clockwise
+     * @param angle
+     */
+    void rotate(boolean clockwise, double angle) {
         checkForGyroError();
         if (!opModeIsActive()) return;
         double originalHeading = getGyroAngles().firstAngle;
         double currentHeading = originalHeading;
-//        telemetry.addData("current heading", originalHeading);
-//        telemetry.update();
-//        sleep(500);
-//        long start = new Date().getTime();
-        motorRight.setPower(-power);
-        motorLeft.setPower(power);
+        logComment(String.format(Locale.US, "ANGLE = %.0f CLOCKWISE = %b", angle, clockwise));
+        long startTime = new Date().getTime();
+
+        int signFactor = clockwise ? 1: -1;
+
+        long currentTime;
+        double currentPower;
+        double angleOff;
+
         while (opModeIsActive() && Math.abs(currentHeading - originalHeading) < angle) {
+
+            //use minimum rotate power when we are 10 degrees or less from the desired/required heading
+            //use maximum rotate power when we are more that 90 degrees from the desired/required heading
+            angleOff = angle - Math.abs(currentHeading - originalHeading);
+            if(angleOff < CLOSE_ANGlE){
+                currentPower = MIN_ROTATE_POWER;
+            }else if(angleOff > FAR_ANGLE){
+                currentPower = MAX_ROTATE_POWER;
+            }else{
+                //(A - MIN_A) / (P - MIN_P) = (MAX_A - MIN_A) / (MAX_P - MIN_P)
+                currentPower = ((MAX_ROTATE_POWER - MIN_ROTATE_POWER) * (angleOff - CLOSE_ANGlE))/
+                        (FAR_ANGLE-CLOSE_ANGlE) + MIN_ROTATE_POWER;
+            }
+
+            motorRight.setPower(-currentPower * signFactor);
+            motorLeft.setPower(currentPower * signFactor);
+
             currentHeading = getGyroAngles().firstAngle;
-            //telemetry.addData("current heading", currentHeading);
-            //telemetry.update();
+
+            if (TEST) {
+                currentTime = new Date().getTime();
+                logRotate(currentTime-startTime,currentHeading, currentPower);
+            }
         }
         motorRight.setPower(0);
         motorLeft.setPower(0);
-//        long end = new Date().getTime();
-//        currentHeading = getGyroAngles().firstAngle;
-//        telemetry.addData("current heading", currentHeading);
-//        telemetry.addData("rotate time", end - start);
-//        telemetry.update();
-//        sleep(500);
+        if (TEST) {
+            currentTime = new Date().getTime();
+            logRotate(currentTime-startTime, currentHeading, 0);
+        }
         currentHeading = getGyroAngles().firstAngle;
         telemetry.addData("current heading", currentHeading);
         telemetry.update();
-//        sleep(500);
+    }
+
+    private void logRotate(long timeMs, double currentHeading,double power) {
+        if (out == null) {
+            out = new StringBuffer();
+        }
+        out.append(String.format(Locale.US, "%d, %.2f, %.2f\n", timeMs, currentHeading, power));
     }
 
     //For when gyro fails, use the right wheel's encoder counts

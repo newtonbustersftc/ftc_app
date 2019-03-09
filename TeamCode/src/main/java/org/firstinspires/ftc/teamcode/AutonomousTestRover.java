@@ -10,17 +10,28 @@ public class AutonomousTestRover extends AutonomousRover {
         preRun();
         waitForStart();
 
-        rangeDriveTest();
+        TEST=true;
+        logPrefix = "rotateTest";
+//        rangeDriveTest();
 
 //        steerTest();
 
 //        gyroDriveTest();
 
 //        distanceTest();
-
-//        rotate(0.15,90);
-//        rotate(-0.12, 180);
-//        rotate(0.12, 180);
+//        for (double power=0.15; power <= .9; power += 0.05) {
+//            rotate(power,90);
+//            sleep(1000);
+//            rotate(-power,90);
+//            sleep(1000);
+//        }
+//
+        for(double angle = 5; angle <= 90; angle += 5){
+            rotate(true, angle);
+            sleep(1000);
+            rotate(false, angle);
+            sleep(1000);
+        }
 
 //        landing();
 
