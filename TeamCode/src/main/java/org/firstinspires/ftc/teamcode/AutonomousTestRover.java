@@ -26,7 +26,7 @@ public class AutonomousTestRover extends AutonomousRover {
 //            sleep(1000);
 //        }
 //
-        for(double angle = 5; angle <= 90; angle += 5){
+        for(double angle = 10; angle <= 90; angle += 10){
             rotate(true, angle);
             sleep(1000);
             rotate(false, angle);

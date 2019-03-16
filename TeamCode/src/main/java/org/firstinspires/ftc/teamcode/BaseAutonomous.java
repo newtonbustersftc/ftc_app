@@ -29,6 +29,12 @@ public abstract class BaseAutonomous extends LinearOpMode {
 
     boolean TEST = false;
 
+    //these are constants used for rotation
+    static final double MAX_ROTATE_POWER = 0.8;
+    static final double MIN_ROTATE_POWER = 0.15;
+    static final double CLOSE_ANGlE = 10;
+    static final double FAR_ANGLE = 90;
+
     protected StringBuffer out = null;
     private BNO055IMU imu; // gyro
     Orientation angles; // angles from gyro
@@ -201,6 +207,66 @@ public abstract class BaseAutonomous extends LinearOpMode {
      */
     void steer(double motorPower, double steerPower) {
         throw new UnsupportedOperationException("steer is not implemented");
+    }
+
+    /**
+     * @param rotateSpeed Positive value for clockwise rotation
+     */
+    void powerRotate(double rotateSpeed) {
+        throw new UnsupportedOperationException("powerRotate is not implemented");
+    }
+
+    /**
+     * rotates robot the given angle
+     *
+     * @param clockwise
+     * @param angle
+     */
+    void rotate(boolean clockwise, double angle) {
+        if (!opModeIsActive()) return;
+        double originalHeading = getGyroAngles().firstAngle;
+        double currentHeading = originalHeading;
+        logComment(String.format(Locale.US, "ANGLE = %.0f CLOCKWISE = %b", angle, clockwise));
+        long startTime = new Date().getTime();
+
+        int signFactor = clockwise ? 1: -1;
+
+        long currentTime;
+        double currentPower;
+        double angleOff;
+
+        while (opModeIsActive() && Math.abs(currentHeading - originalHeading) < angle) {
+
+            //use minimum rotate power when we are 10 degrees or less from the desired/required heading
+            //use maximum rotate power when we are more that 90 degrees from the desired/required heading
+            angleOff = angle - Math.abs(currentHeading - originalHeading);
+            if(angleOff < CLOSE_ANGlE){
+                currentPower = MIN_ROTATE_POWER;
+            }else if(angleOff > FAR_ANGLE){
+                currentPower = MAX_ROTATE_POWER;
+            }else{
+                //(A - MIN_A) / (P - MIN_P) = (MAX_A - MIN_A) / (MAX_P - MIN_P)
+                currentPower = ((MAX_ROTATE_POWER - MIN_ROTATE_POWER) * (angleOff - CLOSE_ANGlE))/
+                        (FAR_ANGLE-CLOSE_ANGlE) + MIN_ROTATE_POWER;
+            }
+
+            powerRotate(currentPower * signFactor);
+
+            currentHeading = getGyroAngles().firstAngle;
+
+            if (TEST) {
+                currentTime = new Date().getTime();
+                logRotate(currentTime-startTime,currentHeading, currentPower);
+            }
+        }
+        powerRotate(0);
+        if (TEST) {
+            currentTime = new Date().getTime();
+            logRotate(currentTime-startTime, currentHeading, 0);
+        }
+        currentHeading = getGyroAngles().firstAngle;
+        telemetry.addData("current heading", currentHeading);
+        telemetry.update();
     }
 
 
@@ -397,6 +463,22 @@ public abstract class BaseAutonomous extends LinearOpMode {
         boolean rangeInBounds(double rangeInInches) {
             return rangeInInches > 0 && rangeInInches < 50;
         }
+    }
+
+    void logComment(String message) {
+        if (out == null) {
+            out = new StringBuffer();
+        }
+        out.append("# "); // start of the comment
+        out.append(message);
+        out.append("\n"); // new line at the end
+    }
+
+    private void logRotate(long timeMs, double currentHeading,double power) {
+        if (out == null) {
+            out = new StringBuffer();
+        }
+        out.append(String.format(Locale.US, "%d, %.2f, %.2f\n", timeMs, currentHeading, power));
     }
 
 }

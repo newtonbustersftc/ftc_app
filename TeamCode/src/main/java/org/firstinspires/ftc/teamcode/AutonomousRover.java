@@ -463,13 +463,14 @@ public class AutonomousRover extends BaseAutonomous {
         }
         if(goldOnSide){
             double angleToRotate = Math.abs(currentHeading - driveHeading);
-            double rotatePower = (goldOnRight)? 0.3 : -0.3;
+            boolean rotateClockwise = (goldOnRight)? true : false;
             if(Math.abs(currentHeading) < 0.001){
             //rotate by encoder counts because we cannot rely on the gyro function
                 int encoderCountsChange = 460;
+                double rotatePower = (goldOnRight)? 0.3 : -0.3;
                 rotateByEncoderCounts(rotatePower, encoderCountsChange);
             } else {
-                rotate(rotatePower, angleToRotate);
+                rotate(rotateClockwise, angleToRotate);
             }
         }
         sleep(100);
@@ -520,11 +521,11 @@ public class AutonomousRover extends BaseAutonomous {
                 double currentAngle = getGyroAngles().firstAngle;
                 if (goldOnRight) {
                     //return to previous heading
-                    rotate(-0.3, Math.abs(currentAngle) - 5);
+                    rotate(false, Math.abs(currentAngle) - 5);
                     moveWithErrorCorrection(0.7, 0.2, 11, new GyroErrorHandler(0));
                 } else {
                     //return to previous heading
-                    rotate(0.3, Math.abs(currentAngle) - 5);
+                    rotate(true, Math.abs(currentAngle) - 5);
                     moveWithErrorCorrection(0.7, 0.2, 23, new GyroErrorHandler(-45));
                 }
             }
@@ -562,7 +563,7 @@ public class AutonomousRover extends BaseAutonomous {
             double driveHeading = 90;
             double angleToRotate = Math.abs(currentHeading - driveHeading) - 5; //small adjustment for over rotation
             // rotate toward the wall
-            rotate(-0.3, angleToRotate);
+            rotate(false, angleToRotate);
             // delay if needed, delay is in seconds, sleep accepts milliseconds
             sleep (1000 * delay);
             log("Rotated to wall");
@@ -574,8 +575,8 @@ public class AutonomousRover extends BaseAutonomous {
                 log("Too far");
                 Lights.red(true);
                 long stime = currentTimeMillis();
-                motorLeft.setPower(0.2);
-                motorRight.setPower(0.2);
+                motorRight.setPower(0.15);
+                motorLeft.setPower(0.15);
                 while (currentTimeMillis()-stime<2000 && isRightFrontTooFarFromWall()) {idle();}
                 motorLeft.setPower(0);
                 motorRight.setPower(0);
@@ -587,7 +588,7 @@ public class AutonomousRover extends BaseAutonomous {
             currentHeading = getGyroAngles().firstAngle;
             driveHeading = 130;
             angleToRotate = Math.abs(driveHeading - currentHeading) - 5;
-            rotate(-0.3, angleToRotate);
+            rotate(false, angleToRotate);
             log("Aligned with the wall");
             // drive along the wall using two range sensors for correction
             double inchesForward = 30;
@@ -619,6 +620,7 @@ public class AutonomousRover extends BaseAutonomous {
     boolean isRightFrontTooFarFromWall() {
         double distance = rangeSensorFrontRight.getDistance(DistanceUnit.INCH);
         //if sensor misbehaves, it returns values larger than 300
+        logComment(distance + "");
         if (distance < 20 && distance > 4.5) {
             return true;
         } else {
@@ -634,11 +636,11 @@ public class AutonomousRover extends BaseAutonomous {
             double angleToRotate = Math.abs(currentHeading);
             if(goldOnRight){
                 //turn 45 degrees clockwise
-                rotate(-0.3, angleToRotate + 40);
+                rotate(false, angleToRotate + 40);
             }
             else{
                 //turn 45 degrees counterclockwise
-                rotate(0.3, angleToRotate);
+                rotate(true, angleToRotate);
             }
             intakeHolder.setPosition(POS_INTAKE_RELEASE);
         }
@@ -658,7 +660,7 @@ public class AutonomousRover extends BaseAutonomous {
 //            // rotate toward the wall
 //            double currentHeading = getGyroAngles().firstAngle;
 //            double angleToRotate = Math.abs(currentHeading - 140); //small adjustment for over rotation
-//            rotate(-0.3, angleToRotate);
+//            rotate(false, angleToRotate);
 
             boolean clockwiseWhenTooClose = true;
             double inchesToWall = 3;
@@ -672,23 +674,20 @@ public class AutonomousRover extends BaseAutonomous {
             // depot side
             double moveForwardHeading;
             double inchesForward = 5;
-            double rotatePower;
+            boolean rotateClockwise = true;
 
             if (goldOnSide) {
                 if (goldOnRight) {
-                    rotate(-0.3, 35);
-                    rotatePower = 0.3;
+                    rotate(false, 35);
                     inchesForward = 26;
                     distanceToTravel = 77;
                     moveForwardHeading = 45;
                 } else {
-                    rotatePower = 0.3;
                     moveForwardHeading = -45;
                     distanceToTravel = 78;
                 }
             } else {
                 //center position
-                rotatePower = 0.3;
                 moveForwardHeading = 0;
                 inchesForward = 7;
                 distanceToTravel = 78;
@@ -700,7 +699,7 @@ public class AutonomousRover extends BaseAutonomous {
             double parkHeading = -45;
             double angleToRotate = Math.abs(currentHeading - parkHeading) - 5; //small adjustment for over rotation
             // rotate to be along the wall
-            rotate(rotatePower, angleToRotate);
+            rotate(rotateClockwise, angleToRotate);
             sleep(100);
             log("Along the wall");
 
@@ -743,80 +742,18 @@ public class AutonomousRover extends BaseAutonomous {
         return false;
     }
 
-    /**
-     * rotates robot the given angle, give negative power for counterclockwise rotation and
-     * positive power for clockwise rotation
-     *
-     * @param power
-     * @param angle
-     */
-    void rotate(double power, double angle) {
-        boolean clockwise = power > 0;
-        rotate(clockwise, angle);
-    }
+//    /**
+//     * rotates robot the given angle, give negative power for counterclockwise rotation and
+//     * positive power for clockwise rotation
+//     *
+//     * @param power
+//     * @param angle
+//     */
+//    void rotate(double power, double angle) {
+//        boolean clockwise = power > 0;
+//        rotate(clockwise, angle);
+//    }
 
-    /**
-     * rotates robot the given angle
-     *
-     * @param clockwise
-     * @param angle
-     */
-    void rotate(boolean clockwise, double angle) {
-        checkForGyroError();
-        if (!opModeIsActive()) return;
-        double originalHeading = getGyroAngles().firstAngle;
-        double currentHeading = originalHeading;
-        logComment(String.format(Locale.US, "ANGLE = %.0f CLOCKWISE = %b", angle, clockwise));
-        long startTime = new Date().getTime();
-
-        int signFactor = clockwise ? 1: -1;
-
-        long currentTime;
-        double currentPower;
-        double angleOff;
-
-        while (opModeIsActive() && Math.abs(currentHeading - originalHeading) < angle) {
-
-            //use minimum rotate power when we are 10 degrees or less from the desired/required heading
-            //use maximum rotate power when we are more that 90 degrees from the desired/required heading
-            angleOff = angle - Math.abs(currentHeading - originalHeading);
-            if(angleOff < CLOSE_ANGlE){
-                currentPower = MIN_ROTATE_POWER;
-            }else if(angleOff > FAR_ANGLE){
-                currentPower = MAX_ROTATE_POWER;
-            }else{
-                //(A - MIN_A) / (P - MIN_P) = (MAX_A - MIN_A) / (MAX_P - MIN_P)
-                currentPower = ((MAX_ROTATE_POWER - MIN_ROTATE_POWER) * (angleOff - CLOSE_ANGlE))/
-                        (FAR_ANGLE-CLOSE_ANGlE) + MIN_ROTATE_POWER;
-            }
-
-            motorRight.setPower(-currentPower * signFactor);
-            motorLeft.setPower(currentPower * signFactor);
-
-            currentHeading = getGyroAngles().firstAngle;
-
-            if (TEST) {
-                currentTime = new Date().getTime();
-                logRotate(currentTime-startTime,currentHeading, currentPower);
-            }
-        }
-        motorRight.setPower(0);
-        motorLeft.setPower(0);
-        if (TEST) {
-            currentTime = new Date().getTime();
-            logRotate(currentTime-startTime, currentHeading, 0);
-        }
-        currentHeading = getGyroAngles().firstAngle;
-        telemetry.addData("current heading", currentHeading);
-        telemetry.update();
-    }
-
-    private void logRotate(long timeMs, double currentHeading,double power) {
-        if (out == null) {
-            out = new StringBuffer();
-        }
-        out.append(String.format(Locale.US, "%d, %.2f, %.2f\n", timeMs, currentHeading, power));
-    }
 
     //For when gyro fails, use the right wheel's encoder counts
     void rotateByEncoderCounts(double power, int encoderCountsChange) {
@@ -931,6 +868,12 @@ public class AutonomousRover extends BaseAutonomous {
 
         motorLeft.setPower(leftPower);
         motorRight.setPower(rightPower);
+    }
+
+    @Override
+    void powerRotate(double rotateSpeed) {
+        motorRight.setPower(-rotateSpeed);
+        motorLeft.setPower(rotateSpeed);
     }
 
     /**
@@ -1131,15 +1074,6 @@ public class AutonomousRover extends BaseAutonomous {
 
     boolean isRight(float y) {
         return y > (imageHeight / 3) * 2;
-    }
-
-    void logComment(String message) {
-        if (out == null) {
-            out = new StringBuffer();
-        }
-        out.append("# "); // start of the comment
-        out.append(message);
-        out.append("\n"); // new line at the end
     }
 
     /**
