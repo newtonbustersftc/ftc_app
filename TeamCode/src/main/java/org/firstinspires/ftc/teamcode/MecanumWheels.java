@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.RelicRecovery;
+package org.firstinspires.ftc.teamcode;
 
 
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -11,7 +11,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
  * Created by JASMINE on 10/22/17.
  */
 
-class MecanumWheels {
+public class MecanumWheels {
 
     public enum Wheel {FL, FR, RL, RR}
 
@@ -29,7 +29,7 @@ class MecanumWheels {
 
     private final String REVERSED = "REVERSED";
 
-    MecanumWheels(HardwareMap hardwareMap, Telemetry telemetry, boolean frontForward) {
+    public MecanumWheels(HardwareMap hardwareMap, Telemetry telemetry, boolean frontForward) {
         this.telemetry = telemetry;
         this.forward = frontForward;
 
@@ -46,20 +46,20 @@ class MecanumWheels {
         resetEncoders();
     }
 
-    MecanumWheels(HardwareMap hardwareMap, Telemetry telemetry) {
+    public MecanumWheels(HardwareMap hardwareMap, Telemetry telemetry) {
         this(hardwareMap, telemetry, true);
     }
 
-    void changeDirection() {
+   public void changeDirection() {
         forward = !forward;
     }
-    boolean isForward() {return forward;}
+    public boolean isForward() {return forward;}
 
-    void powerMotors(double forward, double right, double clockwise) {
+    public void powerMotors(double forward, double right, double clockwise) {
         powerMotors(forward, right, clockwise, this.forward);
     }
 
-    void powerMotors(double forward, double right, double clockwise, boolean forwardDir) {
+    public void powerMotors(double forward, double right, double clockwise, boolean forwardDir) {
 
 //        telemetry.addData("Gamepad Forward,Right,Clockwise", (int) (forward * 100) +
 //                ", " + (int) (right * 100) +
@@ -179,6 +179,14 @@ class MecanumWheels {
         }
         logEncoders();
         setRunMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    }
+
+    public void powerArc(double leftPower, double rightPower) {
+        // TODO Can we use powerMotors() here?
+        motorFrontLeft.setPower(leftPower);
+        motorRearLeft.setPower(leftPower);
+        motorFrontRight.setPower(rightPower);
+        motorRearRight.setPower(rightPower);
     }
 
     public void logEncoders() {

@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DistanceSensor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.TouchSensor;
+import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
@@ -89,8 +90,10 @@ public class AutonomousRover extends BaseAutonomous {
 
     LynxModule lynxModule;
 
-    private DcMotor motorLeft;
-    private DcMotor motorRight;
+    MecanumWheels wheels;
+    DcMotor motor; //This is the motor used for calibration
+    DcMotor alternateMotor;
+
     private DcMotor liftMotor;
     private DcMotor deliveryRotate;
     private DcMotor intakeExtend;
@@ -246,12 +249,11 @@ public class AutonomousRover extends BaseAutonomous {
         editor.putString(AUTO_MODE_PREF, autoMode);
         editor.apply();
 
-        motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
-        motorRight = hardwareMap.dcMotor.get("wheelsRight");
-        //setting the motors on the right side in reverse so both wheels spin the same way.
-        motorRight.setDirection(DcMotor.Direction.REVERSE);
-        motorLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        motorRight.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        wheels = new MecanumWheels(hardwareMap, telemetry);
+        wheels.resetEncoders();
+        motor = wheels.getMotor(MecanumWheels.Wheel.FL);
+        alternateMotor = wheels.getMotor(MecanumWheels.Wheel.FR);
+
         // brake on zero power
         setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         if (isStopRequested()) { return; }
@@ -280,8 +282,7 @@ public class AutonomousRover extends BaseAutonomous {
         intakeExtend.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
 
         // run by power
-        motorLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        motorRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        wheels.setRunMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         int ntries;
         boolean success = false;
@@ -575,11 +576,9 @@ public class AutonomousRover extends BaseAutonomous {
                 log("Too far");
                 Lights.red(true);
                 long stime = currentTimeMillis();
-                motorRight.setPower(0.15);
-                motorLeft.setPower(0.15);
+                wheels.powerMotors(0.15, 0, 0);
                 while (currentTimeMillis()-stime<2000 && isRightFrontTooFarFromWall()) {idle();}
-                motorLeft.setPower(0);
-                motorRight.setPower(0);
+                wheels.powerMotors(0, 0, 0);
                 Lights.red(false);
             }
             log("At the wall");
@@ -759,15 +758,13 @@ public class AutonomousRover extends BaseAutonomous {
     void rotateByEncoderCounts(double power, int encoderCountsChange) {
         checkForGyroError();
         if (!opModeIsActive()) return;
-        int originalCounts = motorRight.getCurrentPosition();
+        int originalCounts = motor.getCurrentPosition();
         int currentCounts = originalCounts;
-        motorRight.setPower(-power);
-        motorLeft.setPower(power);
+        wheels.powerMotors(0, 0, power);
         while (opModeIsActive() && Math.abs(currentCounts - originalCounts) < encoderCountsChange) {
-            currentCounts = motorRight.getCurrentPosition();
+            currentCounts = motor.getCurrentPosition();
         }
-        motorRight.setPower(0);
-        motorLeft.setPower(0);
+        wheels.powerMotors(0, 0, 0);
     }
 
 
@@ -783,11 +780,9 @@ public class AutonomousRover extends BaseAutonomous {
         if (!opModeIsActive()) return false;
 
         setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        DcMotor motor = motorLeft;
 
         int startPos = motor.getCurrentPosition();
-        motorLeft.setPower(power);
-        motorRight.setPower(power);
+        wheels.powerMotors(power, 0, 0);
 
         int currentPos = startPos;
         //Detect robot being stuck: encoder count is not changing for half of a second
@@ -815,8 +810,7 @@ public class AutonomousRover extends BaseAutonomous {
                 previousPos = currentPos;
             }
         }
-        motorLeft.setPower(0.0);
-        motorRight.setPower(0.0);
+        wheels.powerMotors(0, 0,0);
         telemetry.addData("Counts Moved", Math.abs(motor.getCurrentPosition() - startPos));
         telemetry.update();
         return finished;
@@ -828,15 +822,14 @@ public class AutonomousRover extends BaseAutonomous {
      * @param behavior zero power behavior for the wheels: BRAKE or FLOAT
      */
     void setZeroPowerBehavior(DcMotor.ZeroPowerBehavior behavior) {
-        motorLeft.setZeroPowerBehavior(behavior);
-        motorRight.setZeroPowerBehavior(behavior);
+        wheels.setZeroPowerBehavior(behavior);
     }
 
     /**
      * @return the selected wheel encoder count
      */
     int getWheelPosition() {
-        return motorLeft.getCurrentPosition();
+        return motor.getCurrentPosition();
     }
 
     /**
@@ -844,36 +837,12 @@ public class AutonomousRover extends BaseAutonomous {
      * @param steerPower power to make adjustments clockwise
      */
     void steer(double motorPower, double steerPower) {
-        double leftPower = motorPower;
-        double rightPower = motorPower;
-        if (leftPower > 0) {
-            if (steerPower > 0)
-                leftPower += steerPower;
-            else
-                rightPower -= steerPower;
-        } else {
-            if (steerPower > 0) {
-                rightPower -= steerPower;
-            } else {
-                leftPower += steerPower;
-            }
-        }
-
-        // Normalize power if either one exceeds +/- 1.0;
-        double max = Math.max(Math.abs(leftPower), Math.abs(rightPower));
-        if (max > 1.0) {
-            leftPower /= max;
-            rightPower /= max;
-        }
-
-        motorLeft.setPower(leftPower);
-        motorRight.setPower(rightPower);
+        wheels.powerMotors(motorPower, 0, Range.clip(steerPower, -1.0, 1.0));
     }
 
     @Override
     void powerRotate(double rotateSpeed) {
-        motorRight.setPower(-rotateSpeed);
-        motorLeft.setPower(rotateSpeed);
+        wheels.powerMotors(0, 0, rotateSpeed);
     }
 
     /**
@@ -893,7 +862,7 @@ public class AutonomousRover extends BaseAutonomous {
      * @param inches
      * @return
      */
-    static int inchesToCounts(double inches) {
+    static int inchesToCounts(double inches) { //TODO Redo inches to counts conversion
         // motorLeft with power 0.3 was used for testing
         return (int) (1000 * inches / 11.5);
     }
@@ -1101,7 +1070,7 @@ public class AutonomousRover extends BaseAutonomous {
                 rangeSensorBackLeft.getDistance(DistanceUnit.INCH),
                 rangeSensorFrontRight.getDistance(DistanceUnit.INCH),
                 rangeSensorBackRight.getDistance(DistanceUnit.INCH),
-                motorLeft.getCurrentPosition(),
-                motorRight.getCurrentPosition()));
+                motor.getCurrentPosition(),
+                alternateMotor.getCurrentPosition()));
     }
 }

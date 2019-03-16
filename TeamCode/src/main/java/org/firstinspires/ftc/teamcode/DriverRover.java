@@ -10,17 +10,20 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.hardware.TouchSensor;
-import com.qualcomm.robotcore.util.Range;
 
 import static android.os.SystemClock.sleep;
 import static java.lang.System.currentTimeMillis;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.AUTO_MODE_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.getSharedPrefs;
+import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_CLOCKWISE;
+import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_FORWARD;
+import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_RIGHT;
 
 @TeleOp(name = "DriverRover", group = "Main")
 public class DriverRover extends OpMode {
     //TODO: EDIT LATER ON
     private static final double MINPOWER = 0.1;
+    private double DPAD_POWER = 0.2; // slow move power
 
     // encoder positions for lift motor
     static final int LATCHING_POS = 8350; // middle of the handle
@@ -58,8 +61,7 @@ public class DriverRover extends OpMode {
     static final double POS_BUCKET_PARKED = 0.2115; // also used as drop position
     static final double POS_BUCKET_UP = 0.6825;
 
-    private DcMotor motorLeft;
-    private DcMotor motorRight;
+    MecanumWheels wheels;
     private DcMotor liftMotor;
     private DcMotor intakeExtend; //extend - positive, retract - negative
     private DcMotor deliveryExtend; //extend - positive, retract - negative
@@ -90,6 +92,8 @@ public class DriverRover extends OpMode {
     private boolean switchCrater = false;
     private boolean ourCrater = false;
 
+    private boolean leftBumper1Pressed = false;
+
     private static final long BLINK_START_MILLIS = 95000;
     private static final int INIT_BLINK_WAIT = 1800;
 
@@ -115,6 +119,10 @@ public class DriverRover extends OpMode {
     private double leftForward; //power given to the left side wheels
     private double rightForward; //power given to the right side wheels
 
+    //current motor speeds
+    private double currentForward;
+    private double currentRight;
+    private double currentClockwise;
 
     private static final double HALF_WIDTH = 7.5; //width between wheels is 15 inches
 
@@ -126,16 +134,15 @@ public class DriverRover extends OpMode {
     @Override
     public void init() {
         Lights.setUpLights(hardwareMap);
-        motorLeft = hardwareMap.dcMotor.get("wheelsLeft");
-        motorRight = hardwareMap.dcMotor.get("wheelsRight");
+
+        wheels = new MecanumWheels(hardwareMap, telemetry, true);
         liftMotor = hardwareMap.dcMotor.get("liftMotor");
         intakeExtend = hardwareMap.dcMotor.get("intakeExtend");
         deliveryExtend = hardwareMap.dcMotor.get("deliveryExtend");
         deliveryRotate = hardwareMap.dcMotor.get("deliveryRotate");
 
         // run by speed
-        motorLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        motorRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        wheels.setRunMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         // touch sensors
         liftTouch = hardwareMap.touchSensor.get("lift_touch");
@@ -144,15 +151,12 @@ public class DriverRover extends OpMode {
         deliveryExtendTouch = hardwareMap.touchSensor.get("deliveryExtendTouch");
 
         // float zero power
-        motorLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        motorRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        wheels.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
         liftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         deliveryExtend.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intakeExtend.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         deliveryRotate.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-
-        //setting the motors on the right side in reverse so both wheels spin the same way.
-        motorRight.setDirection(DcMotor.Direction.REVERSE);
 
         deliveryRotate.setDirection(DcMotorSimple.Direction.REVERSE);
 
@@ -255,7 +259,8 @@ public class DriverRover extends OpMode {
             switchCrater = false;
         }
 
-        if (Math.abs(gamepad1.right_stick_x) > 0.1) {
+        //To do an arc, press left bumper and use the right stick
+        if (Math.abs(gamepad1.right_stick_x) > 0.1 && gamepad1.left_bumper) {
             doArc();
         }
         else {
@@ -546,68 +551,91 @@ public class DriverRover extends OpMode {
             rightForward = sign * outerForward;
             leftForward = sign * innerForward;
         }
-        motorLeft.setPower (leftForward);
-        motorRight.setPower (rightForward);
+        wheels.powerArc(leftForward, rightForward);
 
     }
 
     private void controlWheels() {
+        double clockwise = gamepad1.right_stick_x;
+        // fine control with up and down overrides coarse control left and right
+        // up - clockwise, down - counterclockwise
+        if (Math.abs(gamepad1.right_stick_y) > 0.6)
+            clockwise = (-gamepad1.right_stick_y / Math.abs(gamepad1.right_stick_y)) * MIN_CLOCKWISE;
 
-        int sign = forward ? 1 : -1; // controls direction of turns
-
-        if ((gamepad1.dpad_up || gamepad1.dpad_down || gamepad1.dpad_left || gamepad1.dpad_right)) {
-            // dPadDrive: Forward, Backwards, in place CClockwise and Clockwise
-            // We are using robot coordinates
-            double dpadSpeed = 0.2;
+        //We are using robot coordinates
+        //D-pad is used for slow speed movements.
+        if (gamepad1.dpad_up || gamepad1.dpad_down || gamepad1.dpad_left || gamepad1.dpad_right) {
+            double forward = 0;
+            double right = 0;
             if (gamepad1.dpad_up) {
-                rightForward = dpadSpeed*1.5;
-                leftForward = dpadSpeed*1.5;
+                forward = DPAD_POWER;
             } else if (gamepad1.dpad_down) {
-                rightForward = -dpadSpeed*1.5;
-                leftForward = -dpadSpeed*1.5;
-            } else if (gamepad1.dpad_left) {
-                //rotating ccw
-                rightForward = sign * dpadSpeed;
-                leftForward = -sign * dpadSpeed;
-            } else {
-                //rotating cw
-                leftForward = sign * dpadSpeed;
-                rightForward = -sign * dpadSpeed;
+                forward = -DPAD_POWER;
             }
+            if (gamepad1.dpad_right) {
+                right = DPAD_POWER * 1.5;
+            } else if (gamepad1.dpad_left) {
+                right = -DPAD_POWER * 1.5;
+            }
+            driverPowerWheels(forward, right, clockwise);
         } else {
-
-            //Arcade Drive
-            rightForward = -(scaled(gamepad1.left_stick_y) + sign * scaled(gamepad1.left_stick_x));
-            leftForward = -(scaled(gamepad1.left_stick_y) - sign * scaled(gamepad1.left_stick_x));
-
-            //Tank Drive - not for this game: right stick is arc control now
-            //leftForward = -scaled(gamepad1.left_stick_y);
-            //rightForward = -scaled(gamepad1.right_stick_y);
+            double forward = -gamepad1.left_stick_y;
+            double right = gamepad1.left_stick_x;
+            driverPowerWheels(forward, right, clockwise);
+        }
+    }
 
 
-            //todo adjust the deadband
-            if ((rightForward > -0.01) && (rightForward < 0.01))
-                rightForward = 0;
-            else if ((rightForward > -MINPOWER) && (rightForward < MINPOWER))
-                rightForward = MINPOWER * rightForward / Math.abs(rightForward);
+    /**
+     * Grdually change the speed from current to the requested
+     *
+     * @param forward   requested forward from -1 to 1
+     * @param right     requested right from -1 to 1
+     * @param clockwise requested clockwise from -1 to 1
+     */
+    void driverPowerWheels(double forward, double right, double clockwise) {
 
-            if ((leftForward > -0.01) && (leftForward < 0.01))
-                leftForward = 0;
-            else if ((leftForward > -MINPOWER) && (leftForward < MINPOWER))
-                leftForward = MINPOWER * leftForward / Math.abs(leftForward);
+        currentForward = calculateNextSpeed(forward, currentForward, MIN_FORWARD);
+        currentRight = calculateNextSpeed(right, currentRight, MIN_RIGHT);
+        currentClockwise = calculateNextSpeed(clockwise, currentClockwise, MIN_CLOCKWISE);
+        wheels.powerMotors(currentForward, currentRight, currentClockwise);
+    }
 
-            rightForward = Range.clip(rightForward, -1, 1);
-            leftForward = Range.clip(leftForward, -1, 1);
+    private double calculateNextSpeed(double speed, double currentSpeed, double minSpeed) {
+        double STEP = 0.2;
+        if (Math.abs(speed) < 0.1) {
+            // cut power when going to 0
+            STEP = 1;
         }
 
-        // driving backwards
-        if (!forward) {
-            leftForward = -leftForward;
-            rightForward = -rightForward;
-        }
+        double nextSpeed;
 
-        motorLeft.setPower(leftForward);
-        motorRight.setPower(rightForward);
+        if (Math.abs(currentSpeed - speed) <= STEP) {
+            nextSpeed = speed;
+        } else {
+            if (currentSpeed < speed) {
+                //speed is increasing
+                nextSpeed = currentSpeed + STEP;
+                if (nextSpeed > 1)
+                    nextSpeed = 1;
+                else if (nextSpeed == 0) {
+                    nextSpeed = minSpeed;
+                } else if (nextSpeed >= -minSpeed && nextSpeed < 0) {
+                    nextSpeed = 0;
+                }
+            } else {
+                //speed is decreasing
+                nextSpeed = currentSpeed - STEP;
+                if (nextSpeed < -1) {
+                    nextSpeed = -1;
+                } else if (nextSpeed == 0) {
+                    nextSpeed = -minSpeed;
+                } else if (nextSpeed <= minSpeed && nextSpeed > 0) {
+                    nextSpeed = 0;
+                }
+            }
+        }
+        return nextSpeed;
     }
 
 
@@ -660,8 +688,13 @@ public class DriverRover extends OpMode {
         //we should have released the hook at the end of autonomous,
         //but something could have gone wrong
         if (gamepad1.left_bumper) {
-            intakeHolder.setPosition(POS_INTAKE_RELEASE_EXTREME);
-            intakeReleased = true;
+            leftBumper1Pressed = true;
+        } else {
+            if(leftBumper1Pressed) {
+                intakeHolder.setPosition(POS_INTAKE_RELEASE_EXTREME);
+                intakeReleased = true;
+                leftBumper1Pressed = false;
+            }
         }
 
         // intake wheel forward and reverse

@@ -11,11 +11,13 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Servo;
 
+import org.firstinspires.ftc.teamcode.MecanumWheels;
+
 import static org.firstinspires.ftc.teamcode.RelicRecovery.AutonomousOptions.ALLIANCE_PREF;
 import static org.firstinspires.ftc.teamcode.RelicRecovery.AutonomousOptions.START_POSITION_PREF;
-import static org.firstinspires.ftc.teamcode.RelicRecovery.MecanumWheels.MIN_CLOCKWISE;
-import static org.firstinspires.ftc.teamcode.RelicRecovery.MecanumWheels.MIN_FORWARD;
-import static org.firstinspires.ftc.teamcode.RelicRecovery.MecanumWheels.MIN_RIGHT;
+import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_CLOCKWISE;
+import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_FORWARD;
+import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_RIGHT;
 
 /**
  * Created by JASMINE on 10/22/17.
