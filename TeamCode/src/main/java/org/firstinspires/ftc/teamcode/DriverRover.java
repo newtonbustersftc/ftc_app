@@ -1,15 +1,31 @@
 package org.firstinspires.ftc.teamcode;
 
 import android.content.SharedPreferences;
+import android.os.Environment;
 
+import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.hardware.TouchSensor;
+
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
+import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
+import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 import static android.os.SystemClock.sleep;
 import static java.lang.System.currentTimeMillis;
@@ -79,6 +95,14 @@ public class DriverRover extends OpMode {
     private TouchSensor intakeExtendTouch;
     private TouchSensor deliveryExtendTouch;
     private TouchSensor deliveryDownTouch;
+    private ColorSensor colorSensor;
+    private BNO055IMU imu; //gyro
+
+    enum ArcState {
+        AT_CRATER, ALIGNING, MOVING_TO_CRATER, MOVING_TO_LAUNCHER, AT_LAUNCHER
+    }
+
+    private ArcState arcstate;
 
     //for now, we don't support robot reversing the forward direction
     private final boolean forward = true;
@@ -91,6 +115,7 @@ public class DriverRover extends OpMode {
 
     private boolean switchCrater = false;
     private boolean ourCrater = false;
+    private boolean isDepotAuto = false;
 
     private boolean leftBumper1Pressed = false;
 
@@ -131,6 +156,16 @@ public class DriverRover extends OpMode {
     private static final double ARC_MIN_RADIUS = 20.0;
     private static final double ARC_MAX_RADIUS = 35.0;
 
+    StringBuffer out;
+    long loopEndTime = 0;
+
+    //constants for automatic rotation
+    static final double MAX_ROTATE_POWER = BaseAutonomous.MAX_ROTATE_POWER;
+    static final double MIN_ROTATE_POWER = BaseAutonomous.MIN_ROTATE_POWER;
+    static final double CLOSE_ANGlE = BaseAutonomous.CLOSE_ANGlE;
+    static final double FAR_ANGLE = BaseAutonomous.FAR_ANGLE;
+    static final double TOLERANCE_ANGLE = 1d; //TEST
+
     @Override
     public void init() {
         Lights.setUpLights(hardwareMap);
@@ -159,6 +194,10 @@ public class DriverRover extends OpMode {
         deliveryRotate.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         deliveryRotate.setDirection(DcMotorSimple.Direction.REVERSE);
+
+        imu = hardwareMap.get(BNO055IMU.class, "imu");
+
+        colorSensor = hardwareMap.get(ColorSensor.class, "colorSensor");
 
         if (liftTouch.isPressed()) {
             //reset the encoder for the lift motor
@@ -192,6 +231,7 @@ public class DriverRover extends OpMode {
         SharedPreferences prefs = getSharedPrefs(hardwareMap);
         String autoMode = prefs.getString(AUTO_MODE_PREF, "");
         ourCrater = autoMode.equals(AutonomousOptionsRover.AutoMode.CRATER.toString());
+        isDepotAuto = !ourCrater;
 
         if (!ourCrater) {
             switchExtension();
@@ -259,11 +299,15 @@ public class DriverRover extends OpMode {
             switchCrater = false;
         }
 
-        //To do an arc, press left bumper and use the right stick
-        if (Math.abs(gamepad1.right_stick_x) > 0.1 && gamepad1.left_bumper) {
-            doArc();
-        }
-        else {
+
+        //if auto, then no manual
+        if (gamepad2.left_bumper) {
+            toLauncher();
+        } else if (gamepad2.right_bumper) {
+            toCrater();
+        } else if (Math.abs(gamepad1.right_stick_x) > 0.1) {
+            doArc(gamepad1.right_stick_x);
+        } else {
             controlWheels();
         }
 
@@ -282,7 +326,12 @@ public class DriverRover extends OpMode {
             Lights.blue(isDeliveryArmDown(deliveryRotatePos));
         }
 
-        log();
+        //log();
+        long ct = currentTimeMillis();
+        if(loopEndTime > 0) {
+            logEntry((ct-startTime)+"," + (ct-loopEndTime));
+        }
+        loopEndTime = ct;
     }
 
     private void controlBlinker() {
@@ -373,6 +422,8 @@ public class DriverRover extends OpMode {
                      * box is vertical and position 0 when box is down.
                      */
                     boxServo.setPosition(1 - gamepad2.right_trigger); //Uses analog trigger position
+
+                    arcstate = ArcState.AT_LAUNCHER;
                 } else {
                     boxServo.setPosition(1);
                 }
@@ -522,12 +573,10 @@ public class DriverRover extends OpMode {
     }
 
     /**
-     * Arc moves between our or opposite alliance crater and depot side launcher,
-     * driver's right stick x is proportional to the radius, bigger values - sharper turn
-     * When moving from/to opposite alliance crater right wheel is outer (further from the center of the arc)
-     * When moving from/to our crater left wheel is outer
+     *
+     * @param coefficient between -1 and 1, controls direction and radius of arc
      */
-    private void doArc() {
+    private void doArc(double coefficient) {
 
         double FORWARD_POWER = 0.5;
         double ARC_MAX_CLOCKWISE_POWER = .5; //at 0.5 forward power
@@ -536,22 +585,156 @@ public class DriverRover extends OpMode {
         double clockwisePower;
         double forwardPower;
         double p = (ARC_MAX_CLOCKWISE_POWER - ARC_MIN_CLOCKWISE_POWER) * Math.abs(gamepad1.right_stick_x) + ARC_MIN_CLOCKWISE_POWER;
+
         // outer motor is left between our crater and our depot side launcher
         // outer motor is right between opposite crater and our depot side launcher
         if (ourCrater) {
             //backward moving from our crater to depot side launcher
             //forward moving from depot side launcher to our crater
-            int sign = gamepad1.right_stick_x < 0 ? 1 : -1;
+            int sign = coefficient < 0 ? 1 : -1;
             forwardPower = sign * FORWARD_POWER;
             clockwisePower = sign * p;
-
         } else {
-            int sign = gamepad1.right_stick_x < 0 ? -1 : 1;
+            int sign = coefficient < 0 ? -1 : 1;
             forwardPower = sign * FORWARD_POWER;
             clockwisePower = -sign * p;
         }
         wheels.powerMotors(forwardPower, 0, clockwisePower);
+    }
 
+
+    /**
+     * Arc moves between our or opposite alliance crater and depot side launcher,
+     * driver's right stick x is proportional to the radius, bigger values - sharper turn
+     * When moving from/to opposite alliance crater right wheel is outer (further from the center of the arc)
+     * When moving from/to our crater left wheel is outer
+     */
+    private void toLauncher() {
+        //AT_CRATER, ALIGNING, MOVING_TO_CRATER, MOVING_TO_LAUNCHER, AT_LAUNCHER
+        switch (arcstate) {
+            case AT_CRATER:
+                arcstate = ArcState.ALIGNING;
+                break;
+            case ALIGNING:
+                //continue rotating to heading
+                double targetHeading = getHeadingParallelToWall();
+                boolean doneRotating = rotateToHeading(targetHeading);
+
+                if (doneRotating) {
+                    //TODO: Calculate arc radius
+                    arcstate = ArcState.MOVING_TO_LAUNCHER;
+                }
+                break;
+            case MOVING_TO_CRATER:
+                powerRotate(0);
+                arcstate = ArcState.MOVING_TO_LAUNCHER;
+                break;
+            case MOVING_TO_LAUNCHER:
+
+                //when going to launcher, match coefficient of driver-controlled mode
+                doArc(ourCrater ? 0.5 : -0.5);
+
+                boolean atLine = onLine(); //atLine returned by doArc
+
+                if (atLine) {
+                    //stop the robot by giving 0 power
+                    powerRotate(0);
+
+                    //rotate so directly facing launcher
+                    rotateToHeading(getHeadingAtDepotLander());
+
+                    arcstate = ArcState.AT_LAUNCHER;
+                }
+                break;
+            case AT_LAUNCHER:
+                break;
+        }
+    }
+
+    private void toCrater() {
+        //AT_CRATER, ALIGNING, MOVING_TO_CRATER, MOVING_TO_LAUNCHER, AT_LAUNCHER
+        switch(arcstate) {
+            case AT_LAUNCHER:
+                boolean doneRotating = rotateToHeading(getHeadingAtDepotLander());
+                if (doneRotating) {
+                    arcstate = ArcState.MOVING_TO_CRATER;
+                }
+                break;
+            case MOVING_TO_LAUNCHER:
+                powerRotate(0);
+                arcstate = ArcState.MOVING_TO_CRATER;
+                break;
+            case MOVING_TO_CRATER:
+                doArc(ourCrater ? -0.5 : 0.5);
+                break;
+            case ALIGNING:
+                break;
+            case AT_CRATER:
+                break;
+        }
+    }
+
+    //TODO: DO STUFF HERE
+    private boolean onLine() {
+        return true;
+    }
+
+    private double getHeadingParallelToWall() {
+        if (isDepotAuto) {
+            return ourCrater ? -135 : 135;
+        } else {
+            return ourCrater ? -45 : -135;
+        }
+    }
+
+    private double getHeadingAtDepotLander() {
+        return isDepotAuto ? 0 : 90;
+    }
+
+    private void powerRotate(double clockwiseSpeed) {
+        wheels.powerMotors(0,0, clockwiseSpeed);
+    }
+
+    /**
+     * rotate to the gyro heading
+     * @param targetHeading heading we want to rotate to
+     * @return true if rotation is complete, false otherwise
+     */
+    private boolean rotateToHeading(double targetHeading) {
+        double currentHeading = getGyroAngles().firstAngle;
+        double delta = targetHeading - currentHeading;
+        double rotateHeading = delta; //how much to rotate in what direction
+        double currentPower;
+
+        if (delta > 180) {
+            rotateHeading = delta - 360;
+        } else if (delta < -180) {
+            rotateHeading = delta + 360;
+        }
+
+        //heading --> has direction
+        //angle --> doesn't have direction
+        double rotateAngle = Math.abs(rotateHeading);
+
+        //if delta is positive --> rotate ccw
+        //if delta is negative --> rotate cw
+        double signFactor = delta < 0 ? -1 : 1;
+
+        if (rotateAngle < TOLERANCE_ANGLE) {
+            currentPower = 0;
+        } else if (rotateAngle < CLOSE_ANGlE) {
+            currentPower = MIN_ROTATE_POWER;
+        } else if (rotateAngle > FAR_ANGLE) {
+            currentPower = MAX_ROTATE_POWER;
+        } else {
+            //(A - MIN_A) / (P - MIN_P) = (MAX_A - MIN_A) / (MAX_P - MIN_P)
+            currentPower = ((MAX_ROTATE_POWER - MIN_ROTATE_POWER) * (rotateAngle - CLOSE_ANGlE)) /
+                    (FAR_ANGLE-CLOSE_ANGlE) + MIN_ROTATE_POWER;
+        }
+
+        powerRotate(currentPower * signFactor);
+
+        return currentPower == 0;
     }
 
     private void controlWheels() {
@@ -592,7 +775,7 @@ public class DriverRover extends OpMode {
      * @param right     requested right from -1 to 1
      * @param clockwise requested clockwise from -1 to 1
      */
-    void driverPowerWheels(double forward, double right, double clockwise) {
+    private void driverPowerWheels(double forward, double right, double clockwise) {
 
         currentForward = calculateNextSpeed(forward, currentForward, MIN_FORWARD);
         currentRight = calculateNextSpeed(right, currentRight, MIN_RIGHT);
@@ -721,6 +904,8 @@ public class DriverRover extends OpMode {
                 } else {
                     intakeExtendPower = -gamepad1.left_trigger;
                 }
+
+                arcstate = ArcState.AT_CRATER;
             } else if (gamepad1.right_trigger > mintriggervalue && !intakeExtendTouch.isPressed()) {
                 // retracting intake arm
                 if (isIntakeAlmostMinRetracted()) {
@@ -808,6 +993,7 @@ public class DriverRover extends OpMode {
                 deliveryExtend.getCurrentPosition() + "/" + deliveryExtendTouch.isPressed());
         telemetry.addData("lift / touch",
                 liftMotor.getCurrentPosition() + "/" + liftTouch.isPressed());
+        telemetry.addData("alpha", colorSensor.alpha());
         if (intakeHolder != null) {
             telemetry.addData("Holder Pos", intakeHolder.getPosition());
         }
@@ -848,8 +1034,68 @@ public class DriverRover extends OpMode {
      * @param servo       - servo motor to use
      * @param percentOpen is the number between 0 and 1
      */
-    static void setPercentOpen(Servo servo, double percentOpen) {
+    private static void setPercentOpen(Servo servo, double percentOpen) {
         servo.setPosition(percentOpen);
     }
 
+    @Override
+    public void stop() {
+        String logPrefix = "driver";
+        try {
+            if (out != null) {
+                //log file without the time stamp to find it easier
+                File file = new File(Environment.getExternalStorageDirectory().getPath() + "/FIRST/" + logPrefix + ".txt");
+
+                //saving the log file into a file
+                OutputStreamWriter outputStreamWriter = new OutputStreamWriter(new FileOutputStream(file));
+                outputStreamWriter.write(out.toString());
+                outputStreamWriter.close();
+
+                //log file with the time stamp for history
+                String timestamp = new SimpleDateFormat("MMMdd_HHmm", Locale.US).format(new Date());
+                file = new File(Environment.getExternalStorageDirectory().getPath() + "/FIRST/" + logPrefix + "_" + timestamp + ".txt");
+                telemetry.clear();
+                telemetry.addData("File", file.getAbsolutePath());
+                telemetry.update();
+
+                //saving the log file into a file
+                outputStreamWriter = new OutputStreamWriter(new FileOutputStream(file));
+                outputStreamWriter.write(out.toString());
+                outputStreamWriter.close();
+
+            }
+        } catch (Exception e) {
+            telemetry.clear();
+            telemetry.addData("Exception", "File write failed: " + e.toString());
+            telemetry.update();
+        }
+    }
+
+    private void logEntry(String message) {
+        logEntry(message, false);
+    }
+
+    private void logEntry(String message, boolean isComment) {
+        if (out == null) {
+            out = new StringBuffer();
+        }
+        if (isComment) {
+            out.append("# "); // start of the comment
+        }
+        out.append(message);
+        out.append("\n"); // new line at the end
+    }
+
+    /**
+     * Save current gyro heading, roll, and pitch into angles variable
+     * angles.firstAngle is the heading
+     * angles.secondAngle is the roll
+     * angles.thirdAngle is the pitch
+     * Heading: clockwise is decreasing, counterclockwise is increasing
+     * Pitch: Lift side w/ light is decreasing, vice versa
+     * Roll: Lift side w/ mini USB port is decreasing, vice versa
+     */
+    private Orientation getGyroAngles() {
+        return imu.getAngularOrientation(AxesReference.INTRINSIC, AxesOrder.ZYX, AngleUnit.DEGREES);
+    }
 }
