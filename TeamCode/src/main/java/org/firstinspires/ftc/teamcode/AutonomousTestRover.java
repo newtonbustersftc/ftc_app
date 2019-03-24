@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.hardware.DcMotor;
 
 @Autonomous(name = "TestRover", group = "Main")
 public class AutonomousTestRover extends AutonomousRover {
@@ -18,7 +19,7 @@ public class AutonomousTestRover extends AutonomousRover {
 
 //        gyroDriveTest();
 
-//        distanceTest();
+        distanceTest();
 //        for (double power=0.15; power <= .9; power += 0.05) {
 //            rotate(power,90);
 //            sleep(1000);
@@ -26,12 +27,12 @@ public class AutonomousTestRover extends AutonomousRover {
 //            sleep(1000);
 //        }
 //
-        for(double angle = 10; angle <= 90; angle += 10){
+        /**for(double angle = 10; angle <= 90; angle += 10){
             rotate(true, angle);
             sleep(1000);
             rotate(false, angle);
             sleep(1000);
-        }
+        } **/
 
 //        landing();
 
@@ -43,11 +44,15 @@ public class AutonomousTestRover extends AutonomousRover {
     }
 
     private void distanceTest() throws InterruptedException {
+        wheels.setRunMode(DcMotor.RunMode.RUN_USING_ENCODER); //doing by speed
+        wheels.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
         int counts = 1000;
+
         while (counts < 5000) {
-            goCounts(-0.3, counts);
+            goCounts(0.15, counts);
             sleep(5000);
-            goCounts( -0.3, counts);
+            goCounts( -0.15, counts);
             sleep(5000);
             counts=counts+1000;
         }

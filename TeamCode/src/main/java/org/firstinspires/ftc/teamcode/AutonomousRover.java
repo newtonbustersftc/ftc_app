@@ -864,7 +864,9 @@ public class AutonomousRover extends BaseAutonomous {
      */
     static int inchesToCounts(double inches) { //TODO Redo inches to counts conversion
         // motorLeft with power 0.3 was used for testing
-        return (int) (1000 * inches / 11.5);
+        //return (int) (1000 * inches / 11.5); - old robot
+        //  1000 / 23.75 = counts per inch
+        return (int) (1000 * inches / 23.75);
     }
 
 //    void initializeTensorFlow() {

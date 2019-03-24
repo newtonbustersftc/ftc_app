@@ -17,7 +17,7 @@ public class MecanumWheels {
 
     public static final double MIN_FORWARD = 0.2; //minimum power to move the robot forward
     public static final double MIN_RIGHT = 0.4; //minimum power to strafe
-    public static final double MIN_CLOCKWISE = 0.25; //minimum power to rotate
+    public static final double MIN_CLOCKWISE = 0.15; //minimum power to rotate
 
     //defining the 4 motors
     private DcMotor motorFrontLeft;
@@ -40,8 +40,12 @@ public class MecanumWheels {
         motorRearRight = hardwareMap.dcMotor.get("Rear-Right"); //DC4
 
         //setting the motors on the left side in reverse so both wheels spin the same way.
-        motorFrontLeft.setDirection(DcMotor.Direction.REVERSE);
-        motorRearLeft.setDirection(DcMotor.Direction.REVERSE);
+// 2017-2018
+//        motorFrontLeft.setDirection(DcMotor.Direction.REVERSE);
+//        motorRearLeft.setDirection(DcMotor.Direction.REVERSE);
+        // 2018-2019
+        motorFrontRight.setDirection(DcMotor.Direction.REVERSE);
+        motorRearRight.setDirection(DcMotor.Direction.REVERSE);
 
         resetEncoders();
     }

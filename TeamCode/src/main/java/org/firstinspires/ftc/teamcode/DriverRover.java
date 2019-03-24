@@ -556,7 +556,7 @@ public class DriverRover extends OpMode {
     }
 
     private void controlWheels() {
-        double clockwise = gamepad1.right_stick_x;
+        double clockwise = scaled(gamepad1.right_stick_x);
         // fine control with up and down overrides coarse control left and right
         // up - clockwise, down - counterclockwise
         if (Math.abs(gamepad1.right_stick_y) > 0.6)
@@ -579,9 +579,9 @@ public class DriverRover extends OpMode {
             }
             driverPowerWheels(forward, right, clockwise);
         } else {
-            double forward = -gamepad1.left_stick_y;
-            double right = gamepad1.left_stick_x;
-            driverPowerWheels(forward, right, clockwise);
+            double forward = -scaled(gamepad1.left_stick_y);
+            double right = scaled(gamepad1.left_stick_x);
+            driverPowerWheels(0.7*forward, right, 0.6*clockwise);
         }
     }
 
