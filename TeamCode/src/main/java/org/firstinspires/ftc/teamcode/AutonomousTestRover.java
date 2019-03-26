@@ -11,15 +11,21 @@ public class AutonomousTestRover extends AutonomousRover {
         preRun();
         waitForStart();
 
+        if(!opModeIsActive()){
+            return;
+        }
+
         TEST=true;
         logPrefix = "rotateTest";
+
+        arcTest();
 //        rangeDriveTest();
 
 //        steerTest();
 
 //        gyroDriveTest();
 
-        distanceTest();
+//        distanceTest();
 //        for (double power=0.15; power <= .9; power += 0.05) {
 //            rotate(power,90);
 //            sleep(1000);
@@ -129,5 +135,56 @@ public class AutonomousTestRover extends AutonomousRover {
             moveWithErrorCorrection(startPower, endPower, inches, errorHandlerForward);
             sleep( 5000);
         }
+    }
+
+    void arcTest() {
+        wheels.setRunMode(DcMotor.RunMode.RUN_USING_ENCODER); //doing by speed
+        wheels.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        double forward = 0.5;
+
+        for(double clockwise = 0.37; clockwise < 0.45; clockwise += 0.02) {
+            if(!opModeIsActive()) return;
+            moveHalfCircle(forward, clockwise);
+            sleep(10000);
+            moveHalfCircle(-forward, -clockwise);
+            sleep(10000);
+        }
+    }
+
+    void moveHalfCircle(double forward, double clockwise) {
+        if(!opModeIsActive()) return;
+
+        double originalHeading = getHeading();
+        wheels.powerMotors(forward, 0, clockwise);
+
+        double currentHeading = getHeading();
+        double gyroDelta = Math.abs(currentHeading - originalHeading);
+
+        while(gyroDelta < 180 && opModeIsActive()) {
+            currentHeading = getHeading();
+            gyroDelta = Math.abs(currentHeading - originalHeading);
+            telemetry.addData("Heading", currentHeading);
+            telemetry.addData("GyroDelta", gyroDelta);
+            telemetry.update();
+            idle();
+        }
+
+        wheels.powerMotors(0, 0, 0);
+        currentHeading = getHeading();
+        telemetry.addData("Heading", currentHeading);
+        telemetry.addData("Clockwise was", clockwise);
+        telemetry.update();
+    }
+
+
+    double getHeading() {
+        double currentHeading = getGyroAngles().firstAngle;
+
+        if(currentHeading > 90) {
+            currentHeading -= 360;
+        }
+
+        return currentHeading;
     }
 }

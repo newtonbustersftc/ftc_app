@@ -528,30 +528,29 @@ public class DriverRover extends OpMode {
      * When moving from/to our crater left wheel is outer
      */
     private void doArc() {
-        double POWER = 0.5; // inner wheel power before scaling
 
-        double radius = ARC_MAX_RADIUS - Math.abs(gamepad1.right_stick_x) * (ARC_MAX_RADIUS - ARC_MIN_RADIUS);
-        double powerRatio = (radius - HALF_WIDTH) / (radius + HALF_WIDTH);
-        double innerForward = POWER;
-        double outerForward = POWER / powerRatio;
-        if(outerForward > 1) {
-            innerForward = innerForward/outerForward;
-            outerForward = outerForward/outerForward;
-        }
+        double FORWARD_POWER = 0.5;
+        double ARC_MAX_CLOCKWISE_POWER = .5; //at 0.5 forward power
+        double ARC_MIN_CLOCKWISE_POWER = .3; //same
+
+        double clockwisePower;
+        double forwardPower;
+        double p = (ARC_MAX_CLOCKWISE_POWER - ARC_MIN_CLOCKWISE_POWER) * Math.abs(gamepad1.right_stick_x) + ARC_MIN_CLOCKWISE_POWER;
         // outer motor is left between our crater and our depot side launcher
         // outer motor is right between opposite crater and our depot side launcher
         if (ourCrater) {
             //backward moving from our crater to depot side launcher
             //forward moving from depot side launcher to our crater
             int sign = gamepad1.right_stick_x < 0 ? 1 : -1;
-            rightForward = sign * innerForward;
-            leftForward = sign * outerForward;
+            forwardPower = sign * FORWARD_POWER;
+            clockwisePower = sign * p;
+
         } else {
             int sign = gamepad1.right_stick_x < 0 ? -1 : 1;
-            rightForward = sign * outerForward;
-            leftForward = sign * innerForward;
+            forwardPower = sign * FORWARD_POWER;
+            clockwisePower = -sign * p;
         }
-        wheels.powerArc(leftForward, rightForward);
+        wheels.powerMotors(forwardPower, 0, clockwisePower);
 
     }
 
