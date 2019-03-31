@@ -16,16 +16,16 @@ public class AutonomousTestRover extends AutonomousRover {
         }
 
         TEST=true;
-        logPrefix = "rotateTest";
+        logPrefix = "distance";
 
-        arcTest();
+//        arcTest();
 //        rangeDriveTest();
 
 //        steerTest();
 
 //        gyroDriveTest();
 
-//        distanceTest();
+        distanceTest();
 //        for (double power=0.15; power <= .9; power += 0.05) {
 //            rotate(power,90);
 //            sleep(1000);
@@ -56,9 +56,9 @@ public class AutonomousTestRover extends AutonomousRover {
         int counts = 1000;
 
         while (counts < 5000) {
-            goCounts(0.15, counts);
+            goCounts(0.5, counts);
             sleep(5000);
-            goCounts( -0.15, counts);
+            goCounts( -0.5, counts);
             sleep(5000);
             counts=counts+1000;
         }

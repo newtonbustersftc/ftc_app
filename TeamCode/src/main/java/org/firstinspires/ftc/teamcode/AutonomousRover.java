@@ -46,6 +46,8 @@ public class AutonomousRover extends BaseAutonomous {
     static final double CLOSE_ANGlE = 10;
     static final double FAR_ANGLE = 90;
 
+    static final double DRIVE_POWER = 0.6;
+
     /*
      * IMPORTANT: You need to obtain your own license key to use Vuforia. The string below with which
      * 'parameters.vuforiaLicenseKey' is initialized is for illustration only, and will not function.
@@ -490,14 +492,14 @@ public class AutonomousRover extends BaseAutonomous {
                 extraDistance += 14;
             }
             checkForGyroError();
-            moveWithErrorCorrection(0.7, 0.2, distanceToSideGold + extraDistance, new GyroErrorHandler(heading));
+            moveWithErrorCorrection(DRIVE_POWER, 0.2, distanceToSideGold + extraDistance, new GyroErrorHandler(heading));
 
         } else {
             if (depotSide()) {
                 extraDistance = 29;
             }
             checkForGyroError();
-            moveWithErrorCorrection(0.7, 0.2, distanceToCenterGold + extraDistance, new GyroErrorHandler(heading));
+            moveWithErrorCorrection(DRIVE_POWER, 0.2, distanceToCenterGold + extraDistance, new GyroErrorHandler(heading));
 
         }
         log("Moved mineral");
@@ -505,7 +507,7 @@ public class AutonomousRover extends BaseAutonomous {
         if (checkForGyroError()) {
             if (depotSide()) {
                 //if gyro is not functioning, go back to landing position and stop
-                moveWithErrorCorrection(-0.7, -0.2, distanceToCenterGold + extraDistance, new GyroErrorHandler(heading));
+                moveWithErrorCorrection(-DRIVE_POWER, -0.2, distanceToCenterGold + extraDistance, new GyroErrorHandler(heading));
             }
             return false;
         } else {
@@ -523,11 +525,11 @@ public class AutonomousRover extends BaseAutonomous {
                 if (goldOnRight) {
                     //return to previous heading
                     rotate(false, Math.abs(currentAngle) - 5);
-                    moveWithErrorCorrection(0.7, 0.2, 11, new GyroErrorHandler(0));
+                    moveWithErrorCorrection(DRIVE_POWER, 0.2, 11, new GyroErrorHandler(0));
                 } else {
                     //return to previous heading
                     rotate(true, Math.abs(currentAngle) - 5);
-                    moveWithErrorCorrection(0.7, 0.2, 23, new GyroErrorHandler(-45));
+                    moveWithErrorCorrection(DRIVE_POWER, 0.2, 23, new GyroErrorHandler(-45));
                 }
             }
             // drop marker after being aligned for parking
@@ -557,7 +559,7 @@ public class AutonomousRover extends BaseAutonomous {
 
             // move back
             checkForGyroError();
-            moveWithErrorCorrection(-0.7, -0.2, distanceBack, new GyroErrorHandler(heading));
+            moveWithErrorCorrection(-DRIVE_POWER, -0.2, distanceBack, new GyroErrorHandler(heading));
             log("Moved back");
 
             double currentHeading = getGyroAngles().firstAngle;
@@ -570,7 +572,7 @@ public class AutonomousRover extends BaseAutonomous {
             log("Rotated to wall");
             // drive toward the wall
             checkForGyroError();
-            moveWithErrorCorrection(0.7, 0.2, distanceToWall, new GyroErrorHandler(driveHeading));
+            moveWithErrorCorrection(DRIVE_POWER, 0.2, distanceToWall, new GyroErrorHandler(driveHeading));
             if (isRightFrontTooFarFromWall()) {
                 //too far away from the wall
                 log("Too far");
@@ -596,9 +598,9 @@ public class AutonomousRover extends BaseAutonomous {
             double inchesToWall = 3;
             RangeErrorHandler errorHandler = new RangeErrorHandler (rangeSensorFrontRight,
                     rangeSensorBackRight, inchesToWall, clockwiseWhenTooClose, driveHeading);
-            moveWithErrorCorrection(0.7, 0.2, inchesForward, errorHandler);
+            moveWithErrorCorrection(DRIVE_POWER, 0.2, inchesForward, errorHandler);
             checkForGyroError();
-            //moveWithErrorCorrection(0.7, 0.2, inchesForward, new GyroErrorHandler(driveHeading));
+            //moveWithErrorCorrection(DRIVE_POWER, 0.2, inchesForward, new GyroErrorHandler(driveHeading));
 
             dropMarker();
         }
@@ -613,7 +615,7 @@ public class AutonomousRover extends BaseAutonomous {
         sleep(400);
         log("Delivered marker");
         // use for testing autonomous
-        //retractLift();
+        retractLift();
     }
 
     boolean isRightFrontTooFarFromWall() {
@@ -667,7 +669,7 @@ public class AutonomousRover extends BaseAutonomous {
             RangeErrorHandler errorHandler = new RangeErrorHandler (rangeSensorBackRight,
                     rangeSensorFrontRight, inchesToWall, clockwiseWhenTooClose, driveHeading);
             //usually use distance sensor not gyro
-            boolean success = moveWithErrorCorrection(-0.7, -0.2, distanceToTravel, errorHandler);
+            boolean success = moveWithErrorCorrection(-DRIVE_POWER, -0.2, distanceToTravel, errorHandler);
             if (!success) return;
         } else {
             // depot side
@@ -693,7 +695,7 @@ public class AutonomousRover extends BaseAutonomous {
             }
             // move forward a bit
             checkForGyroError();
-            moveWithErrorCorrection(0.7, 0.2, inchesForward, new GyroErrorHandler(moveForwardHeading));
+            moveWithErrorCorrection(DRIVE_POWER, 0.2, inchesForward, new GyroErrorHandler(moveForwardHeading));
             double currentHeading = getGyroAngles().firstAngle;
             double parkHeading = -45;
             double angleToRotate = Math.abs(currentHeading - parkHeading) - 5; //small adjustment for over rotation
@@ -707,7 +709,7 @@ public class AutonomousRover extends BaseAutonomous {
             DistanceSensor rangeB = rangeSensorFrontLeft;
 
             if(!goldOnSide || goldOnRight){
-                boolean success = moveWithErrorCorrection(-0.7, -0.2, 10,
+                boolean success = moveWithErrorCorrection(-DRIVE_POWER, -0.2, 10,
                         new RangeErrorHandler(rangeF, rangeB, inchesToWall, false, parkHeading));
                 if(!success){
                     return;
@@ -718,7 +720,7 @@ public class AutonomousRover extends BaseAutonomous {
 
             TEST = true;
 
-            boolean success = moveWithErrorCorrection(-0.7, -0.2, distanceToTravel,
+            boolean success = moveWithErrorCorrection(-DRIVE_POWER, -0.2, distanceToTravel,
                     new RangeErrorHandler(rangeF, rangeB, inchesToWall, false, parkHeading));
             if (!success) return;
         }
