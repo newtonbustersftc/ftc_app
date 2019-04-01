@@ -10,7 +10,6 @@ import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.hardware.TouchSensor;
@@ -55,11 +54,13 @@ public class DriverRover extends OpMode {
 
     // encoder positions for the rotating delivery arm motor
     // 0 - arm all the way down
+    static final int DELIVERY_ROTATE_MARKER_POS = 1900; // arm to deliver marker
     static final int DELIVERY_ROTATE_MAX_POS = 1250;
     static final int DELIVERY_ROTATE_VERT_POS = 1190; // arm is vertical
     static final int DELIVERY_ROTATE_UP_POS = 1050;
     static final int DELIVERY_ROTATE_BEFORE_HOME_POS = 400;
     static final int DELIVERY_ROTATE_HORIZ_POS = 350; // arm is horizontal
+    static final int DELIVERY_ROTATE_INTAKE_POS = 130;
 
     // encode positions for the delivery extension motor
     // 0 - arm is not extended
@@ -74,8 +75,10 @@ public class DriverRover extends OpMode {
     static final double POS_INTAKE_RELEASE = 0.65;
     static final double POS_INTAKE_RELEASE_EXTREME = 0.7;
 
-    static final double POS_BUCKET_PARKED = 0.2115; // also used as drop position
-    static final double POS_BUCKET_UP = 0.6825;
+    static final double POS_BUCKET_PARKED = 0.32;
+    static final double POS_BUCKET_UP = 0.8;
+    static final double POS_BUCKET_INTAKE = 0.37; // also used as drop position
+    static final double POS_BUCKET_DROP = 0.35;
 
     MecanumWheels wheels;
     private DcMotor liftMotor;
@@ -87,7 +90,6 @@ public class DriverRover extends OpMode {
     private Servo markerServo;
     private Servo intakeGateServo;
     private Servo boxServo;
-    private CRServo leftIntakeServo;
     private CRServo rightIntakeServo;
     private Servo intakeHolder;
 
@@ -276,11 +278,9 @@ public class DriverRover extends OpMode {
 
         boxServo = hardwareMap.servo.get("box");
         //for bucket servo that delivers the minerals to the launcher
-        setUpServo(boxServo, POS_BUCKET_PARKED, POS_BUCKET_UP);
+        setUpServo(boxServo, POS_BUCKET_INTAKE, POS_BUCKET_UP);
 
         rightIntakeServo = hardwareMap.crservo.get("rightIntake");
-        rightIntakeServo.setDirection(DcMotorSimple.Direction.REVERSE);
-        leftIntakeServo = hardwareMap.crservo.get("leftIntake");
     }
 
     @Override
@@ -326,7 +326,7 @@ public class DriverRover extends OpMode {
             Lights.blue(isDeliveryArmDown(deliveryRotatePos));
         }
 
-        //log();
+        log();
         long ct = currentTimeMillis();
         if(loopEndTime > 0) {
             logEntry((ct-startTime)+"," + (ct-loopEndTime));
@@ -404,14 +404,15 @@ public class DriverRover extends OpMode {
             setPercentOpen(intakeGateServo, 0);
         }
 
-        //if the delivery arm is down, the bucket should be in bottom parked position.
-        // 0 corresponds to the parked position (or drop) 1 - to vertical position,
+        //if the delivery arm is down, the bucket should be in intake position.
+        // 0 corresponds to the intake position (or drop) 1 - to vertical position,
         //    when the delivery arm is up
         if (deliveryDownTouch.isPressed() || deliveryRotatePos < 100) {
             boxServo.setPosition(0);
         } else {
             if (deliveryRotatePos < DELIVERY_ROTATE_UP_POS) {
-                boxServo.setPosition(((double) deliveryRotatePos) / DELIVERY_ROTATE_UP_POS);
+                boxServo.setPosition(((double) deliveryRotatePos - DELIVERY_ROTATE_INTAKE_POS) /
+                        ((double)DELIVERY_ROTATE_UP_POS - DELIVERY_ROTATE_INTAKE_POS));
             }
 
             //when the arm is up, we want the be able to invoke trigger to drop minerals.
@@ -881,13 +882,10 @@ public class DriverRover extends OpMode {
 
         // intake wheel forward and reverse
         if (gamepad1.y) {
-            rightIntakeServo.setPower(1);
-            leftIntakeServo.setPower(1);
+            rightIntakeServo.setPower(0.8);
         } else if (gamepad1.b) {
-            rightIntakeServo.setPower(-1);
-            leftIntakeServo.setPower(-1);
+            rightIntakeServo.setPower(-0.8);
         } else {
-            leftIntakeServo.setPower(0.0);
             rightIntakeServo.setPower(0.0);
         }
 

@@ -18,6 +18,8 @@ public class AutonomousTestRover extends AutonomousRover {
         TEST=true;
         logPrefix = "distance";
 
+        dropMarker();
+
 //        arcTest();
 //        rangeDriveTest();
 
@@ -25,7 +27,7 @@ public class AutonomousTestRover extends AutonomousRover {
 
 //        gyroDriveTest();
 
-        distanceTest();
+//        distanceTest();
 //        for (double power=0.15; power <= .9; power += 0.05) {
 //            rotate(power,90);
 //            sleep(1000);

@@ -28,6 +28,11 @@ import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.AUTO_MODE_PR
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.CRATER_MODE_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.DELAY_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.getSharedPrefs;
+import static org.firstinspires.ftc.teamcode.DriverRover.DELIVERY_ROTATE_INTAKE_POS;
+import static org.firstinspires.ftc.teamcode.DriverRover.DELIVERY_ROTATE_MARKER_POS;
+import static org.firstinspires.ftc.teamcode.DriverRover.DELIVERY_ROTATE_UP_POS;
+import static org.firstinspires.ftc.teamcode.DriverRover.POS_BUCKET_INTAKE;
+import static org.firstinspires.ftc.teamcode.DriverRover.POS_BUCKET_UP;
 import static org.firstinspires.ftc.teamcode.DriverRover.POS_INTAKE_HOLD;
 import static org.firstinspires.ftc.teamcode.DriverRover.POS_INTAKE_RELEASE;
 import static org.firstinspires.ftc.teamcode.DriverRover.setUpServo;
@@ -40,13 +45,8 @@ public class AutonomousRover extends BaseAutonomous {
     private static final String LABEL_GOLD_MINERAL = "Gold Mineral";
     private static final String LABEL_SILVER_MINERAL = "Silver Mineral";
 
-    //these are constants used for rotation
-    static final double MAX_ROTATE_POWER = 0.8;
-    static final double MIN_ROTATE_POWER = 0.15;
-    static final double CLOSE_ANGlE = 10;
-    static final double FAR_ANGLE = 90;
 
-    static final double DRIVE_POWER = 0.6;
+    static final double DRIVE_POWER = 0.5;
 
     /*
      * IMPORTANT: You need to obtain your own license key to use Vuforia. The string below with which
@@ -97,13 +97,13 @@ public class AutonomousRover extends BaseAutonomous {
     DcMotor alternateMotor;
 
     private DcMotor liftMotor;
-    private DcMotor deliveryRotate;
+    DcMotor deliveryRotate;
     private DcMotor intakeExtend;
 
     private Servo hookServo;
     private Servo markerServo;
     private Servo intakeGateServo;
-    private Servo boxServo;
+    Servo boxServo;
     private Servo intakeHolder;
 
     DistanceSensor rangeSensorFrontLeft;
@@ -127,10 +127,12 @@ public class AutonomousRover extends BaseAutonomous {
 
     @Override
     public void doRunOpMode() throws InterruptedException {
-        telemetry.addData("Initializing","Please wait");
+        telemetry.addData("Initializing", "Please wait");
         telemetry.update();
 
-        if (isStopRequested()) { return; }
+        if (isStopRequested()) {
+            return;
+        }
 
         startMillis = currentTimeMillis();
 
@@ -140,7 +142,9 @@ public class AutonomousRover extends BaseAutonomous {
         initVuforia();
         long vuforiaMs = currentTimeMillis() - startMs;
 
-        if (isStopRequested()) { return; }
+        if (isStopRequested()) {
+            return;
+        }
 
         try {
             long tfodMs = 0;
@@ -168,7 +172,7 @@ public class AutonomousRover extends BaseAutonomous {
                 return;
             }
 
-            logComment("init ms: " + (currentTimeMillis()-startMillis));
+            logComment("init ms: " + (currentTimeMillis() - startMillis));
             startMillis = currentTimeMillis();
 
             goldOnSide = false;
@@ -179,10 +183,9 @@ public class AutonomousRover extends BaseAutonomous {
             if (!rotateAndMoveGold()) {
                 return;
             }
-            if(shortCraterMode){
+            if (shortCraterMode) {
                 shortCraterModePark();
-            }
-            else{
+            } else {
                 deliverTeamMarker();
                 park();
             }
@@ -209,7 +212,9 @@ public class AutonomousRover extends BaseAutonomous {
 
     void preRun() {
 
-        if (isStopRequested()) { return; }
+        if (isStopRequested()) {
+            return;
+        }
 
         intakeHolder = hardwareMap.servo.get("intakeHolder");
         intakeHolder.setPosition(POS_INTAKE_HOLD);
@@ -221,7 +226,7 @@ public class AutonomousRover extends BaseAutonomous {
 
         //We only care about the delay or the short/long crater mode if we are on the crater side
         SharedPreferences prefs = getSharedPrefs(hardwareMap);
-        if(!depotSide()) {
+        if (!depotSide()) {
             try {
                 String delaystring = prefs.getString(DELAY_PREF, "");
                 delaystring = delaystring.replace(" sec", "");
@@ -240,11 +245,10 @@ public class AutonomousRover extends BaseAutonomous {
 
         SharedPreferences.Editor editor = prefs.edit();
         String autoMode;
-        if(depotSide()){
+        if (depotSide()) {
             logPrefix += "_depot";
             autoMode = AutonomousOptionsRover.AutoMode.DEPOT.toString();
-        }
-        else {
+        } else {
             logPrefix += shortCraterMode ? "_short_crater" : "_long_crater";
             autoMode = AutonomousOptionsRover.AutoMode.CRATER.toString();
         }
@@ -258,7 +262,9 @@ public class AutonomousRover extends BaseAutonomous {
 
         // brake on zero power
         setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        if (isStopRequested()) { return; }
+        if (isStopRequested()) {
+            return;
+        }
 
         deliveryRotate = hardwareMap.dcMotor.get("deliveryRotate");
         deliveryRotate.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
@@ -288,29 +294,30 @@ public class AutonomousRover extends BaseAutonomous {
 
         int ntries;
         boolean success = false;
-        for(ntries=0;!isStopRequested() && !success && ntries<2;ntries++) {
+        for (ntries = 0; !isStopRequested() && !success && ntries < 2; ntries++) {
             long startMs = currentTimeMillis();
-            success=gyroInit();
-            logComment("gyro init "+(success?"":"failed ")+"ms: "+(currentTimeMillis() - startMs));
+            success = gyroInit();
+            logComment("gyro init " + (success ? "" : "failed ") + "ms: " + (currentTimeMillis() - startMs));
         }
         if (!success || tfod == null) {
             Lights.red(true);
-            if(tfod == null){
+            if (tfod == null) {
                 Lights.yellow(true);
             }
-        }
-        else {
+        } else {
             Lights.green(true);
         }
 
         // make sure gyro is calibrated
         while (!this.isStarted() && !this.isStopRequested()) {
             telemetry.clearAll();
-            telemetry.addData("Gyro success/tries",success+"/"+ntries);
+            telemetry.addData("Gyro success/tries", success + "/" + ntries);
             logGyro(false);
 
             // the delay applies only to crater side
-            if (!depotSide()) { telemetry.addData("prefs: delay/short", delay + "/" + shortCraterMode); }
+            if (!depotSide()) {
+                telemetry.addData("prefs: delay/short", delay + "/" + shortCraterMode);
+            }
             telemetry.addData("FrontLeft", String.format("%.1f in", rangeSensorFrontLeft.getDistance(DistanceUnit.INCH)));
             telemetry.addData("BackLeft", String.format("%.1f in", rangeSensorBackLeft.getDistance(DistanceUnit.INCH)));
             telemetry.addData("FrontRight", String.format("%.1f in", rangeSensorFrontRight.getDistance(DistanceUnit.INCH)));
@@ -363,11 +370,10 @@ public class AutonomousRover extends BaseAutonomous {
             }
             if (goldPosition == GoldPosition.undetected) {
                 Lights.red(true);
-            }
-            else{
+            } else {
                 Lights.red(false);
                 Lights.green(true);
-                if(goldPosition == GoldPosition.center){
+                if (goldPosition == GoldPosition.center) {
                     Lights.yellow(true);
                 } else if (goldPosition == GoldPosition.left) {
                     Lights.white(true);
@@ -382,7 +388,7 @@ public class AutonomousRover extends BaseAutonomous {
             // lower the robot
             liftMotor.setTargetPosition(-DriverRover.LATCHING_POS);
             liftMotor.setPower(-1);
-            while (Math.abs(liftMotor.getCurrentPosition()) <= DriverRover.LATCHING_POS-100) {
+            while (Math.abs(liftMotor.getCurrentPosition()) <= DriverRover.LATCHING_POS - 100) {
                 idle();
             }
             liftMotor.setPower(0);
@@ -427,6 +433,7 @@ public class AutonomousRover extends BaseAutonomous {
 
     /**
      * Moves minerals
+     *
      * @return true to continue, false to stop autonomous
      */
     boolean rotateAndMoveGold() {
@@ -448,12 +455,11 @@ public class AutonomousRover extends BaseAutonomous {
         double driveHeading = 0;
         deliveryRotate.setPower(0);
         double heading = 0; // center
-        if(shortCraterMode && goldOnRight){
-                driveHeading = -40;
-                //rotate(0.3, 40);
-                heading = -45; // clockwise from 0 - negative heading
-        }
-        else {
+        if (shortCraterMode && goldOnRight) {
+            driveHeading = -40;
+            //rotate(0.3, 40);
+            heading = -45; // clockwise from 0 - negative heading
+        } else {
             if (goldOnRight) {
                 driveHeading = -30;
                 //rotate(0.3, 30);
@@ -464,40 +470,29 @@ public class AutonomousRover extends BaseAutonomous {
                 heading = 35; // counterclockwise from 0 - positive heading
             }
         }
-        if(goldOnSide){
+        if (goldOnSide) {
             double angleToRotate = Math.abs(currentHeading - driveHeading);
-            boolean rotateClockwise = (goldOnRight)? true : false;
-            if(Math.abs(currentHeading) < 0.001){
-            //rotate by encoder counts because we cannot rely on the gyro function
-                int encoderCountsChange = 460;
-                double rotatePower = (goldOnRight)? 0.3 : -0.3;
-                rotateByEncoderCounts(rotatePower, encoderCountsChange);
-            } else {
-                rotate(rotateClockwise, angleToRotate);
-            }
+            boolean rotateClockwise = (goldOnRight) ? true : false;
+
+            rotate(rotateClockwise, angleToRotate);
         }
         sleep(100);
         log("Rotated to gold");
 
-        int distanceToCenterGold = 19+2; //distance is in inches
-        int distanceToSideGold = 21+2; //distance is in inches
+        int distanceToCenterGold = 19 + 2; //distance is in inches
+        int distanceToSideGold = 21 + 2; //distance is in inches
 
         int extraDistance = 0; //extraDistance is for the depot side only
 
         if (goldOnSide) {
-            if (depotSide()) {
-                extraDistance = 8;
-            }
-            if(shortCraterMode && goldOnRight){
+
+            if (shortCraterMode && goldOnRight) {
                 extraDistance += 14;
             }
             checkForGyroError();
             moveWithErrorCorrection(DRIVE_POWER, 0.2, distanceToSideGold + extraDistance, new GyroErrorHandler(heading));
 
         } else {
-            if (depotSide()) {
-                extraDistance = 29;
-            }
             checkForGyroError();
             moveWithErrorCorrection(DRIVE_POWER, 0.2, distanceToCenterGold + extraDistance, new GyroErrorHandler(heading));
 
@@ -519,95 +514,142 @@ public class AutonomousRover extends BaseAutonomous {
         if (!opModeIsActive()) return;
         Lights.resetLights();
 
-        if (depotSide()) {
-            if (goldOnSide) {
-                double currentAngle = getGyroAngles().firstAngle;
-                if (goldOnRight) {
-                    //return to previous heading
-                    rotate(false, Math.abs(currentAngle) - 5);
-                    moveWithErrorCorrection(DRIVE_POWER, 0.2, 11, new GyroErrorHandler(0));
-                } else {
-                    //return to previous heading
-                    rotate(true, Math.abs(currentAngle) - 5);
-                    moveWithErrorCorrection(DRIVE_POWER, 0.2, 23, new GyroErrorHandler(-45));
-                }
-            }
-            // drop marker after being aligned for parking
-
-        } else {
-            //in crater zone
-            double heading;
-            double distanceBack;
-            double distanceToWall = 55; //longest distance from right position
-            // come back
-            if (goldOnSide) {
-                // added 3 inches because the robot is landing closer to jewels
-                distanceBack = 21.0/2.0 + 1;
-                if (goldOnRight) {
-                    heading = -35;
-                } else {
-                    // left
-                    heading = 35;
-                    distanceToWall -= 13;
-                }
+        double heading;
+        double distanceBack;
+        double distanceToWall = 55; //longest distance from right position
+        // come back
+        if (goldOnSide) {
+            // added 3 inches because the robot is landing closer to jewels
+            distanceBack = 21.0 / 2.0 + 1;
+            if (goldOnRight) {
+                heading = -35;
             } else {
-                //center
-                distanceBack = 19.0/2.0 + 1;
-                heading = 0;
-                distanceToWall -= 7;
+                // left
+                heading = 35;
+                distanceToWall -= 13;
             }
-
-            // move back
-            checkForGyroError();
-            moveWithErrorCorrection(-DRIVE_POWER, -0.2, distanceBack, new GyroErrorHandler(heading));
-            log("Moved back");
-
-            double currentHeading = getGyroAngles().firstAngle;
-            double driveHeading = 90;
-            double angleToRotate = Math.abs(currentHeading - driveHeading) - 5; //small adjustment for over rotation
-            // rotate toward the wall
-            rotate(false, angleToRotate);
-            // delay if needed, delay is in seconds, sleep accepts milliseconds
-            sleep (1000 * delay);
-            log("Rotated to wall");
-            // drive toward the wall
-            checkForGyroError();
-            moveWithErrorCorrection(DRIVE_POWER, 0.2, distanceToWall, new GyroErrorHandler(driveHeading));
-            if (isRightFrontTooFarFromWall()) {
-                //too far away from the wall
-                log("Too far");
-                Lights.red(true);
-                long stime = currentTimeMillis();
-                wheels.powerMotors(0.15, 0, 0);
-                while (currentTimeMillis()-stime<2000 && isRightFrontTooFarFromWall()) {idle();}
-                wheels.powerMotors(0, 0, 0);
-                Lights.red(false);
-            }
-            log("At the wall");
-
-            // rotate along the wall
-            currentHeading = getGyroAngles().firstAngle;
-            driveHeading = 130;
-            angleToRotate = Math.abs(driveHeading - currentHeading) - 5;
-            rotate(false, angleToRotate);
-            log("Aligned with the wall");
-            // drive along the wall using two range sensors for correction
-            double inchesForward = 30;
-            // drive forward along the wall
-            boolean clockwiseWhenTooClose = false;
-            double inchesToWall = 3;
-            RangeErrorHandler errorHandler = new RangeErrorHandler (rangeSensorFrontRight,
-                    rangeSensorBackRight, inchesToWall, clockwiseWhenTooClose, driveHeading);
-            moveWithErrorCorrection(DRIVE_POWER, 0.2, inchesForward, errorHandler);
-            checkForGyroError();
-            //moveWithErrorCorrection(DRIVE_POWER, 0.2, inchesForward, new GyroErrorHandler(driveHeading));
-
-            dropMarker();
+        } else {
+            //center
+            distanceBack = 19.0 / 2.0 + 1;
+            heading = 0;
+            distanceToWall -= 7;
         }
+
+        // move back
+        checkForGyroError();
+        moveWithErrorCorrection(-DRIVE_POWER, -0.2, distanceBack, new GyroErrorHandler(heading));
+        log("Moved back");
+
+        double currentHeading = getGyroAngles().firstAngle;
+        double driveHeading = depotSide()? 90 : -90;
+        double angleToRotate = Math.abs(currentHeading - driveHeading) - 5; //small adjustment for over rotation
+        // rotate toward the wall
+        rotate(false, angleToRotate);
+        if(!depotSide()){
+            //TODO delay should depend on the place of the gold mineral
+            // delay if needed, delay is in seconds, sleep accepts milliseconds
+            sleep(1000 * delay);
+        }
+
+        log("Rotated to wall");
+        // drive toward the wall
+        checkForGyroError();
+
+        int sign = depotSide()? 1 : -1;
+
+        moveWithErrorCorrection( sign * DRIVE_POWER, 0.2, distanceToWall, new GyroErrorHandler(driveHeading));
+//        if (isRightFrontTooFarFromWall()) {
+//            //too far away from the wall
+//            log("Too far");
+//            Lights.red(true);
+//            long stime = currentTimeMillis();
+//            wheels.powerMotors(0.15, 0, 0);
+//            while (currentTimeMillis() - stime < 2000 && isRightFrontTooFarFromWall()) {
+//                idle();
+//            }
+//            wheels.powerMotors(0, 0, 0);
+//            Lights.red(false);
+//        }
+        log("At the wall");
+
+        // rotate along the wall
+        currentHeading = getGyroAngles().firstAngle;
+        driveHeading = depotSide()? 135 : -45;
+        angleToRotate = Math.abs(driveHeading - currentHeading) - 5;
+        rotate(false, angleToRotate);
+        log("Aligned with the wall");
+        // drive along the wall using two range sensors for correction
+        double inchesForward = 30;
+        // drive forward along the wall
+        boolean clockwiseWhenTooClose = false;
+        double inchesToWall = 3;
+        DistanceSensor leadingSensor = depotSide() ? rangeSensorBackRight : rangeSensorBackLeft;
+        DistanceSensor followingSensor = depotSide() ? rangeSensorFrontRight : rangeSensorFrontLeft;
+        RangeErrorHandler errorHandler = new RangeErrorHandler(leadingSensor,
+                followingSensor, inchesToWall, clockwiseWhenTooClose, driveHeading);
+        moveWithErrorCorrection(-DRIVE_POWER, 0.2, inchesForward, errorHandler);
+        checkForGyroError();
+        //moveWithErrorCorrection(DRIVE_POWER, 0.2, inchesForward, new GyroErrorHandler(driveHeading));
+
+        dropMarker();
+
 
     }
 
-    void dropMarker() {
+    public void dropMarker() {
+        boxServo = hardwareMap.servo.get("box");
+        boxServo.setPosition(DriverRover.POS_BUCKET_INTAKE);
+
+        deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+        //DELIVERY_ROTATE_INTAKE_POS, DELIVERY_ROTATE_UP_POS - arm positions
+        //POS_BUCKET_INTAKE, POS_BUCKET_UP
+        int armPos = deliveryRotate.getCurrentPosition();
+        double boxPos;
+        while (armPos < DELIVERY_ROTATE_UP_POS) {
+            armPos = armPos + 100;
+            boxPos = POS_BUCKET_INTAKE + (POS_BUCKET_UP - POS_BUCKET_INTAKE) *
+                    (armPos - DELIVERY_ROTATE_INTAKE_POS) /
+                    (DELIVERY_ROTATE_UP_POS - DELIVERY_ROTATE_INTAKE_POS);
+            deliveryRotate.setTargetPosition(armPos);
+            deliveryRotate.setPower(0.4);
+            boxServo.setPosition(boxPos);
+            sleep(100);
+        }
+        while (armPos < DELIVERY_ROTATE_MARKER_POS) {
+            armPos = armPos + 100;
+            deliveryRotate.setTargetPosition(armPos);
+            deliveryRotate.setPower(0.4);
+            sleep(80);
+        }
+        boxServo.setPosition(0.6);
+        sleep(2000);
+        boxServo.setPosition(POS_BUCKET_UP);
+        while (armPos > DELIVERY_ROTATE_UP_POS) {
+            armPos = armPos - 100;
+            deliveryRotate.setTargetPosition(armPos);
+            deliveryRotate.setPower(0.6);
+            sleep(80);
+        }
+        while (armPos > DELIVERY_ROTATE_INTAKE_POS + 100) {
+            armPos = armPos - 100;
+            boxPos = POS_BUCKET_INTAKE + (POS_BUCKET_UP - POS_BUCKET_INTAKE) *
+                    (armPos - DELIVERY_ROTATE_INTAKE_POS) /
+                    (DELIVERY_ROTATE_UP_POS - DELIVERY_ROTATE_INTAKE_POS);
+            deliveryRotate.setTargetPosition(armPos);
+            deliveryRotate.setPower(0.2);
+            boxServo.setPosition(boxPos);
+            sleep(80);
+        }
+        boxServo.setPosition(POS_BUCKET_INTAKE);
+        deliveryRotate.setTargetPosition(DELIVERY_ROTATE_INTAKE_POS);
+
+        log("Delivered marker");
+        // use for testing autonomous
+        retractLift();
+    }
+
+/*    void dropMarker() {
         //Deliver team marker.
         markerServo.setPosition(1);
         sleep(500);
@@ -617,6 +659,7 @@ public class AutonomousRover extends BaseAutonomous {
         // use for testing autonomous
         retractLift();
     }
+*/
 
     boolean isRightFrontTooFarFromWall() {
         double distance = rangeSensorFrontRight.getDistance(DistanceUnit.INCH);
@@ -629,17 +672,16 @@ public class AutonomousRover extends BaseAutonomous {
         }
     }
 
-    void shortCraterModePark(){
+    void shortCraterModePark() {
         Lights.resetLights();
-        if(goldOnSide){
+        if (goldOnSide) {
             //rotating to heading 0
             double currentHeading = getGyroAngles().firstAngle;
             double angleToRotate = Math.abs(currentHeading);
-            if(goldOnRight){
+            if (goldOnRight) {
                 //turn 45 degrees clockwise
                 rotate(false, angleToRotate + 40);
-            }
-            else{
+            } else {
                 //turn 45 degrees counterclockwise
                 rotate(true, angleToRotate);
             }
@@ -654,76 +696,24 @@ public class AutonomousRover extends BaseAutonomous {
         Lights.resetLights();
         double distanceToTravel;
 
-        if (!depotSide()){
-            distanceToTravel = 59;
-            double driveHeading = 135;
+        distanceToTravel = 30; // 53;
+        double driveHeading = depotSide() ? 135 : -45;
 
 //            // rotate toward the wall
 //            double currentHeading = getGyroAngles().firstAngle;
 //            double angleToRotate = Math.abs(currentHeading - 140); //small adjustment for over rotation
 //            rotate(false, angleToRotate);
 
-            boolean clockwiseWhenTooClose = true;
-            double inchesToWall = 3;
-            TEST = true;
-            RangeErrorHandler errorHandler = new RangeErrorHandler (rangeSensorBackRight,
-                    rangeSensorFrontRight, inchesToWall, clockwiseWhenTooClose, driveHeading);
-            //usually use distance sensor not gyro
-            boolean success = moveWithErrorCorrection(-DRIVE_POWER, -0.2, distanceToTravel, errorHandler);
-            if (!success) return;
-        } else {
-            // depot side
-            double moveForwardHeading;
-            double inchesForward = 5;
-            boolean rotateClockwise = true;
-
-            if (goldOnSide) {
-                if (goldOnRight) {
-                    rotate(false, 35);
-                    inchesForward = 26;
-                    distanceToTravel = 77;
-                    moveForwardHeading = 45;
-                } else {
-                    moveForwardHeading = -45;
-                    distanceToTravel = 78;
-                }
-            } else {
-                //center position
-                moveForwardHeading = 0;
-                inchesForward = 7;
-                distanceToTravel = 78;
-            }
-            // move forward a bit
-            checkForGyroError();
-            moveWithErrorCorrection(DRIVE_POWER, 0.2, inchesForward, new GyroErrorHandler(moveForwardHeading));
-            double currentHeading = getGyroAngles().firstAngle;
-            double parkHeading = -45;
-            double angleToRotate = Math.abs(currentHeading - parkHeading) - 5; //small adjustment for over rotation
-            // rotate to be along the wall
-            rotate(rotateClockwise, angleToRotate);
-            sleep(100);
-            log("Along the wall");
-
-            double inchesToWall = 3;
-            DistanceSensor rangeF = rangeSensorBackLeft;
-            DistanceSensor rangeB = rangeSensorFrontLeft;
-
-            if(!goldOnSide || goldOnRight){
-                boolean success = moveWithErrorCorrection(-DRIVE_POWER, -0.2, 10,
-                        new RangeErrorHandler(rangeF, rangeB, inchesToWall, false, parkHeading));
-                if(!success){
-                    return;
-                }
-            }
-
-            dropMarker();
-
-            TEST = true;
-
-            boolean success = moveWithErrorCorrection(-DRIVE_POWER, -0.2, distanceToTravel,
-                    new RangeErrorHandler(rangeF, rangeB, inchesToWall, false, parkHeading));
-            if (!success) return;
-        }
+        boolean clockwiseWhenTooClose = true;
+        double inchesToWall = 3;
+        TEST = true;
+        DistanceSensor leadingSensor = depotSide() ? rangeSensorFrontRight : rangeSensorFrontLeft;
+        DistanceSensor followingSensor = depotSide() ? rangeSensorBackRight : rangeSensorBackLeft;
+        RangeErrorHandler errorHandler = new RangeErrorHandler(leadingSensor,
+                followingSensor, inchesToWall, clockwiseWhenTooClose, driveHeading);
+        //usually use distance sensor not gyro
+        boolean success = moveWithErrorCorrection(DRIVE_POWER, -0.2, distanceToTravel, errorHandler);
+        if (!success) return;
         log("Parked");
     }
 
@@ -735,8 +725,8 @@ public class AutonomousRover extends BaseAutonomous {
         liftMotor.setPower(0.0);
     }
 
-    boolean checkForGyroError(){
-        if(isGyroError()){
+    boolean checkForGyroError() {
+        if (isGyroError()) {
             Lights.red(true);
             return true;
         }
@@ -812,7 +802,7 @@ public class AutonomousRover extends BaseAutonomous {
                 previousPos = currentPos;
             }
         }
-        wheels.powerMotors(0, 0,0);
+        wheels.powerMotors(0, 0, 0);
         telemetry.addData("Counts Moved", Math.abs(motor.getCurrentPosition() - startPos));
         telemetry.update();
         return finished;
@@ -839,7 +829,21 @@ public class AutonomousRover extends BaseAutonomous {
      * @param steerPower power to make adjustments clockwise
      */
     void steer(double motorPower, double steerPower) {
-        wheels.powerMotors(motorPower, 0, Range.clip(steerPower, -1.0, 1.0));
+        double clockwisePower;
+        if (motorPower > 0) {
+            if (steerPower > 0)
+                clockwisePower = steerPower;
+            else
+                clockwisePower = -steerPower;
+        } else {
+            if (steerPower > 0) {
+                clockwisePower = -steerPower;
+            } else {
+                clockwisePower = steerPower;
+            }
+        }
+
+        wheels.powerMotors(motorPower, 0, Range.clip(0.2*clockwisePower, -1.0, 1.0));
     }
 
     @Override
