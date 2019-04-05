@@ -402,7 +402,7 @@ public class AutonomousRover extends BaseAutonomous {
             hookServo = hardwareMap.servo.get("hookServo");
             hookServo.setPosition(POS_HOOK_OPEN);
             intakeGateServo = hardwareMap.servo.get("intakeGate");
-            intakeGateServo.setPosition(DriverRover.POS_GATE_CLOSED);
+            intakeGateServo.setPosition(DriverRover.POS_IGATE_CLOSED);
             boxServo = hardwareMap.servo.get("box");
             boxServo.setPosition(DriverRover.POS_BUCKET_PARKED);
             sleep(1200);

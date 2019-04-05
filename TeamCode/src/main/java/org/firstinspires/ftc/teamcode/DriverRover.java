@@ -68,8 +68,14 @@ public class DriverRover extends OpMode {
     static int ALMOST_MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS - 200;
     static final int ALMOST_MIN_DELIVERY_EXTEND_POS = 200;
 
-    static final double POS_GATE_CLOSED = 0.525;
-    static final double POS_GATE_OPEN = 0.85;
+    static final double POS_IGATE_CLOSED = 0.525; //intake gate closed
+    static final double POS_IGATE_OPEN = 0.85; //intake gate open
+
+    static final double POS_DGATE_CLOSED = 0.78; //delivery gate closed
+    static final double POS_DGATE_OPEN = 0.23; //delivery gate open
+
+    static final double POS_FINGERS_PARKED = 0.7;
+    static final double POS_FINGERS_FLIPPED = 0.31;
 
     static final double POS_INTAKE_HOLD = 0.421;
     static final double POS_INTAKE_RELEASE = 0.65;
@@ -89,8 +95,10 @@ public class DriverRover extends OpMode {
     private ServoImplEx hookServo;
     private Servo markerServo;
     private Servo intakeGateServo;
+    private Servo deliveryGateServo;
+    private Servo fingersServo;
     private Servo boxServo;
-    private CRServo rightIntakeServo;
+    private CRServo intakeWheelServo;
     private Servo intakeHolder;
 
     private TouchSensor liftTouch;
@@ -142,9 +150,12 @@ public class DriverRover extends OpMode {
     private boolean intakeReleased;
     private static boolean isError; //IS there an error?
 
-    // power is positive for forward direction, negative for backward direction
-    private double leftForward; //power given to the left side wheels
-    private double rightForward; //power given to the right side wheels
+    enum MineralTransferState{
+        INTAKE, DELIVERY_GATE_OPEN, INTAKE_GATE_OPEN, TRANSFER, DELIVERY_GATE_CLOSED, DELIVERY
+    }
+    private MineralTransferState transferState;
+    private long transferTime;
+
 
     //current motor speeds
     private double currentForward;
@@ -269,8 +280,13 @@ public class DriverRover extends OpMode {
         setUpServo(markerServo, AutonomousRover.POS_MARKER_BACK, AutonomousRover.POS_MARKER_FORWARD);
 
         intakeGateServo = hardwareMap.servo.get("intakeGate");
-        //for opening and closing gate that drops minerals into delivery, use 1 and 0
-        setUpServo(intakeGateServo, POS_GATE_CLOSED, POS_GATE_OPEN);
+        intakeGateServo.setPosition(POS_IGATE_CLOSED);
+
+        deliveryGateServo = hardwareMap.servo.get("deliveryGate");
+        deliveryGateServo.setPosition(POS_DGATE_CLOSED);
+
+        fingersServo = hardwareMap.servo.get("fingers");
+        fingersServo.setPosition(POS_FINGERS_PARKED);
 
         intakeHolder = hardwareMap.servo.get("intakeHolder");
         //intakeHolder.setPosition(POS_INTAKE_HOLD);
@@ -280,7 +296,9 @@ public class DriverRover extends OpMode {
         //for bucket servo that delivers the minerals to the launcher
         setUpServo(boxServo, POS_BUCKET_INTAKE, POS_BUCKET_UP);
 
-        rightIntakeServo = hardwareMap.crservo.get("rightIntake");
+        intakeWheelServo = hardwareMap.crservo.get("rightIntake");
+
+        transferState = MineralTransferState.INTAKE;
     }
 
     @Override
@@ -301,11 +319,12 @@ public class DriverRover extends OpMode {
 
 
         //if auto, then no manual
-        if (gamepad2.left_bumper) {
-            toLauncher();
-        } else if (gamepad2.right_bumper) {
-            toCrater();
-        } else if (Math.abs(gamepad1.right_stick_x) > 0.1) {
+//        if (gamepad2.left_bumper) {
+//            toLauncher();
+//        } else if (gamepad2.right_bumper) {
+//            toCrater();
+//        } else
+        if (Math.abs(gamepad1.right_stick_x) > 0.1) {
             doArc(gamepad1.right_stick_x);
         } else {
             controlWheels();
@@ -397,11 +416,8 @@ public class DriverRover extends OpMode {
         }
 
         int deliveryRotatePos = deliveryRotate.getCurrentPosition();
-        if (gamepad2.left_trigger > 0.5 ||
-                (isIntakeMinRetracted() && isDeliveryArmDown(deliveryRotatePos))) {
-            setPercentOpen(intakeGateServo, 1);
-        } else {
-            setPercentOpen(intakeGateServo, 0);
+        if (gamepad2.left_trigger > 0.5) {
+            transferToDelivery();
         }
 
         //if the delivery arm is down, the bucket should be in intake position.
@@ -486,7 +502,7 @@ public class DriverRover extends OpMode {
                     deliveryRotate.setPower(0);
                     if (deliveryExtendTouch.isPressed()) {
                         deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-                        deliveryRotate.setTargetPosition(0);
+                        deliveryRotate.setTargetPosition(DELIVERY_ROTATE_INTAKE_POS);
                         deliveryArmState = DeliveryState.HOME;
                     }
                 } else {
@@ -516,6 +532,7 @@ public class DriverRover extends OpMode {
             case BEFORE_HOME:
                 deliveryRotate.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
                 deliveryRotate.setPower(0.6);
+                transferState = MineralTransferState.INTAKE;
                 deliveryArmState = DeliveryState.ARM_UP;
                 break;
             case ARM_UP:
@@ -572,6 +589,52 @@ public class DriverRover extends OpMode {
 //        }
         fullExtension = !fullExtension;
     }
+
+     private void transferToDelivery(){
+        switch(transferState){
+            case INTAKE:
+                deliveryGateServo.setPosition(POS_DGATE_OPEN);
+                transferState = MineralTransferState.DELIVERY_GATE_OPEN;
+                transferTime = currentTimeMillis();
+                break;
+            case DELIVERY_GATE_OPEN:
+                if(currentTimeMillis() - transferTime > 400){
+                    intakeGateServo.setPosition(POS_IGATE_OPEN);
+                    transferState = MineralTransferState.INTAKE_GATE_OPEN;
+                    transferTime = currentTimeMillis();
+                }
+                break;
+            case INTAKE_GATE_OPEN:
+                if(currentTimeMillis() - transferTime > 400){
+                    transferState = MineralTransferState.TRANSFER;
+                }
+                break;
+            case TRANSFER:
+                if (!gamepad2.a) {
+                    fingersServo.setPosition(POS_FINGERS_FLIPPED);
+                } else {
+                    fingersServo.setPosition(POS_FINGERS_PARKED);
+                }
+                if(gamepad2.b){
+                    fingersServo.setPosition(POS_FINGERS_PARKED);
+                    intakeGateServo.setPosition(POS_IGATE_CLOSED);
+                    transferState = MineralTransferState.DELIVERY_GATE_CLOSED;
+                    transferTime = currentTimeMillis();
+                }
+                break;
+            case DELIVERY_GATE_CLOSED:
+                if(currentTimeMillis() - transferTime > 300) {
+                    deliveryGateServo.setPosition(POS_DGATE_CLOSED);
+                } else if (currentTimeMillis() - transferTime > 500) {
+                    transferState = MineralTransferState.DELIVERY;
+                }
+                break;
+            case DELIVERY:
+                break;
+        }
+     }
+
+    //INTAKE, INTAKE_GATE_CLOSED, DELIVERY_GATE_OPEN, INTAKE_GATE_OPEN, TRANSFER, DELIVERY_GATE_CLOSED, DELIVERY
 
     /**
      *
@@ -882,11 +945,11 @@ public class DriverRover extends OpMode {
 
         // intake wheel forward and reverse
         if (gamepad1.y) {
-            rightIntakeServo.setPower(0.8);
+            intakeWheelServo.setPower(0.8);
         } else if (gamepad1.b) {
-            rightIntakeServo.setPower(-0.8);
+            intakeWheelServo.setPower(-0.8);
         } else {
-            rightIntakeServo.setPower(0.0);
+            intakeWheelServo.setPower(0.0);
         }
 
         double intakeExtendPower;
@@ -980,8 +1043,7 @@ public class DriverRover extends OpMode {
     }
 
     private void log() {
-        telemetry.addData("drive power left / right",
-                leftForward + "/" + rightForward);
+        telemetry.addData("transfer state", transferState);
         telemetry.addData("intake extend / touch",
                 intakeExtend.getCurrentPosition() + "/" + intakeExtendTouch.isPressed());
         telemetry.addData("delivery rotate / touch / state",
@@ -1038,6 +1100,9 @@ public class DriverRover extends OpMode {
 
     @Override
     public void stop() {
+        if (fingersServo != null) {
+            fingersServo.setPosition((POS_FINGERS_PARKED+POS_FINGERS_FLIPPED)/2);
+        }
         String logPrefix = "driver";
         try {
             if (out != null) {
