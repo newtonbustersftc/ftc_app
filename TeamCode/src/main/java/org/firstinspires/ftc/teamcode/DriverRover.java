@@ -60,7 +60,9 @@ public class DriverRover extends OpMode {
     static final int DELIVERY_ROTATE_UP_POS = 1050;
     static final int DELIVERY_ROTATE_BEFORE_HOME_POS = 400;
     static final int DELIVERY_ROTATE_HORIZ_POS = 350; // arm is horizontal
-    static final int DELIVERY_ROTATE_INTAKE_POS = 130;
+    static final int DELIVERY_ROTATE_INTAKE_POS = 103; //position when box is sitting on platform
+    static final int DELIVERY_ROTATE_CAMERA_POS = 250; //lowest position that allows camera to see minerals
+    static final int DELIVERY_ROTATE_CLEAR_PLATFORM = 350; //lowest position for platform to fall
 
     // encode positions for the delivery extension motor
     // 0 - arm is not extended
@@ -186,6 +188,9 @@ public class DriverRover extends OpMode {
         Lights.setUpLights(hardwareMap);
 
         wheels = new MecanumWheels(hardwareMap, telemetry, true);
+        // front left wheel is on a chain, so the direction was reversed
+        DcMotor fl = wheels.getMotor(MecanumWheels.Wheel.FL);
+        fl.setDirection(DcMotorSimple.Direction.REVERSE);
         liftMotor = hardwareMap.dcMotor.get("liftMotor");
         intakeExtend = hardwareMap.dcMotor.get("intakeExtend");
         deliveryExtend = hardwareMap.dcMotor.get("deliveryExtend");

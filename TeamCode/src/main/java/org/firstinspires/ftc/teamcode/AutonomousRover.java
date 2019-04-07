@@ -28,6 +28,8 @@ import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.AUTO_MODE_PR
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.CRATER_MODE_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.DELAY_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.getSharedPrefs;
+import static org.firstinspires.ftc.teamcode.DriverRover.DELIVERY_ROTATE_CAMERA_POS;
+import static org.firstinspires.ftc.teamcode.DriverRover.DELIVERY_ROTATE_CLEAR_PLATFORM;
 import static org.firstinspires.ftc.teamcode.DriverRover.DELIVERY_ROTATE_INTAKE_POS;
 import static org.firstinspires.ftc.teamcode.DriverRover.DELIVERY_ROTATE_MARKER_POS;
 import static org.firstinspires.ftc.teamcode.DriverRover.DELIVERY_ROTATE_UP_POS;
@@ -258,6 +260,9 @@ public class AutonomousRover extends BaseAutonomous {
         editor.apply();
 
         wheels = new MecanumWheels(hardwareMap, telemetry);
+        // front left wheel is on a chain, so the direction was reversed
+        DcMotor fl = wheels.getMotor(MecanumWheels.Wheel.FL);
+        fl.setDirection(DcMotorSimple.Direction.REVERSE);
         wheels.resetEncoders();
         motor = wheels.getMotor(MecanumWheels.Wheel.FL);
         alternateMotor = wheels.getMotor(MecanumWheels.Wheel.FR);
@@ -342,9 +347,9 @@ public class AutonomousRover extends BaseAutonomous {
             boxServo.setPosition(DriverRover.POS_BUCKET_PARKED);
 
             deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-            deliveryRotate.setTargetPosition(280);
-            deliveryRotate.setPower(0.6);
-            sleep(600);
+            deliveryRotate.setTargetPosition(DELIVERY_ROTATE_CAMERA_POS);
+            deliveryRotate.setPower(0.7);
+            sleep(800);
 
             // detect where the gold is
             goldPosition = getGoldPosition();
@@ -384,8 +389,12 @@ public class AutonomousRover extends BaseAutonomous {
                 }
             }
 
-            deliveryRotate.setTargetPosition(350);
-            deliveryRotate.setPower(0.4);
+            //sleep(3000);
+
+            deliveryRotate.setTargetPosition(DELIVERY_ROTATE_CLEAR_PLATFORM);
+            deliveryRotate.setPower(0.6);
+
+
 
             // lower the robot
             liftMotor.setTargetPosition(-DriverRover.LATCHING_POS);
@@ -425,6 +434,8 @@ public class AutonomousRover extends BaseAutonomous {
             moveWithErrorCorrection(0.5, 0.2, 7, new GyroErrorHandler(0));
 
             liftMotor.setPower(0);
+
+            //sleep(2000);
             deliveryRotate.setPower(0);
 
             log("At the line");
@@ -653,7 +664,7 @@ public class AutonomousRover extends BaseAutonomous {
 
         log("Delivered marker");
         // use for testing autonomous
-        //retractLift();
+        retractLift();
     }
 
 /*    void dropMarker() {
