@@ -68,17 +68,17 @@ public class DriverRover extends OpMode {
     static int ALMOST_MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS - 200;
     static final int ALMOST_MIN_DELIVERY_EXTEND_POS = 200;
 
-    static final double POS_IGATE_CLOSED = 0.525; //intake gate closed
-    static final double POS_IGATE_OPEN = 0.85; //intake gate open
+    static final double POS_IGATE_CLOSED = 0.8; //intake gate closed
+    static final double POS_IGATE_OPEN = 0.4; //intake gate open
 
     static final double POS_DGATE_CLOSED = 0.78; //delivery gate closed
     static final double POS_DGATE_OPEN = 0.23; //delivery gate open
 
-    static final double POS_FINGERS_PARKED = 0.7;
+    static final double POS_FINGERS_PARKED = 0.73;
     static final double POS_FINGERS_FLIPPED = 0.31;
 
-    static final double POS_INTAKE_HOLD = 0.421;
-    static final double POS_INTAKE_RELEASE = 0.65;
+    static final double POS_INTAKE_HOLD = 0.55; //0.421;
+    static final double POS_INTAKE_RELEASE = 0.62; // 0.65;
     static final double POS_INTAKE_RELEASE_EXTREME = 0.7;
 
     static final double POS_BUCKET_PARKED = 0.32;
@@ -156,6 +156,8 @@ public class DriverRover extends OpMode {
     private MineralTransferState transferState;
     private long transferTime;
 
+    boolean dgateBtnPressed = false;
+    boolean igateBtnPressed = false;
 
     //current motor speeds
     private double currentForward;
@@ -166,8 +168,8 @@ public class DriverRover extends OpMode {
 
     // minimum and maximum radius of arc move
     // between crater and depot side launcher
-    private static final double ARC_MIN_RADIUS = 20.0;
-    private static final double ARC_MAX_RADIUS = 35.0;
+    //private static final double ARC_MIN_RADIUS = 20.0;
+    //private static final double ARC_MAX_RADIUS = 35.0;
 
     StringBuffer out;
     long loopEndTime = 0;
@@ -319,12 +321,12 @@ public class DriverRover extends OpMode {
 
 
         //if auto, then no manual
-//        if (gamepad2.left_bumper) {
+//        if (gamepad2.a) {
 //            toLauncher();
-//        } else if (gamepad2.right_bumper) {
+//        } else if (gamepad2.x) {
 //            toCrater();
 //        } else
-        if (Math.abs(gamepad1.right_stick_x) > 0.1) {
+        if (Math.abs(gamepad1.right_stick_x) > 0.1 && gamepad1.left_bumper) {
             doArc(gamepad1.right_stick_x);
         } else {
             controlWheels();
@@ -415,10 +417,36 @@ public class DriverRover extends OpMode {
             }
         }
 
-        int deliveryRotatePos = deliveryRotate.getCurrentPosition();
-        if (gamepad2.left_trigger > 0.5) {
-            transferToDelivery();
+        if (gamepad2.left_bumper) {
+            if (!igateBtnPressed) {
+                intakeGateServo.setPosition(POS_IGATE_OPEN);
+                sleep(30);
+                fingersServo.setPosition(POS_FINGERS_FLIPPED);
+                igateBtnPressed = true;
+            }
+        } else {
+            if (igateBtnPressed) {
+                fingersServo.setPosition(POS_FINGERS_PARKED);
+                intakeGateServo.setPosition(POS_IGATE_CLOSED);
+                igateBtnPressed = false;
+            }
         }
+        if (gamepad2.right_bumper) {
+            if (!dgateBtnPressed) {
+                deliveryGateServo.setPosition(POS_DGATE_OPEN);
+                dgateBtnPressed = true;
+            }
+        } else {
+            if (dgateBtnPressed) {
+                deliveryGateServo.setPosition(POS_DGATE_CLOSED);
+                dgateBtnPressed = false;
+            }
+        }
+
+        int deliveryRotatePos = deliveryRotate.getCurrentPosition();
+//        if (gamepad2.left_trigger > 0.5) {
+//            transferToDelivery();
+//        }
 
         //if the delivery arm is down, the bucket should be in intake position.
         // 0 corresponds to the intake position (or drop) 1 - to vertical position,
@@ -438,7 +466,7 @@ public class DriverRover extends OpMode {
                      * When dropping debris, servo position 1 when
                      * box is vertical and position 0 when box is down.
                      */
-                    boxServo.setPosition(1 - gamepad2.right_trigger); //Uses analog trigger position
+                    boxServo.setPosition(1 - (gamepad2.right_trigger-0.2)); //Uses analog trigger position
 
                     arcstate = ArcState.AT_LAUNCHER;
                 } else {
@@ -481,16 +509,17 @@ public class DriverRover extends OpMode {
     }
 
     private void toHomePosition() {
-        if (deliveryDownTouch.isPressed()) {
+        int currentPos = deliveryRotate.getCurrentPosition();
+        if (currentPos <= DELIVERY_ROTATE_INTAKE_POS) {
             deliveryRotate.setPower(0);
             deliveryArmState = DeliveryState.HOME;
             return;
         }
 
-        int currentPos = deliveryRotate.getCurrentPosition();
+
         switch (deliveryArmState) {
             case HOME:
-                if (!deliveryDownTouch.isPressed()) {
+                if (currentPos > DELIVERY_ROTATE_INTAKE_POS) {
                     deliveryRotate.setPower(0.16); //Was 0.08
                 } else {
                     deliveryRotate.setPower(0);
@@ -544,12 +573,14 @@ public class DriverRover extends OpMode {
                 } else {
                     deliveryRotate.setPower(0.6);
                     if (currentPos > DELIVERY_ROTATE_BEFORE_HOME_POS) {
-                        if (fullExtension) extendDeliveryArm(1);
+                        //if (fullExtension) extendDeliveryArm(1);
+                        extendDeliveryArm(1);
                     }
                 }
                 break;
             case DELIVERY:
-                if (fullExtension) extendDeliveryArm(1);
+                //if (fullExtension) extendDeliveryArm(1);
+                extendDeliveryArm(1);
                 break;
         }
     }
@@ -577,62 +608,62 @@ public class DriverRover extends OpMode {
     }
 
     /**
-     * Switches delivery arm maximum extension to the optimal length for depot side delivery
+     * Switches delivery arm maximum extension to half and back
      */
     private void switchExtension() {
-//        if (fullExtension) {
-//            MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS / 2;
-//            ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS / 2;
-//        } else {
-//            MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS * 2;
-//            ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS * 2;
-//        }
+        if (fullExtension) {
+            MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS / 2;
+            ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS / 2;
+        } else {
+            MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS * 2;
+            ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS * 2;
+        }
         fullExtension = !fullExtension;
     }
 
-     private void transferToDelivery(){
-        switch(transferState){
-            case INTAKE:
-                deliveryGateServo.setPosition(POS_DGATE_OPEN);
-                transferState = MineralTransferState.DELIVERY_GATE_OPEN;
-                transferTime = currentTimeMillis();
-                break;
-            case DELIVERY_GATE_OPEN:
-                if(currentTimeMillis() - transferTime > 400){
-                    intakeGateServo.setPosition(POS_IGATE_OPEN);
-                    transferState = MineralTransferState.INTAKE_GATE_OPEN;
-                    transferTime = currentTimeMillis();
-                }
-                break;
-            case INTAKE_GATE_OPEN:
-                if(currentTimeMillis() - transferTime > 400){
-                    transferState = MineralTransferState.TRANSFER;
-                }
-                break;
-            case TRANSFER:
-                if (!gamepad2.a) {
-                    fingersServo.setPosition(POS_FINGERS_FLIPPED);
-                } else {
-                    fingersServo.setPosition(POS_FINGERS_PARKED);
-                }
-                if(gamepad2.b){
-                    fingersServo.setPosition(POS_FINGERS_PARKED);
-                    intakeGateServo.setPosition(POS_IGATE_CLOSED);
-                    transferState = MineralTransferState.DELIVERY_GATE_CLOSED;
-                    transferTime = currentTimeMillis();
-                }
-                break;
-            case DELIVERY_GATE_CLOSED:
-                if(currentTimeMillis() - transferTime > 300) {
-                    deliveryGateServo.setPosition(POS_DGATE_CLOSED);
-                } else if (currentTimeMillis() - transferTime > 500) {
-                    transferState = MineralTransferState.DELIVERY;
-                }
-                break;
-            case DELIVERY:
-                break;
-        }
-     }
+//     private void transferToDelivery(){
+//        switch(transferState){
+//            case INTAKE:
+//                deliveryGateServo.setPosition(POS_DGATE_OPEN);
+//                transferState = MineralTransferState.DELIVERY_GATE_OPEN;
+//                transferTime = currentTimeMillis();
+//                break;
+//            case DELIVERY_GATE_OPEN:
+//                if(currentTimeMillis() - transferTime > 400){
+//                    intakeGateServo.setPosition(POS_IGATE_OPEN);
+//                    transferState = MineralTransferState.INTAKE_GATE_OPEN;
+//                    transferTime = currentTimeMillis();
+//                }
+//                break;
+//            case INTAKE_GATE_OPEN:
+//                if(currentTimeMillis() - transferTime > 400){
+//                    transferState = MineralTransferState.TRANSFER;
+//                }
+//                break;
+//            case TRANSFER:
+//                if (!gamepad2.a) {
+//                    fingersServo.setPosition(POS_FINGERS_FLIPPED);
+//                } else {
+//                    fingersServo.setPosition(POS_FINGERS_PARKED);
+//                }
+//                if(gamepad2.b){
+//                    fingersServo.setPosition(POS_FINGERS_PARKED);
+//                    intakeGateServo.setPosition(POS_IGATE_CLOSED);
+//                    transferState = MineralTransferState.DELIVERY_GATE_CLOSED;
+//                    transferTime = currentTimeMillis();
+//                }
+//                break;
+//            case DELIVERY_GATE_CLOSED:
+//                if(currentTimeMillis() - transferTime > 300) {
+//                    deliveryGateServo.setPosition(POS_DGATE_CLOSED);
+//                } else if (currentTimeMillis() - transferTime > 500) {
+//                    transferState = MineralTransferState.DELIVERY;
+//                }
+//                break;
+//            case DELIVERY:
+//                break;
+//        }
+//     }
 
     //INTAKE, INTAKE_GATE_CLOSED, DELIVERY_GATE_OPEN, INTAKE_GATE_OPEN, TRANSFER, DELIVERY_GATE_CLOSED, DELIVERY
 
@@ -945,9 +976,9 @@ public class DriverRover extends OpMode {
 
         // intake wheel forward and reverse
         if (gamepad1.y) {
-            intakeWheelServo.setPower(0.8);
+            intakeWheelServo.setPower(-0.8); // reverse
         } else if (gamepad1.b) {
-            intakeWheelServo.setPower(-0.8);
+            intakeWheelServo.setPower(0.8); // forward
         } else {
             intakeWheelServo.setPower(0.0);
         }
@@ -1044,19 +1075,20 @@ public class DriverRover extends OpMode {
 
     private void log() {
         telemetry.addData("transfer state", transferState);
-        telemetry.addData("intake extend / touch",
-                intakeExtend.getCurrentPosition() + "/" + intakeExtendTouch.isPressed());
+        telemetry.addData("box trigger", gamepad2.right_trigger);
+//        telemetry.addData("intake extend / touch",
+//                intakeExtend.getCurrentPosition() + "/" + intakeExtendTouch.isPressed());
         telemetry.addData("delivery rotate / touch / state",
                 deliveryRotate.getCurrentPosition() + "/" +
                         deliveryDownTouch.isPressed() + "/" + deliveryArmState);
-        telemetry.addData("delivery extend / touch",
-                deliveryExtend.getCurrentPosition() + "/" + deliveryExtendTouch.isPressed());
-        telemetry.addData("lift / touch",
-                liftMotor.getCurrentPosition() + "/" + liftTouch.isPressed());
-        telemetry.addData("alpha", colorSensor.alpha());
-        if (intakeHolder != null) {
-            telemetry.addData("Holder Pos", intakeHolder.getPosition());
-        }
+//        telemetry.addData("delivery extend / touch",
+//                deliveryExtend.getCurrentPosition() + "/" + deliveryExtendTouch.isPressed());
+//        telemetry.addData("lift / touch",
+//                liftMotor.getCurrentPosition() + "/" + liftTouch.isPressed());
+//        telemetry.addData("alpha", colorSensor.alpha());
+//        if (intakeHolder != null) {
+//            telemetry.addData("Holder Pos", intakeHolder.getPosition());
+//        }
     }
 
     /**
@@ -1066,7 +1098,7 @@ public class DriverRover extends OpMode {
      * the second will be mapped to 1.
      * The servo will be set into the first (0) position.
      *
-     * setPercentOpen() can be used afterwards to set servo position
+     * 0-1 range can be used afterwards with setPosition to set servo position
      *
      * @param servo  - servo motor
      * @param zeroPos  - position between 0 and 1 that will be mapped to zero
@@ -1085,17 +1117,7 @@ public class DriverRover extends OpMode {
             servo.setDirection(Servo.Direction.FORWARD);
         }
 
-        setPercentOpen(servo, 0);
-    }
-
-    /**
-     * Assuming closed/hold position is 0, open/release is 1, set percent open
-     *
-     * @param servo       - servo motor to use
-     * @param percentOpen is the number between 0 and 1
-     */
-    private static void setPercentOpen(Servo servo, double percentOpen) {
-        servo.setPosition(percentOpen);
+        servo.setPosition(0);
     }
 
     @Override

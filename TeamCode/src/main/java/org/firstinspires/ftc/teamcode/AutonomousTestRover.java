@@ -21,7 +21,7 @@ public class AutonomousTestRover extends AutonomousRover {
         dropMarker();
 
 //        arcTest();
-//        rangeDriveTest();
+        rangeDriveTest();
 
 //        steerTest();
 
@@ -116,7 +116,7 @@ public class AutonomousTestRover extends AutonomousRover {
         TEST = true;
         out = new StringBuffer();
 
-        double [] kpArr = {0.02, 0.02, 0.02};
+        double [] kpArr = {0.25, 0.3, 0.35};
 
         for(double kp : kpArr) {
             if (!opModeIsActive()) return;
@@ -124,17 +124,19 @@ public class AutonomousTestRover extends AutonomousRover {
             telemetry.update();
             out.append(String.format("# kp = %.3f \n", kp));
             TEST = true;
-            RangeErrorHandler errorHandlerBackward = new RangeErrorHandler(rangeSensorBackRight,
-                    rangeSensorFrontRight, rangeInInches,  true,0);
-            errorHandlerBackward.setKP(kp);
-            moveWithErrorCorrection(-startPower, -endPower, inches, errorHandlerBackward);
+            RangeErrorHandler errorHandlerBackward = new RangeErrorHandler(rangeSensorFrontRight,
+                    rangeSensorBackRight, rangeInInches,  false,0);
+            //errorHandlerBackward.setKP(kp);
+            clockwiseK = kp;
+            moveWithErrorCorrection(startPower, endPower, inches, errorHandlerBackward);
             sleep(5000);
 
-            RangeErrorHandler errorHandlerForward = new RangeErrorHandler(rangeSensorFrontRight,
-                    rangeSensorBackRight, rangeInInches,
-                    false, 0);
-            errorHandlerForward.setKP(kp);
-            moveWithErrorCorrection(startPower, endPower, inches, errorHandlerForward);
+            RangeErrorHandler errorHandlerForward = new RangeErrorHandler(rangeSensorBackRight,
+                    rangeSensorFrontRight, rangeInInches,
+                    true, 0);
+            //errorHandlerForward.setKP(kp);
+            clockwiseK = kp;
+            moveWithErrorCorrection(-startPower, -endPower, inches, errorHandlerForward);
             sleep( 5000);
         }
     }

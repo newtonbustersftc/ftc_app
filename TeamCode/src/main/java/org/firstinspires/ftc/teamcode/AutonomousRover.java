@@ -35,6 +35,7 @@ import static org.firstinspires.ftc.teamcode.DriverRover.POS_BUCKET_INTAKE;
 import static org.firstinspires.ftc.teamcode.DriverRover.POS_BUCKET_UP;
 import static org.firstinspires.ftc.teamcode.DriverRover.POS_INTAKE_HOLD;
 import static org.firstinspires.ftc.teamcode.DriverRover.POS_INTAKE_RELEASE;
+import static org.firstinspires.ftc.teamcode.DriverRover.POS_INTAKE_RELEASE_EXTREME;
 import static org.firstinspires.ftc.teamcode.DriverRover.setUpServo;
 
 
@@ -123,7 +124,7 @@ public class AutonomousRover extends BaseAutonomous {
         return false;
     }
 
-    static double imageHeight = 800; // Samsing's
+    static double imageHeight = 800; // Samsung's
 
     @Override
     public void doRunOpMode() throws InterruptedException {
@@ -190,7 +191,8 @@ public class AutonomousRover extends BaseAutonomous {
                 park();
             }
 
-            intakeHolder.setPosition(POS_INTAKE_RELEASE);
+            intakeHolder.setPosition(POS_INTAKE_RELEASE_EXTREME);
+            sleep(600);
 
             Lights.green(true);
 
@@ -340,9 +342,9 @@ public class AutonomousRover extends BaseAutonomous {
             boxServo.setPosition(DriverRover.POS_BUCKET_PARKED);
 
             deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-            deliveryRotate.setTargetPosition(350);
+            deliveryRotate.setTargetPosition(280);
             deliveryRotate.setPower(0.6);
-            sleep(500);
+            sleep(600);
 
             // detect where the gold is
             goldPosition = getGoldPosition();
@@ -382,8 +384,8 @@ public class AutonomousRover extends BaseAutonomous {
                 }
             }
 
-            deliveryRotate.setTargetPosition(0);
-            deliveryRotate.setPower(0.1);
+            deliveryRotate.setTargetPosition(350);
+            deliveryRotate.setPower(0.4);
 
             // lower the robot
             liftMotor.setTargetPosition(-DriverRover.LATCHING_POS);
@@ -405,22 +407,25 @@ public class AutonomousRover extends BaseAutonomous {
             intakeGateServo.setPosition(DriverRover.POS_IGATE_CLOSED);
             boxServo = hardwareMap.servo.get("box");
             boxServo.setPosition(DriverRover.POS_BUCKET_PARKED);
-            sleep(1200);
+            sleep(600);
 
             if (!opModeIsActive()) return;
 
             // retract lift
-            liftMotor.setTargetPosition(0);
+            liftMotor.setTargetPosition(DriverRover.LIFT_POS_CLEAR);
             liftMotor.setPower(1);
             // let hook clear the handle
-            while (opModeIsActive() && Math.abs(liftMotor.getCurrentPosition()) > DriverRover.LIFT_POS_CLEAR) {
-                idle();
-            }
-            liftMotor.setPower(0);
+//            while (opModeIsActive() && Math.abs(liftMotor.getCurrentPosition()) > DriverRover.LIFT_POS_CLEAR) {
+//                idle();
+//            }
+//            liftMotor.setPower(0);
 
             // move forward where the gold is visible again
             checkForGyroError();
             moveWithErrorCorrection(0.5, 0.2, 7, new GyroErrorHandler(0));
+
+            liftMotor.setPower(0);
+            deliveryRotate.setPower(0);
 
             log("At the line");
         } finally {
@@ -453,7 +458,7 @@ public class AutonomousRover extends BaseAutonomous {
 
         double currentHeading = getGyroAngles().firstAngle;
         double driveHeading = 0;
-        deliveryRotate.setPower(0);
+
         double heading = 0; // center
         if (shortCraterMode && goldOnRight) {
             driveHeading = -40;
@@ -461,26 +466,26 @@ public class AutonomousRover extends BaseAutonomous {
             heading = -45; // clockwise from 0 - negative heading
         } else {
             if (goldOnRight) {
-                driveHeading = -30;
+                driveHeading = -35;
                 //rotate(0.3, 30);
                 heading = -35; // clockwise from 0 - negative heading
             } else if (goldOnSide) {
-                driveHeading = 30;
+                driveHeading = 35;
                 //rotate(-0.3, 30); //Gold is on the left
                 heading = 35; // counterclockwise from 0 - positive heading
             }
         }
         if (goldOnSide) {
             double angleToRotate = Math.abs(currentHeading - driveHeading);
-            boolean rotateClockwise = (goldOnRight) ? true : false;
+            boolean rotateClockwise = goldOnRight;
 
             rotate(rotateClockwise, angleToRotate);
         }
         sleep(100);
         log("Rotated to gold");
 
-        int distanceToCenterGold = 19 + 2; //distance is in inches
-        int distanceToSideGold = 21 + 2; //distance is in inches
+        int distanceToCenterGold = 18; //distance is in inches
+        int distanceToSideGold = 20 ; //distance is in inches
 
         int extraDistance = 0; //extraDistance is for the depot side only
 
@@ -516,23 +521,23 @@ public class AutonomousRover extends BaseAutonomous {
 
         double heading;
         double distanceBack;
-        double distanceToWall = 55; //longest distance from right position
+        double distanceToWall = 47+6; //longest distance from right position
         // come back
         if (goldOnSide) {
             // added 3 inches because the robot is landing closer to jewels
-            distanceBack = 21.0 / 2.0 + 1;
+            distanceBack = 20.0 / 2.0 + 1;
             if (goldOnRight) {
                 heading = -35;
             } else {
                 // left
                 heading = 35;
-                distanceToWall -= 13;
+                distanceToWall -= 6;
             }
         } else {
             //center
-            distanceBack = 19.0 / 2.0 + 1;
+            distanceBack = 18.0 / 2.0 + 1;
             heading = 0;
-            distanceToWall -= 7;
+            distanceToWall -= 6;
         }
 
         // move back
@@ -542,9 +547,9 @@ public class AutonomousRover extends BaseAutonomous {
 
         double currentHeading = getGyroAngles().firstAngle;
         double driveHeading = depotSide()? 90 : -90;
-        double angleToRotate = Math.abs(currentHeading - driveHeading) - 5; //small adjustment for over rotation
+        double angleToRotate = Math.abs(currentHeading - driveHeading) - 2.5; //small adjustment for over rotation
         // rotate toward the wall
-        rotate(false, angleToRotate);
+        rotate(!depotSide(), angleToRotate);
         if(!depotSide()){
             //TODO delay should depend on the place of the gold mineral
             // delay if needed, delay is in seconds, sleep accepts milliseconds
@@ -557,7 +562,7 @@ public class AutonomousRover extends BaseAutonomous {
 
         int sign = depotSide()? 1 : -1;
 
-        moveWithErrorCorrection( sign * DRIVE_POWER, 0.2, distanceToWall, new GyroErrorHandler(driveHeading));
+        moveWithErrorCorrection( sign * DRIVE_POWER, sign * 0.2, distanceToWall, new GyroErrorHandler(driveHeading));
 //        if (isRightFrontTooFarFromWall()) {
 //            //too far away from the wall
 //            log("Too far");
@@ -575,21 +580,21 @@ public class AutonomousRover extends BaseAutonomous {
         // rotate along the wall
         currentHeading = getGyroAngles().firstAngle;
         driveHeading = depotSide()? 135 : -45;
-        angleToRotate = Math.abs(driveHeading - currentHeading) - 5;
+        angleToRotate = Math.abs(driveHeading - currentHeading) - 2.5;
         rotate(false, angleToRotate);
         log("Aligned with the wall");
         // drive along the wall using two range sensors for correction
-        double inchesForward = 30;
+        double inchesBack = depotSide() ? 35 : 30;
         // drive forward along the wall
-        boolean clockwiseWhenTooClose = false;
+        boolean clockwiseWhenTooClose = depotSide();
         double inchesToWall = 3;
         DistanceSensor leadingSensor = depotSide() ? rangeSensorBackRight : rangeSensorBackLeft;
         DistanceSensor followingSensor = depotSide() ? rangeSensorFrontRight : rangeSensorFrontLeft;
         RangeErrorHandler errorHandler = new RangeErrorHandler(leadingSensor,
                 followingSensor, inchesToWall, clockwiseWhenTooClose, driveHeading);
-        moveWithErrorCorrection(-DRIVE_POWER, 0.2, inchesForward, errorHandler);
+        moveWithErrorCorrection(-DRIVE_POWER, -0.2, inchesBack, errorHandler);
         checkForGyroError();
-        //moveWithErrorCorrection(DRIVE_POWER, 0.2, inchesForward, new GyroErrorHandler(driveHeading));
+        //moveWithErrorCorrection(DRIVE_POWER, 0.2, inchesBack, new GyroErrorHandler(driveHeading));
 
         dropMarker();
 
@@ -606,6 +611,7 @@ public class AutonomousRover extends BaseAutonomous {
         //POS_BUCKET_INTAKE, POS_BUCKET_UP
         int armPos = deliveryRotate.getCurrentPosition();
         double boxPos;
+        log("Before drop");
         while (armPos < DELIVERY_ROTATE_UP_POS) {
             armPos = armPos + 100;
             boxPos = POS_BUCKET_INTAKE + (POS_BUCKET_UP - POS_BUCKET_INTAKE) *
@@ -623,7 +629,8 @@ public class AutonomousRover extends BaseAutonomous {
             sleep(80);
         }
         boxServo.setPosition(0.6);
-        sleep(2000);
+        sleep(1000);
+        log("After drop");
         boxServo.setPosition(POS_BUCKET_UP);
         while (armPos > DELIVERY_ROTATE_UP_POS) {
             armPos = armPos - 100;
@@ -646,7 +653,7 @@ public class AutonomousRover extends BaseAutonomous {
 
         log("Delivered marker");
         // use for testing autonomous
-        retractLift();
+        //retractLift();
     }
 
 /*    void dropMarker() {
@@ -696,7 +703,7 @@ public class AutonomousRover extends BaseAutonomous {
         Lights.resetLights();
         double distanceToTravel;
 
-        distanceToTravel = 30; // 53;
+        distanceToTravel = depotSide() ? 38 : 49; // 53;
         double driveHeading = depotSide() ? 135 : -45;
 
 //            // rotate toward the wall
@@ -704,7 +711,7 @@ public class AutonomousRover extends BaseAutonomous {
 //            double angleToRotate = Math.abs(currentHeading - 140); //small adjustment for over rotation
 //            rotate(false, angleToRotate);
 
-        boolean clockwiseWhenTooClose = true;
+        boolean clockwiseWhenTooClose = !depotSide();
         double inchesToWall = 3;
         TEST = true;
         DistanceSensor leadingSensor = depotSide() ? rangeSensorFrontRight : rangeSensorFrontLeft;
@@ -712,7 +719,7 @@ public class AutonomousRover extends BaseAutonomous {
         RangeErrorHandler errorHandler = new RangeErrorHandler(leadingSensor,
                 followingSensor, inchesToWall, clockwiseWhenTooClose, driveHeading);
         //usually use distance sensor not gyro
-        boolean success = moveWithErrorCorrection(DRIVE_POWER, -0.2, distanceToTravel, errorHandler);
+        boolean success = moveWithErrorCorrection(DRIVE_POWER, 0.2, distanceToTravel, errorHandler);
         if (!success) return;
         log("Parked");
     }
@@ -824,6 +831,7 @@ public class AutonomousRover extends BaseAutonomous {
         return motor.getCurrentPosition();
     }
 
+    double clockwiseK = 0.3;
     /**
      * @param motorPower power to go in straight line from -1 to 1
      * @param steerPower power to make adjustments clockwise
@@ -843,7 +851,7 @@ public class AutonomousRover extends BaseAutonomous {
             }
         }
 
-        wheels.powerMotors(motorPower, 0, Range.clip(0.2*clockwisePower, -1.0, 1.0));
+        wheels.powerMotors(motorPower, 0, Range.clip(clockwiseK*clockwisePower, -1.0, 1.0));
     }
 
     @Override
