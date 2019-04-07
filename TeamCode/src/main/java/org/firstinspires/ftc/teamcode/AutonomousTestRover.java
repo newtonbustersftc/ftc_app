@@ -18,10 +18,12 @@ public class AutonomousTestRover extends AutonomousRover {
         TEST=true;
         logPrefix = "distance";
 
-        dropMarker();
+        rotateToHeadingTest();
+
+        //dropMarker();
 
 //        arcTest();
-        rangeDriveTest();
+        //rangeDriveTest();
 
 //        steerTest();
 
@@ -49,6 +51,16 @@ public class AutonomousTestRover extends AutonomousRover {
 //        telemetry.update();
 //        sleep(10000);
 
+    }
+
+    private void rotateToHeadingTest() {
+        int[] targetHeadings = {45, 45, 45};
+
+        for (double targetHeading : targetHeadings) {
+            double currentHeading = getGyroAngles().firstAngle;
+            Heading.clockwiseRotateAngle(new Heading(currentHeading), new Heading(targetHeading));
+            sleep(5000);
+        }
     }
 
     private void distanceTest() throws InterruptedException {
