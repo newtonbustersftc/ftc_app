@@ -76,7 +76,7 @@ public class DriverRover extends OpMode {
     static final double POS_DGATE_CLOSED = 0.78; //delivery gate closed
     static final double POS_DGATE_OPEN = 0.23; //delivery gate open
 
-    static final double POS_FINGERS_PARKED = 0.73;
+    static final double POS_FINGERS_PARKED = 0.70;
     static final double POS_FINGERS_FLIPPED = 0.31;
 
     static final double POS_INTAKE_HOLD = 0.55; //0.421;
@@ -982,7 +982,8 @@ public class DriverRover extends OpMode {
         // intake wheel forward and reverse
         if (gamepad1.y) {
             intakeWheelServo.setPower(-0.8); // reverse
-        } else if (gamepad1.b) {
+        } else if (gamepad1.b || gamepad2.right_bumper) {
+            //we want the intake wheel to help move the minerals to the back during transfer
             intakeWheelServo.setPower(0.8); // forward
         } else {
             intakeWheelServo.setPower(0.0);
@@ -1130,6 +1131,7 @@ public class DriverRover extends OpMode {
         if (fingersServo != null) {
             fingersServo.setPosition((POS_FINGERS_PARKED+POS_FINGERS_FLIPPED)/2);
         }
+        Lights.red(false);
         String logPrefix = "driver";
         try {
             if (out != null) {
