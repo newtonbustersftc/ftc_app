@@ -1131,7 +1131,7 @@ public class DriverRover extends OpMode {
         if (fingersServo != null) {
             fingersServo.setPosition((POS_FINGERS_PARKED+POS_FINGERS_FLIPPED)/2);
         }
-        Lights.red(false);
+        Lights.disableLight();
         String logPrefix = "driver";
         try {
             if (out != null) {

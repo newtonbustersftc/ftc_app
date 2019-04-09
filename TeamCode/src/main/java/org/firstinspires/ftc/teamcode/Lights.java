@@ -66,4 +66,8 @@ class Lights {
     static boolean hasGlobalWarnings() {
         return lynxModule != null && lynxModule.getGlobalWarnings().size()>0;
     }
+
+    static void disableLight() {
+        red.setMode(DigitalChannel.Mode.INPUT);
+    }
 }

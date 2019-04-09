@@ -21,8 +21,8 @@ public class Heading {
      * @param targetHeading ending heading
      */
     public static double clockwiseRotateAngle(Heading startHeading, Heading targetHeading) {
-        double sine = Math.sin(startHeading.sin * targetHeading.cos - startHeading.cos * targetHeading.sin);
-        double cosine = Math.cos(startHeading.cos * targetHeading.cos + startHeading.sin * targetHeading.sin);
+        double sine = startHeading.sin * targetHeading.cos - startHeading.cos * targetHeading.sin;
+        double cosine = startHeading.cos * targetHeading.cos + startHeading.sin * targetHeading.sin;
 
         return Math.toDegrees(Math.atan2(sine, cosine));
     }

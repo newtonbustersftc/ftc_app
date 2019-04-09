@@ -172,6 +172,7 @@ public class AutonomousRover extends BaseAutonomous {
 
             // start or stop requested at this point
             if (isStopRequested()) {
+                Lights.disableLight();
                 return;
             }
 
@@ -207,6 +208,7 @@ public class AutonomousRover extends BaseAutonomous {
                 telemetry.update();
             }
         } finally {
+            Lights.disableLight();
             if (tfod != null) {
                 tfod.shutdown();
                 tfod = null;
@@ -842,27 +844,13 @@ public class AutonomousRover extends BaseAutonomous {
         return motor.getCurrentPosition();
     }
 
-    double clockwiseK = 0.3;
+    double clockwiseK = 0.6;
     /**
      * @param motorPower power to go in straight line from -1 to 1
      * @param steerPower power to make adjustments clockwise
      */
     void steer(double motorPower, double steerPower) {
-        double clockwisePower;
-        if (motorPower > 0) {
-            if (steerPower > 0)
-                clockwisePower = steerPower;
-            else
-                clockwisePower = -steerPower;
-        } else {
-            if (steerPower > 0) {
-                clockwisePower = -steerPower;
-            } else {
-                clockwisePower = steerPower;
-            }
-        }
-
-        wheels.powerMotors(motorPower, 0, Range.clip(clockwiseK*clockwisePower, -1.0, 1.0));
+        wheels.powerMotors(motorPower, 0, Range.clip(clockwiseK*steerPower, -1.0, 1.0));
     }
 
     @Override

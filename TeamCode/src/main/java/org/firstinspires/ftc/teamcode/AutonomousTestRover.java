@@ -3,6 +3,8 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
 
+import java.util.Locale;
+
 @Autonomous(name = "TestRover", group = "Main")
 public class AutonomousTestRover extends AutonomousRover {
 
@@ -16,14 +18,14 @@ public class AutonomousTestRover extends AutonomousRover {
         }
 
         TEST=true;
-        logPrefix = "distance";
+        logPrefix = "range";
 
-        rotateToHeadingTest();
+        //rotateToHeadingTest();
 
         //dropMarker();
 
 //        arcTest();
-        //rangeDriveTest();
+        rangeDriveTest();
 
 //        steerTest();
 
@@ -50,16 +52,29 @@ public class AutonomousTestRover extends AutonomousRover {
 //        telemetry.addData("Gold Position", goldPosition);
 //        telemetry.update();
 //        sleep(10000);
+          Lights.disableLight();
 
     }
 
     private void rotateToHeadingTest() {
-        int[] targetHeadings = {45, 45, 45};
+        out.append("current, target, cw angle \n");
 
-        for (double targetHeading : targetHeadings) {
+        double targetHeading = 90.0;
+
+        wheels.powerMotors(0, 0, 0.3);
+        while(opModeIsActive()){
+
             double currentHeading = getGyroAngles().firstAngle;
-            Heading.clockwiseRotateAngle(new Heading(currentHeading), new Heading(targetHeading));
-            sleep(5000);
+
+            double angleToRotate = Heading.clockwiseRotateAngle(new Heading(currentHeading), new Heading(targetHeading));
+            telemetry.clear();
+            telemetry.addData("heading", currentHeading);
+            telemetry.addData("target heading", targetHeading);
+            telemetry.addData("cw angle to rotate", angleToRotate);
+            telemetry.update();
+            out.append(String.format(Locale.US, "%.1f,%.1f,%.1f,\n",
+                    currentHeading, targetHeading, angleToRotate));
+            sleep(500);
         }
     }
 
@@ -120,15 +135,15 @@ public class AutonomousTestRover extends AutonomousRover {
     }
 
     void rangeDriveTest() throws InterruptedException {
-        double startPower = 0.7;
+        double startPower = 0.5;
         double endPower = 0.2;
-        double inches = 70;
+        double inches = 60;
         double rangeInInches = 5;
         logPrefix = "rangeTest";
         TEST = true;
         out = new StringBuffer();
 
-        double [] kpArr = {0.25, 0.3, 0.35};
+        double [] kpArr = {0.6};
 
         for(double kp : kpArr) {
             if (!opModeIsActive()) return;
