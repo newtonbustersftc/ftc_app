@@ -10,5 +10,5 @@ interface ErrorHandler {
      * method returns clockwise speed adjustment
      * @return
      */
-    public double getSteerSpeed();
+    public double getSteerSpeed(double forwardSpeed);
 }

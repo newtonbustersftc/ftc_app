@@ -107,14 +107,14 @@ public class MecanumWheels {
         motorRearLeft.setPower(rear_left);
         motorRearRight.setPower(rear_right);
 
-        // Telemetry - all doubles are scaled to (-100, 100)
-        if (!isForward()) {
-            telemetry.addData("Driver dir", REVERSED);
-        }
-        telemetry.addData("DC1,2,3,4", (int) (front_left * 100) + ", " +
-                (int) (front_right * 100) + ", " +
-                (int) (rear_left * 100) + ", " +
-                (int) (rear_right * 100));
+//        // Telemetry - all doubles are scaled to (-100, 100)
+//        if (!isForward()) {
+//            telemetry.addData("Driver dir", REVERSED);
+//        }
+//        telemetry.addData("DC1,2,3,4", (int) (front_left * 100) + ", " +
+//                (int) (front_right * 100) + ", " +
+//                (int) (rear_left * 100) + ", " +
+//                (int) (rear_right * 100));
     }
 
     double MIN_POWER_GAMEPAD = 0.3;
@@ -181,7 +181,7 @@ public class MecanumWheels {
             }
 
         }
-        logEncoders();
+        //logEncoders();
         setRunMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     }
 

@@ -216,6 +216,16 @@ public abstract class BaseAutonomous extends LinearOpMode {
         throw new UnsupportedOperationException("powerRotate is not implemented");
     }
 
+    void rotateToHeading(double heading) {
+        Heading hcurrent = new Heading(getGyroAngles().firstAngle);
+        Heading htarget = new Heading(heading);
+
+        double angleToRotate = Heading.clockwiseRotateAngle(hcurrent, htarget);
+        if (Math.abs(angleToRotate) > 1) {
+            rotate(angleToRotate > 0, Math.abs(angleToRotate));
+        }
+    }
+
     /**
      * rotates robot the given angle
      *
@@ -298,12 +308,14 @@ public abstract class BaseAutonomous extends LinearOpMode {
         long startTime = currentTimeMillis();
         while (opModeIsActive() && currentTimeMillis() - startTime < 5000 &&
                 countsSinceStart < inchesToCounts(inches, forward)) {
-            // steer CCW - negative, CW - positive
-            steerSpeed = errorHandler.getSteerSpeed();
 
             if (countsSinceStart > countsForGradient) {
                 motorPower = slope * (countsSinceStart - inchesToCounts(inches, forward)) + endPower;
             }
+
+            // steer CCW - negative, CW - positive
+            steerSpeed = errorHandler.getSteerSpeed(Math.abs(motorPower));
+
             steer(motorPower, steerSpeed);
             countsSinceStart = Math.abs(getWheelPosition() - initialcount);
 
@@ -345,11 +357,11 @@ public abstract class BaseAutonomous extends LinearOpMode {
         }
 
         @Override
-        public double getSteerSpeed() {
+        public double getSteerSpeed(double forwardSpeed) {
             if (isGyroError()) return 0;
             //clockwise = positive steer speed
             double error = getError();
-            double steerSpeed = error * getKP();
+            double steerSpeed = error * getKP(forwardSpeed);
             if (TEST) logGyroCorrection(currentTimeMillis()-startTime, error, steerSpeed);
             return steerSpeed;
         }
@@ -362,9 +374,9 @@ public abstract class BaseAutonomous extends LinearOpMode {
         }
 
 
-        double getKP() {
-            //experimental coefficient for proportional correction of the direction
-            return 0.01;
+        double getKP(double forwardSpeed) {
+            // 0.01 is experimental coefficient for proportional correction of the direction at 0.5 speed
+            return 0.01 * forwardSpeed / 0.5;
         }
     }
 
@@ -377,7 +389,7 @@ public abstract class BaseAutonomous extends LinearOpMode {
         private GyroErrorHandler gyroErrorHandler;
         private long startTime;
 
-        private double KP = 0.02;
+        private double KP = 0.012; // KP at 0.5 speed
 
         /**
          * @param s1                  leading sensor
@@ -404,21 +416,21 @@ public abstract class BaseAutonomous extends LinearOpMode {
 
         @Override
         //clockwise = positive steer speed
-        public double getSteerSpeed() {
+        public double getSteerSpeed(double forwardSpeed) {
             double range1 = s1.getDistance(DistanceUnit.INCH);
             double range2 = s2.getDistance(DistanceUnit.INCH);
             double error, steerSpeed;
             if (rangeInBounds(range1) && rangeInBounds(range2)) {
                 //if ranges are reasonable, use 2 sensors
                 error = getError(range1, range2);
-                steerSpeed = error * getKP();
+                steerSpeed = error * getKP(forwardSpeed, range1);
                 if (TEST) logRangeCorrection(currentTimeMillis()-startTime, error, steerSpeed, range1, range2);
                 return steerSpeed;
             } else {
                 if (out == null) { out = new StringBuffer();}
                 out.append(String.format(Locale.US, "# Bad range s1: %.2f s2: %.2f\n", range1, range2));
                 //if ranges are unreasonable, use gyro sensor only
-                return gyroErrorHandler.getSteerSpeed();
+                return gyroErrorHandler.getSteerSpeed(forwardSpeed);
             }
 
         }
@@ -445,9 +457,15 @@ public abstract class BaseAutonomous extends LinearOpMode {
         }
 
 
-        double getKP() {
-            //experimental coefficient for proportional correction of the direction
-            return KP;
+        //experimental coefficient for proportional correction of the direction
+        double getKP(double forwardSpeed, double range1) {
+            double kp = KP;
+            if (range1 < 0.3 * rangeInInches || range1 > 1.7 * rangeInInches) {
+                // if there is a danger to get into wall, increase coefficient
+                double percentOff = Math.abs(range1 - rangeInInches) / rangeInInches;
+                kp = (percentOff > 1) ? 2 * kp : (1 + percentOff) * kp;
+            }
+            return forwardSpeed * kp / 0.5;
         }
 
         void setKP(double kp) {

@@ -61,7 +61,7 @@ public class DriverRover extends OpMode {
     static final int DELIVERY_ROTATE_BEFORE_HOME_POS = 400;
     static final int DELIVERY_ROTATE_HORIZ_POS = 350; // arm is horizontal
     static final int DELIVERY_ROTATE_INTAKE_POS = 103; //position when box is sitting on platform
-    static final int DELIVERY_ROTATE_CAMERA_POS = 250; //lowest position that allows camera to see minerals
+    static final int DELIVERY_ROTATE_CAMERA_POS = 260; //lowest position that allows camera to see minerals
     static final int DELIVERY_ROTATE_CLEAR_PLATFORM = 350; //lowest position for platform to fall
 
     // encode positions for the delivery extension motor
@@ -79,7 +79,7 @@ public class DriverRover extends OpMode {
     static final double POS_FINGERS_PARKED = 0.70;
     static final double POS_FINGERS_FLIPPED = 0.31;
 
-    static final double POS_INTAKE_HOLD = 0.55; //0.421;
+    static final double POS_INTAKE_HOLD = 0.50; //0.421;
     static final double POS_INTAKE_RELEASE = 0.62; // 0.65;
     static final double POS_INTAKE_RELEASE_EXTREME = 0.7;
 
@@ -126,7 +126,7 @@ public class DriverRover extends OpMode {
     private static boolean fullExtension = true;
 
     private boolean switchCrater = false;
-    private boolean ourCrater = false;
+    protected boolean ourCrater = false;
     private boolean isDepotAuto = false;
 
     private boolean leftBumper1Pressed = false;
@@ -676,7 +676,7 @@ public class DriverRover extends OpMode {
      *
      * @param coefficient between -1 and 1, controls direction and radius of arc
      */
-    private void doArc(double coefficient) {
+    public void doArc(double coefficient) {
 
         double FORWARD_POWER = 0.5;
         double ARC_MAX_CLOCKWISE_POWER = .5; //at 0.5 forward power
@@ -684,7 +684,7 @@ public class DriverRover extends OpMode {
 
         double clockwisePower;
         double forwardPower;
-        double p = (ARC_MAX_CLOCKWISE_POWER - ARC_MIN_CLOCKWISE_POWER) * Math.abs(gamepad1.right_stick_x) + ARC_MIN_CLOCKWISE_POWER;
+        double p = (ARC_MAX_CLOCKWISE_POWER - ARC_MIN_CLOCKWISE_POWER) * Math.abs(coefficient) + ARC_MIN_CLOCKWISE_POWER;
 
         // outer motor is left between our crater and our depot side launcher
         // outer motor is right between opposite crater and our depot side launcher
@@ -779,7 +779,7 @@ public class DriverRover extends OpMode {
         return true;
     }
 
-    private double getHeadingParallelToWall() {
+     public double getHeadingParallelToWall() {
         if (isDepotAuto) {
             return ourCrater ? -135 : 135;
         } else {
@@ -787,7 +787,7 @@ public class DriverRover extends OpMode {
         }
     }
 
-    private double getHeadingAtDepotLander() {
+    public double getHeadingAtDepotLander() {
         return isDepotAuto ? 0 : 90;
     }
 
@@ -800,25 +800,17 @@ public class DriverRover extends OpMode {
      * @param targetHeading heading we want to rotate to
      * @return true if rotation is complete, false otherwise
      */
-    private boolean rotateToHeading(double targetHeading) {
+    public boolean rotateToHeading(double targetHeading) {
         double currentHeading = getGyroAngles().firstAngle;
-        double delta = targetHeading - currentHeading;
-        double rotateHeading = delta; //how much to rotate in what direction
+        Heading cHeading = new Heading(currentHeading);
+        Heading tHeading = new Heading(targetHeading);
+        double angleToRotate = Heading.clockwiseRotateAngle(cHeading, tHeading);
         double currentPower;
 
-        if (delta > 180) {
-            rotateHeading = delta - 360;
-        } else if (delta < -180) {
-            rotateHeading = delta + 360;
-        }
-
-        //heading --> has direction
-        //angle --> doesn't have direction
-        double rotateAngle = Math.abs(rotateHeading);
-
-        //if delta is positive --> rotate ccw
-        //if delta is negative --> rotate cw
-        double signFactor = delta < 0 ? -1 : 1;
+        //if angleToRotate is positive --> rotate cw
+        //if angleToRotate is negative --> rotate ccw
+        double signFactor = angleToRotate < 0 ? -1 : 1;
+        double rotateAngle = Math.abs(angleToRotate);
 
         if (rotateAngle < TOLERANCE_ANGLE) {
             currentPower = 0;
@@ -1131,7 +1123,7 @@ public class DriverRover extends OpMode {
         if (fingersServo != null) {
             fingersServo.setPosition((POS_FINGERS_PARKED+POS_FINGERS_FLIPPED)/2);
         }
-        Lights.disableLight();
+        Lights.disableRed();
         String logPrefix = "driver";
         try {
             if (out != null) {

@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
-// Use Math.cos, Math.sin Math.toRadians, Math.toDegrees, Math
+// Use Math.cos, Math.sin Math.toRadians, Math.toDegrees, Math.toRadians
+
 public class Heading {
     double cos;
     double sin;
@@ -16,9 +17,9 @@ public class Heading {
     }
 
     /**
-     * returns the angle in degrees that the robot should rotate clockwise
      * @param startHeading beginning heading
      * @param targetHeading ending heading
+     * @return the angle in degrees that the robot should rotate clockwise
      */
     public static double clockwiseRotateAngle(Heading startHeading, Heading targetHeading) {
         double sine = startHeading.sin * targetHeading.cos - startHeading.cos * targetHeading.sin;

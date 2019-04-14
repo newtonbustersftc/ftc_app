@@ -67,7 +67,7 @@ class Lights {
         return lynxModule != null && lynxModule.getGlobalWarnings().size()>0;
     }
 
-    static void disableLight() {
+    static void disableRed() {
         red.setMode(DigitalChannel.Mode.INPUT);
     }
 }

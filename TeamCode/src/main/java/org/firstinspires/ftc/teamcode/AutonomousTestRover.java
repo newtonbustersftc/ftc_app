@@ -5,7 +5,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 
 import java.util.Locale;
 
-@Autonomous(name = "TestRover", group = "Main")
+@Autonomous(name = "TestAuto", group = "Main")
 public class AutonomousTestRover extends AutonomousRover {
 
     @Override
@@ -18,18 +18,19 @@ public class AutonomousTestRover extends AutonomousRover {
         }
 
         TEST=true;
-        logPrefix = "range";
+
 
         //rotateToHeadingTest();
 
         //dropMarker();
 
 //        arcTest();
-        rangeDriveTest();
+
 
 //        steerTest();
 
 //        gyroDriveTest();
+          rangeDriveTest();
 
 //        distanceTest();
 //        for (double power=0.15; power <= .9; power += 0.05) {
@@ -52,7 +53,7 @@ public class AutonomousTestRover extends AutonomousRover {
 //        telemetry.addData("Gold Position", goldPosition);
 //        telemetry.update();
 //        sleep(10000);
-          Lights.disableLight();
+          Lights.disableRed();
 
     }
 
@@ -94,6 +95,7 @@ public class AutonomousTestRover extends AutonomousRover {
     }
 
     private void steerTest() {
+        logPrefix = "steer";
         double steerPower = 0.15;
         telemetry.addData("Steer", "forward clockwise");
         telemetry.update();
@@ -123,19 +125,24 @@ public class AutonomousTestRover extends AutonomousRover {
     }
 
     void gyroDriveTest() throws InterruptedException {
-        double startPower = 0.3;
-        double endPower = 0.1;
+        logPrefix = "gyro";
+        double startPower = 0.65;
+        double endPower = 0.2;
         double heading = 0;
-        double inches = 66;
-        moveWithErrorCorrection(startPower, endPower, inches, new GyroErrorHandler(heading));
-
-        sleep( 5000);
-        moveWithErrorCorrection(-startPower, -endPower, inches, new GyroErrorHandler(heading));
-        sleep(5000);
+        double inches = 70;
+        double [] kpArr = {0.9, 1.0, 1.1};
+        for(double kp : kpArr) {
+            clockwiseK = kp;
+            moveWithErrorCorrection(startPower, endPower, inches, new GyroErrorHandler(heading));
+            sleep(5000);
+            moveWithErrorCorrection(-startPower, -endPower, inches, new GyroErrorHandler(heading));
+            sleep(5000);
+        }
     }
 
     void rangeDriveTest() throws InterruptedException {
-        double startPower = 0.5;
+        logPrefix = "range";
+        double startPower = 0.65;
         double endPower = 0.2;
         double inches = 60;
         double rangeInInches = 5;
@@ -143,7 +150,8 @@ public class AutonomousTestRover extends AutonomousRover {
         TEST = true;
         out = new StringBuffer();
 
-        double [] kpArr = {0.6};
+        sleep(5000);
+        double [] kpArr = {0.012, 0.012, 0.012};
 
         for(double kp : kpArr) {
             if (!opModeIsActive()) return;
@@ -151,19 +159,30 @@ public class AutonomousTestRover extends AutonomousRover {
             telemetry.update();
             out.append(String.format("# kp = %.3f \n", kp));
             TEST = true;
-            RangeErrorHandler errorHandlerBackward = new RangeErrorHandler(rangeSensorFrontRight,
-                    rangeSensorBackRight, rangeInInches,  false,0);
-            //errorHandlerBackward.setKP(kp);
-            clockwiseK = kp;
-            moveWithErrorCorrection(startPower, endPower, inches, errorHandlerBackward);
+
+            Heading hcurrent = new Heading(getGyroAngles().firstAngle);
+            Heading htarget = new Heading(0);
+
+            double angleToRotate = Heading.clockwiseRotateAngle(hcurrent, htarget);
+            rotate(angleToRotate>0, Math.abs(angleToRotate));
+
+            RangeErrorHandler handler1 = new RangeErrorHandler(rangeSensorBackRight,
+                    rangeSensorFrontRight, rangeInInches,  true,0);
+            handler1.setKP(kp);
+            moveWithErrorCorrection(-startPower, -endPower, inches, handler1);
             sleep(5000);
 
-            RangeErrorHandler errorHandlerForward = new RangeErrorHandler(rangeSensorBackRight,
-                    rangeSensorFrontRight, rangeInInches,
-                    true, 0);
-            //errorHandlerForward.setKP(kp);
-            clockwiseK = kp;
-            moveWithErrorCorrection(-startPower, -endPower, inches, errorHandlerForward);
+            hcurrent = new Heading(getGyroAngles().firstAngle);
+            htarget = new Heading(0);
+
+            angleToRotate = Heading.clockwiseRotateAngle(hcurrent, htarget);
+            rotate(angleToRotate>0, Math.abs(angleToRotate));
+
+            RangeErrorHandler handler2 = new RangeErrorHandler(rangeSensorFrontRight,
+                    rangeSensorBackRight, rangeInInches,
+                    false, 0);
+            handler2.setKP(kp);
+            moveWithErrorCorrection(startPower, endPower, inches, handler2);
             sleep( 5000);
         }
     }
