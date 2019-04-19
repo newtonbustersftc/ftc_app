@@ -97,7 +97,7 @@ public class DriverRover extends OpMode {
     private DcMotor deliveryRotate; // raise - positive, lower - negative (with reverse)
 
     private ServoImplEx hookServo;
-    private Servo markerServo;
+    private Servo platformServo;
     private Servo intakeGateServo;
     private Servo deliveryGateServo;
     private Servo fingersServo;
@@ -111,6 +111,11 @@ public class DriverRover extends OpMode {
     private TouchSensor deliveryDownTouch;
     private ColorSensor colorSensor;
     private BNO055IMU imu; //gyro
+
+    //Platform pushing states
+    boolean isPlatformPushing = false;
+    long platformTimer;
+
 
     enum ArcState {
         AT_CRATER, ALIGNING, MOVE_BACK, MOVING_TO_CRATER, MOVING_TO_LAUNCHER, AT_LAUNCHER
@@ -293,9 +298,9 @@ public class DriverRover extends OpMode {
         setUpServo(hookServo, AutonomousRover.POS_HOOK_OPEN, AutonomousRover.POS_HOOK_CLOSED);
         deenergizeHook();
 
-        markerServo = hardwareMap.servo.get("markerServo");
-        //for moving the marker hand forward, use 1, for moving it back, use 0
-        setUpServo(markerServo, AutonomousRover.POS_MARKER_BACK, AutonomousRover.POS_MARKER_FORWARD);
+        platformServo = hardwareMap.servo.get("markerServo");
+        //for moving the platform hand forward, use 1, for moving it back, use 0
+        setUpServo(platformServo, AutonomousRover.POS_PLATFORM_BACK, AutonomousRover.POS_PLATFORM_PUSH);
 
         intakeGateServo = hardwareMap.servo.get("intakeGate");
         intakeGateServo.setPosition(POS_IGATE_CLOSED);
@@ -330,10 +335,20 @@ public class DriverRover extends OpMode {
             leftBumper1Pressed = true;
         } else {
             if (leftBumper1Pressed) {
+                //Release the hook holding the intake wheel in a vertical position
                 intakeHolder.setPosition(POS_INTAKE_RELEASE_EXTREME);
                 intakeReleased = true;
+                //Give a push to the platform
+                platformServo.setPosition(1);
+                isPlatformPushing = true;
+                platformTimer = currentTimeMillis();
                 leftBumper1Pressed = false;
             }
+        }
+
+        if(isPlatformPushing && currentTimeMillis() - platformTimer > 500){
+            platformServo.setPosition(0);
+            isPlatformPushing = false;
         }
 
         // switch crater
@@ -379,6 +394,7 @@ public class DriverRover extends OpMode {
         }
 
         int deliveryRotatePos = controlDelivery();
+        controlIntakeWheel();
         if (!gamepad1.left_bumper) {
             controlIntake();
             controlLift();
@@ -1067,8 +1083,7 @@ public class DriverRover extends OpMode {
         liftMotor.setPower(liftMotorPower);
     }
 
-    private void controlIntake() {
-
+    private void controlIntakeWheel(){
         // intake wheel forward and reverse
         if (gamepad1.y) {
             intakeWheelServo.setPower(-0.8); // reverse
@@ -1078,6 +1093,9 @@ public class DriverRover extends OpMode {
         } else {
             intakeWheelServo.setPower(0.0);
         }
+    }
+
+    private void controlIntake() {
 
         double intakeExtendPower;
         double mintriggervalue = 0.3;

@@ -36,7 +36,7 @@ import static org.firstinspires.ftc.teamcode.DriverRover.POS_BUCKET_INTAKE;
 import static org.firstinspires.ftc.teamcode.DriverRover.POS_BUCKET_UP;
 import static org.firstinspires.ftc.teamcode.DriverRover.POS_INTAKE_HOLD;
 import static org.firstinspires.ftc.teamcode.DriverRover.POS_INTAKE_RELEASE;
-import static org.firstinspires.ftc.teamcode.DriverRover.setUpServo;
+import static org.firstinspires.ftc.teamcode.DriverRover.POS_INTAKE_RELEASE_EXTREME;
 
 
 @Autonomous(name = "AutoRoverCrater", group = "Main")
@@ -84,9 +84,8 @@ public class AutonomousRover extends BaseAutonomous {
 
     GoldPosition goldPosition = GoldPosition.undetected;
 
-    static final double POS_MARKER_FORWARD = 0.400;
-    static final double POS_MARKER_UP = 0.75;
-    static final double POS_MARKER_BACK = 0.775;
+    static final double POS_PLATFORM_PUSH = 0.600;
+    static final double POS_PLATFORM_BACK = 0.775;
 
     static final double POS_HOOK_CLOSED = 0.5;
     static final double POS_HOOK_OPEN = 0.2;
@@ -102,7 +101,7 @@ public class AutonomousRover extends BaseAutonomous {
     private DcMotor intakeExtend;
 
     private Servo hookServo;
-    private Servo markerServo;
+    private Servo platformServo;
     private Servo intakeGateServo;
     Servo boxServo;
     private Servo intakeHolder;
@@ -192,7 +191,7 @@ public class AutonomousRover extends BaseAutonomous {
                 park();
             }
 
-            //intakeHolder.setPosition(POS_INTAKE_RELEASE_EXTREME);
+            intakeHolder.setPosition(POS_INTAKE_RELEASE_EXTREME);
             Lights.disableRed();
             Lights.green(true);
             sleep(600);
@@ -403,9 +402,8 @@ public class AutonomousRover extends BaseAutonomous {
             liftMotor.setPower(0);
             sleep(100);
 
-            markerServo = hardwareMap.servo.get("markerServo");
-            //for moving the marker hand forward, use 1, for moving it back, use 0
-            setUpServo(markerServo, AutonomousRover.POS_MARKER_BACK, AutonomousRover.POS_MARKER_FORWARD);
+            platformServo = hardwareMap.servo.get("markerServo");
+            platformServo.setPosition(POS_PLATFORM_PUSH);
 
             // open hook
             hookServo = hardwareMap.servo.get("hookServo");
@@ -413,6 +411,7 @@ public class AutonomousRover extends BaseAutonomous {
             intakeGateServo = hardwareMap.servo.get("intakeGate");
             intakeGateServo.setPosition(DriverRover.POS_IGATE_CLOSED);
             sleep(600);
+            platformServo.setPosition(POS_PLATFORM_BACK);
 
             if (!opModeIsActive()) return;
 
@@ -519,7 +518,7 @@ public class AutonomousRover extends BaseAutonomous {
 
         double heading;
         double distanceBack;
-        double distanceToWall = 46; // distance to wall center pos
+        double distanceToWall = depotSide() ? 46 : 44; // distance to wall center pos
         // come back
         if (goldOnSide) {
             // added 3 inches because the robot is landing closer to jewels
