@@ -68,6 +68,7 @@ class Lights {
     }
 
     static void disableRed() {
+        red.setState(true);
         red.setMode(DigitalChannel.Mode.INPUT);
     }
 }

@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.os.Environment;
 
 import com.qualcomm.hardware.bosch.BNO055IMU;
@@ -30,6 +31,7 @@ import static android.os.SystemClock.sleep;
 import static java.lang.System.currentTimeMillis;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.AUTO_MODE_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.getSharedPrefs;
+import static org.firstinspires.ftc.teamcode.AutonomousRover.inchesToCounts;
 import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_CLOCKWISE;
 import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_FORWARD;
 import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_RIGHT;
@@ -111,10 +113,16 @@ public class DriverRover extends OpMode {
     private BNO055IMU imu; //gyro
 
     enum ArcState {
-        AT_CRATER, ALIGNING, MOVING_TO_CRATER, MOVING_TO_LAUNCHER, AT_LAUNCHER
+        AT_CRATER, ALIGNING, MOVE_BACK, MOVING_TO_CRATER, MOVING_TO_LAUNCHER, AT_LAUNCHER
     }
 
-    private ArcState arcstate;
+    ArcState arcstate;
+    private int wheelEncoderCount;
+    private boolean gyroUsable = false;
+
+    //used for automatic arc
+    boolean toLauncherBrnPressed = false;
+    boolean toCraterBtnPressed = false;
 
     //for now, we don't support robot reversing the forward direction
     private final boolean forward = true;
@@ -135,7 +143,7 @@ public class DriverRover extends OpMode {
     private static final int INIT_BLINK_WAIT = 1800;
 
     enum BlinkerState {
-        NONE, ON , OFF , SUCCESS
+        NONE, ON, OFF, SUCCESS
     }
 
     private BlinkerState blinkerState = BlinkerState.NONE;
@@ -152,11 +160,11 @@ public class DriverRover extends OpMode {
     private boolean intakeReleased;
     private static boolean isError; //IS there an error?
 
-    enum MineralTransferState{
-        INTAKE, DELIVERY_GATE_OPEN, INTAKE_GATE_OPEN, TRANSFER, DELIVERY_GATE_CLOSED, DELIVERY
-    }
-    private MineralTransferState transferState;
-    private long transferTime;
+//    enum MineralTransferState{
+//        INTAKE, DELIVERY_GATE_OPEN, INTAKE_GATE_OPEN, TRANSFER, DELIVERY_GATE_CLOSED, DELIVERY
+//    }
+//    private MineralTransferState transferState;
+//    private long transferTime;
 
     boolean dgateBtnPressed = false;
     boolean igateBtnPressed = false;
@@ -262,8 +270,11 @@ public class DriverRover extends OpMode {
         Lights.white(!ourCrater);
         Lights.blue(deliveryDownTouch.isPressed());
 
-        if (!gamepad1.atRest() || !gamepad2.atRest()) {
+        gyroUsable = getGyroAngles().firstAngle != 0d;
+
+        if (!gamepad1.atRest() || !gamepad2.atRest() || !gyroUsable) {
             Lights.red(true);
+            if (!gyroUsable) Lights.blue(true);
         }
 
         log();
@@ -305,12 +316,25 @@ public class DriverRover extends OpMode {
 
         intakeWheelServo = hardwareMap.crservo.get("rightIntake");
 
-        transferState = MineralTransferState.INTAKE;
+        //transferState = MineralTransferState.INTAKE;
     }
 
     @Override
     public void loop() {
         isError = false;
+
+        //driver control to release the intake holder (hook)
+        //we should have released the hook at the end of autonomous,
+        //but something could have gone wrong
+        if (gamepad1.left_bumper) {
+            leftBumper1Pressed = true;
+        } else {
+            if (leftBumper1Pressed) {
+                intakeHolder.setPosition(POS_INTAKE_RELEASE_EXTREME);
+                intakeReleased = true;
+                leftBumper1Pressed = false;
+            }
+        }
 
         // switch crater
         // the forward arc is clockwise to our crater,
@@ -324,23 +348,42 @@ public class DriverRover extends OpMode {
             switchCrater = false;
         }
 
+        boolean toLauncher = (ourCrater && gamepad1.a) || (!ourCrater && gamepad1.x);
+        boolean toCrater = (ourCrater && gamepad1.x) || (!ourCrater && gamepad1.a);
 
         //if auto, then no manual
-//        if (gamepad2.a) {
-//            toLauncher();
-//        } else if (gamepad2.x) {
-//            toCrater();
-//        } else
-        if (Math.abs(gamepad1.right_stick_x) > 0.1 && gamepad1.left_bumper) {
-            doArc(gamepad1.right_stick_x);
+        if (gamepad1.left_bumper) {
+            if (Math.abs(gamepad1.right_stick_x) > 0.1) {
+                doArc(gamepad1.right_stick_x);
+            } else if (toLauncher) {
+                if (!toLauncherBrnPressed) {
+                    toLauncherBrnPressed = true;
+                    arcstate = ArcState.AT_CRATER;
+                }
+                toLauncher();
+            } else if (toCrater) {
+                if (!toCraterBtnPressed) {
+                    toCraterBtnPressed = true;
+                    arcstate = ArcState.AT_LAUNCHER;
+                }
+                toCrater();
+            }
         } else {
             controlWheels();
         }
+        if (!toLauncher) {
+            toLauncherBrnPressed = false;
+        }
+        if (!toCrater) {
+            toCraterBtnPressed = false;
+        }
 
         int deliveryRotatePos = controlDelivery();
-        controlIntake();
-        controlLift();
-        controlBlinker();
+        if (!gamepad1.left_bumper) {
+            controlIntake();
+            controlLift();
+            controlBlinker();
+        }
 
         if (blinkerState != BlinkerState.SUCCESS) {
             // If opposite crater WHITE LIGHT
@@ -354,8 +397,8 @@ public class DriverRover extends OpMode {
 
         log();
         long ct = currentTimeMillis();
-        if(loopEndTime > 0) {
-            logEntry((ct-startTime)+"," + (ct-loopEndTime));
+        if (loopEndTime > 0) {
+            logEntry((ct - startTime) + "," + (ct - loopEndTime));
         }
         loopEndTime = ct;
     }
@@ -375,7 +418,7 @@ public class DriverRover extends OpMode {
                 }
                 break;
             case ON:
-                if(currentTimeMillis() - blinkerTime > blinkerWait){
+                if (currentTimeMillis() - blinkerTime > blinkerWait) {
                     blinkerState = BlinkerState.OFF;
 
                     //blinkerWait depends on how close you are to the end of the game (time-wise)
@@ -395,11 +438,11 @@ public class DriverRover extends OpMode {
                 }
                 break;
             case OFF:
-                if(Math.abs(liftMotor.getCurrentPosition() - liftStartPos) > LIFT_POS_CLEAR/1.5 ){
+                if (Math.abs(liftMotor.getCurrentPosition() - liftStartPos) > LIFT_POS_CLEAR / 1.5) {
                     blinkerState = BlinkerState.SUCCESS;
                     Lights.resetLights();
                     Lights.green(true);
-                } else if(currentTimeMillis() - blinkerTime > blinkerWait) {
+                } else if (currentTimeMillis() - blinkerTime > blinkerWait) {
                     blinkerState = BlinkerState.ON;
                     Lights.green(true);
                     Lights.red(true);
@@ -461,7 +504,7 @@ public class DriverRover extends OpMode {
         } else {
             if (deliveryRotatePos < DELIVERY_ROTATE_UP_POS) {
                 boxServo.setPosition(((double) deliveryRotatePos - DELIVERY_ROTATE_INTAKE_POS) /
-                        ((double)DELIVERY_ROTATE_UP_POS - DELIVERY_ROTATE_INTAKE_POS));
+                        ((double) DELIVERY_ROTATE_UP_POS - DELIVERY_ROTATE_INTAKE_POS));
             }
 
             //when the arm is up, we want the be able to invoke trigger to drop minerals.
@@ -471,9 +514,7 @@ public class DriverRover extends OpMode {
                      * When dropping debris, servo position 1 when
                      * box is vertical and position 0 when box is down.
                      */
-                    boxServo.setPosition(1 - (gamepad2.right_trigger-0.2)); //Uses analog trigger position
-
-                    arcstate = ArcState.AT_LAUNCHER;
+                    boxServo.setPosition(1 - (gamepad2.right_trigger - 0.1)); //Uses analog trigger position
                 } else {
                     boxServo.setPosition(1);
                 }
@@ -566,7 +607,7 @@ public class DriverRover extends OpMode {
             case BEFORE_HOME:
                 deliveryRotate.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
                 deliveryRotate.setPower(0.6);
-                transferState = MineralTransferState.INTAKE;
+                //transferState = MineralTransferState.INTAKE;
                 deliveryArmState = DeliveryState.ARM_UP;
                 break;
             case ARM_UP:
@@ -673,7 +714,6 @@ public class DriverRover extends OpMode {
     //INTAKE, INTAKE_GATE_CLOSED, DELIVERY_GATE_OPEN, INTAKE_GATE_OPEN, TRANSFER, DELIVERY_GATE_CLOSED, DELIVERY
 
     /**
-     *
      * @param coefficient between -1 and 1, controls direction and radius of arc
      */
     public void doArc(double coefficient) {
@@ -709,7 +749,7 @@ public class DriverRover extends OpMode {
      * When moving from/to opposite alliance crater right wheel is outer (further from the center of the arc)
      * When moving from/to our crater left wheel is outer
      */
-    private void toLauncher() {
+    void toLauncher() {
         //AT_CRATER, ALIGNING, MOVING_TO_CRATER, MOVING_TO_LAUNCHER, AT_LAUNCHER
         switch (arcstate) {
             case AT_CRATER:
@@ -722,6 +762,13 @@ public class DriverRover extends OpMode {
 
                 if (doneRotating) {
                     //TODO: Calculate arc radius
+                    wheelEncoderCount = wheels.getMotor(MecanumWheels.Wheel.FL).getCurrentPosition();
+                    arcstate = ArcState.MOVE_BACK;
+                }
+                break;
+            case MOVE_BACK:
+                boolean doneMovingBack = moveInches(11, false);
+                if (doneMovingBack) {
                     arcstate = ArcState.MOVING_TO_LAUNCHER;
                 }
                 break;
@@ -732,28 +779,26 @@ public class DriverRover extends OpMode {
             case MOVING_TO_LAUNCHER:
 
                 //when going to launcher, match coefficient of driver-controlled mode
-                doArc(ourCrater ? 0.5 : -0.5);
+                doArc(ourCrater ? 0.45 : -0.41);
 
                 boolean atLine = onLine(); //atLine returned by doArc
 
                 if (atLine) {
                     //stop the robot by giving 0 power
                     powerRotate(0);
-
-                    //rotate so directly facing launcher
-                    rotateToHeading(getHeadingAtDepotLander());
-
                     arcstate = ArcState.AT_LAUNCHER;
                 }
                 break;
             case AT_LAUNCHER:
+                //rotate so directly facing launcher
+                rotateToHeading(getHeadingAtDepotLander());
                 break;
         }
     }
 
-    private void toCrater() {
+    void toCrater() {
         //AT_CRATER, ALIGNING, MOVING_TO_CRATER, MOVING_TO_LAUNCHER, AT_LAUNCHER
-        switch(arcstate) {
+        switch (arcstate) {
             case AT_LAUNCHER:
                 boolean doneRotating = rotateToHeading(getHeadingAtDepotLander());
                 if (doneRotating) {
@@ -765,7 +810,7 @@ public class DriverRover extends OpMode {
                 arcstate = ArcState.MOVING_TO_CRATER;
                 break;
             case MOVING_TO_CRATER:
-                doArc(ourCrater ? -0.5 : 0.5);
+                doArc(ourCrater ? -0.45 : 0.41);
                 break;
             case ALIGNING:
                 break;
@@ -774,12 +819,51 @@ public class DriverRover extends OpMode {
         }
     }
 
-    //TODO: DO STUFF HERE
     private boolean onLine() {
-        return true;
+
+        Heading tHeading = new Heading(getHeadingAtDepotLander());
+        Heading cHeading = new Heading(getGyroAngles().firstAngle);
+        double angleToTarget = Heading.clockwiseRotateAngle(cHeading, tHeading);
+        if (Math.abs(angleToTarget) > 30) {
+            return false;
+        }
+
+        int red = colorSensor.red();
+        int green = colorSensor.green();
+        int blue = colorSensor.blue();
+
+        telemetry.addData("R/G/B", red + "/" + green + "/" + blue);
+
+
+        if (red == 0 && green == 0 && blue == 0) {
+            logEntry("R/G/B all 0");
+            //sensor is unaccessable
+            return false;
+        }
+
+        // hsvValues is an array that will hold the hue, saturation, and value information.
+        float hsvValues[] = {0F, 0F, 0F};
+
+        // sometimes it helps to multiply the raw RGB values with a scale factor
+        // to amplify/attentuate the measured values.
+        final double SCALE_FACTOR = 255;
+
+
+        // convert the RGB values to HSV values.
+        // multiply by the SCALE_FACTOR.
+        // then cast it back to int (SCALE_FACTOR is a double)
+        Color.RGBToHSV((int) (red * SCALE_FACTOR),
+                (int) (green * SCALE_FACTOR),
+                (int) (blue * SCALE_FACTOR),
+                hsvValues);
+
+        logEntry("R/G/B hue" + red + "/" + green + "/" + blue + " " + hsvValues[0]);
+
+        // hue for red is <50, for blue is >170
+        return hsvValues[0] < 50 || hsvValues[0] > 170;
     }
 
-     public double getHeadingParallelToWall() {
+    public double getHeadingParallelToWall() {
         if (isDepotAuto) {
             return ourCrater ? -135 : 135;
         } else {
@@ -791,16 +875,25 @@ public class DriverRover extends OpMode {
         return isDepotAuto ? 0 : 90;
     }
 
+    public double getHeadingAtCraterLander() {
+        return isDepotAuto ? -90 : 0;
+    }
+
     private void powerRotate(double clockwiseSpeed) {
-        wheels.powerMotors(0,0, clockwiseSpeed);
+        wheels.powerMotors(0, 0, clockwiseSpeed);
     }
 
     /**
      * rotate to the gyro heading
+     *
      * @param targetHeading heading we want to rotate to
      * @return true if rotation is complete, false otherwise
      */
     public boolean rotateToHeading(double targetHeading) {
+
+        if (!gyroUsable) {
+            return true;
+        }
         double currentHeading = getGyroAngles().firstAngle;
         Heading cHeading = new Heading(currentHeading);
         Heading tHeading = new Heading(targetHeading);
@@ -821,7 +914,7 @@ public class DriverRover extends OpMode {
         } else {
             //(A - MIN_A) / (P - MIN_P) = (MAX_A - MIN_A) / (MAX_P - MIN_P)
             currentPower = ((MAX_ROTATE_POWER - MIN_ROTATE_POWER) * (rotateAngle - CLOSE_ANGlE)) /
-                    (FAR_ANGLE-CLOSE_ANGlE) + MIN_ROTATE_POWER;
+                    (FAR_ANGLE - CLOSE_ANGlE) + MIN_ROTATE_POWER;
         }
 
         powerRotate(currentPower * signFactor);
@@ -829,7 +922,25 @@ public class DriverRover extends OpMode {
         return currentPower == 0;
     }
 
-    private void controlWheels() {
+    /**
+     * Assumes that the initial wheel encoder count is set outside of this method.
+     *
+     * @param inches
+     * @param forward
+     * @return true when move is completed, false otherwise
+     */
+    public boolean moveInches(double inches, boolean forward) {
+        if (Math.abs(wheels.getMotor(MecanumWheels.Wheel.FL).getCurrentPosition() - wheelEncoderCount) < inchesToCounts(inches)) {
+            int sign = forward ? 1 : -1;
+            wheels.powerMotors(0.5 * sign, 0, 0);
+            return false;
+        } else {
+            wheels.powerMotors(0, 0, 0);
+            return true;
+        }
+    }
+
+    public void controlWheels() {
         double clockwise = scaled(gamepad1.right_stick_x);
         // fine control with up and down overrides coarse control left and right
         // up - clockwise, down - counterclockwise
@@ -855,7 +966,7 @@ public class DriverRover extends OpMode {
         } else {
             double forward = -scaled(gamepad1.left_stick_y);
             double right = scaled(gamepad1.left_stick_x);
-            driverPowerWheels(0.7*forward, right, 0.6*clockwise);
+            driverPowerWheels(0.7 * forward, right, 0.6 * clockwise);
         }
     }
 
@@ -934,7 +1045,7 @@ public class DriverRover extends OpMode {
 
         double liftMotorPower;
         // the lift arm rises when given negative power and lowers when given positive power
-        if (gamepad1.x || gamepad1.a) {
+        if ((gamepad1.x || gamepad1.a) && !gamepad1.left_bumper) {
             int currentPos = Math.abs(liftMotor.getCurrentPosition());
             if (gamepad1.x) {
                 if (LATCHING_POS < currentPos) {
@@ -957,19 +1068,6 @@ public class DriverRover extends OpMode {
     }
 
     private void controlIntake() {
-
-        //driver control to release the intake holder (hook)
-        //we should have released the hook at the end of autonomous,
-        //but something could have gone wrong
-        if (gamepad1.left_bumper) {
-            leftBumper1Pressed = true;
-        } else {
-            if(leftBumper1Pressed) {
-                intakeHolder.setPosition(POS_INTAKE_RELEASE_EXTREME);
-                intakeReleased = true;
-                leftBumper1Pressed = false;
-            }
-        }
 
         // intake wheel forward and reverse
         if (gamepad1.y) {
@@ -994,8 +1092,6 @@ public class DriverRover extends OpMode {
                 } else {
                     intakeExtendPower = -gamepad1.left_trigger;
                 }
-
-                arcstate = ArcState.AT_CRATER;
             } else if (gamepad1.right_trigger > mintriggervalue && !intakeExtendTouch.isPressed()) {
                 // retracting intake arm
                 if (isIntakeAlmostMinRetracted()) {
@@ -1014,7 +1110,6 @@ public class DriverRover extends OpMode {
     }
 
     /**
-     *
      * @return true if intake was released
      */
     private boolean isIntakeReleased() {
@@ -1042,6 +1137,7 @@ public class DriverRover extends OpMode {
 
     /**
      * Scaling function to convert gamepad input into motor power
+     *
      * @param x gamepad input
      * @return motor power
      */
@@ -1072,7 +1168,7 @@ public class DriverRover extends OpMode {
     }
 
     private void log() {
-        telemetry.addData("transfer state", transferState);
+        //telemetry.addData("transfer state", transferState);
         telemetry.addData("box trigger", gamepad2.right_trigger);
 //        telemetry.addData("intake extend / touch",
 //                intakeExtend.getCurrentPosition() + "/" + intakeExtendTouch.isPressed());
@@ -1095,12 +1191,12 @@ public class DriverRover extends OpMode {
      * The servo positions can be in any order, the first will be mapped to 0,
      * the second will be mapped to 1.
      * The servo will be set into the first (0) position.
-     *
+     * <p>
      * 0-1 range can be used afterwards with setPosition to set servo position
      *
-     * @param servo  - servo motor
-     * @param zeroPos  - position between 0 and 1 that will be mapped to zero
-     * @param onePos - position between 0 and 1 that will be mapped to one
+     * @param servo   - servo motor
+     * @param zeroPos - position between 0 and 1 that will be mapped to zero
+     * @param onePos  - position between 0 and 1 that will be mapped to one
      */
     static void setUpServo(Servo servo, double zeroPos, double onePos) {
         // scale t0 the range between inPos and outPos
@@ -1121,7 +1217,7 @@ public class DriverRover extends OpMode {
     @Override
     public void stop() {
         if (fingersServo != null) {
-            fingersServo.setPosition((POS_FINGERS_PARKED+POS_FINGERS_FLIPPED)/2);
+            fingersServo.setPosition((POS_FINGERS_PARKED + POS_FINGERS_FLIPPED) / 2);
         }
         Lights.disableRed();
         String logPrefix = "driver";
@@ -1159,13 +1255,14 @@ public class DriverRover extends OpMode {
         logEntry(message, false);
     }
 
-    private void logEntry(String message, boolean isComment) {
+    private void logEntry(String message, boolean  isComment) {
         if (out == null) {
             out = new StringBuffer();
         }
         if (isComment) {
             out.append("# "); // start of the comment
         }
+        out.append(currentTimeMillis() - startTime).append(" ");
         out.append(message);
         out.append("\n"); // new line at the end
     }
