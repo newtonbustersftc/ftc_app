@@ -88,6 +88,7 @@ public class DriverRover extends OpMode {
     static final double POS_BUCKET_PARKED = 0.32;
     static final double POS_BUCKET_UP = 0.8;
     static final double POS_BUCKET_INTAKE = 0.37; // also used as drop position
+    static final double POS_BUCKET_CAMERA = 0.55;
     static final double POS_BUCKET_DROP = 0.35;
 
     MecanumWheels wheels;
@@ -530,7 +531,7 @@ public class DriverRover extends OpMode {
                      * When dropping debris, servo position 1 when
                      * box is vertical and position 0 when box is down.
                      */
-                    boxServo.setPosition(1 - (gamepad2.right_trigger - 0.1)); //Uses analog trigger position
+                    boxServo.setPosition(1 - (gamepad2.right_trigger - 0.2)); //Uses analog trigger position
                 } else {
                     boxServo.setPosition(1);
                 }
@@ -735,8 +736,8 @@ public class DriverRover extends OpMode {
     public void doArc(double coefficient) {
 
         double FORWARD_POWER = 0.5;
-        double ARC_MAX_CLOCKWISE_POWER = .5; //at 0.5 forward power
-        double ARC_MIN_CLOCKWISE_POWER = .3; //same
+        double ARC_MAX_CLOCKWISE_POWER = .45; //at 0.5 forward power
+        double ARC_MIN_CLOCKWISE_POWER = .35; //same
 
         double clockwisePower;
         double forwardPower;
@@ -795,7 +796,7 @@ public class DriverRover extends OpMode {
             case MOVING_TO_LAUNCHER:
 
                 //when going to launcher, match coefficient of driver-controlled mode
-                doArc(ourCrater ? 0.45 : -0.41);
+                doArc(ourCrater ? 0.4 : -0.32);
 
                 boolean atLine = onLine(); //atLine returned by doArc
 
@@ -826,12 +827,28 @@ public class DriverRover extends OpMode {
                 arcstate = ArcState.MOVING_TO_CRATER;
                 break;
             case MOVING_TO_CRATER:
-                doArc(ourCrater ? -0.45 : 0.41);
+                doArc(ourCrater ? -0.4 : 0.32);
+                if(isParallelToWall()) {
+                    //stop the robot by giving 0 power
+                    powerRotate(0);
+                    arcstate = ArcState.AT_CRATER;
+                }
                 break;
             case ALIGNING:
                 break;
             case AT_CRATER:
                 break;
+        }
+    }
+
+    private boolean isParallelToWall() {
+        Heading targetHeading = new Heading(getHeadingParallelToWall());
+        Heading currentHeading = new Heading(getGyroAngles().firstAngle);
+        double angleToTarget = Heading.clockwiseRotateAngle(currentHeading, targetHeading);
+        if (Math.abs(angleToTarget) > 2.5) {
+            return false;
+        } else {
+            return true;
         }
     }
 
