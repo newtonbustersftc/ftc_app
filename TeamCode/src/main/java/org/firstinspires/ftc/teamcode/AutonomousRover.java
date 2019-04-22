@@ -555,13 +555,15 @@ public class AutonomousRover extends BaseAutonomous {
         rotateToHeading(driveHeading);
         log("Aligned with the wall");
 
-        if (isTooFarFromWall(depotSide()? rangeSensorBackRight : rangeSensorBackLeft)) {
+        DistanceSensor s1 = depotSide()? rangeSensorBackRight : rangeSensorBackLeft;
+        DistanceSensor s2 = depotSide()? rangeSensorFrontRight : rangeSensorFrontLeft;
+        if (isTooFarFromWall(s1, s2)) {
             //too far away from the wall
             log("Too far");
             Lights.red(true);
             wheels.powerMotors(0, depotSide()? 0.3 : -0.3, 0);
             long stime = currentTimeMillis();
-            while (currentTimeMillis() - stime < 2000 && isTooFarFromWall(depotSide()? rangeSensorBackRight : rangeSensorBackLeft)) {
+            while (currentTimeMillis() - stime < 2000 && isTooFarFromWall(s1, s2)) {
                 idle();
             }
             wheels.powerMotors(0, 0, 0);
@@ -647,9 +649,12 @@ public class AutonomousRover extends BaseAutonomous {
     }
 
 
-    boolean isTooFarFromWall(DistanceSensor sensor) {
-        double distance = sensor.getDistance(DistanceUnit.INCH);
-        //if sensor misbehaves, it returns values larger than 300
+    boolean isTooFarFromWall(DistanceSensor sensor1, DistanceSensor sensor2) {
+        double distance = sensor1.getDistance(DistanceUnit.INCH);
+        //if distance sensor misbehaves, it returns magic number 322.4409448818898 inches (8190 mm)
+        if (distance >= 20) {
+            distance = sensor2.getDistance(DistanceUnit.INCH);
+        }
         logComment(distance + "");
         return distance < 20 && distance > 5;
     }
