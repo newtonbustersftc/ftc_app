@@ -31,6 +31,8 @@ import static android.os.SystemClock.sleep;
 import static java.lang.System.currentTimeMillis;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.AUTO_MODE_PREF;
 import static org.firstinspires.ftc.teamcode.AutonomousOptionsRover.getSharedPrefs;
+import static org.firstinspires.ftc.teamcode.AutonomousRover.POS_HOOK_CLOSED;
+import static org.firstinspires.ftc.teamcode.AutonomousRover.POS_HOOK_OPEN;
 import static org.firstinspires.ftc.teamcode.AutonomousRover.inchesToCounts;
 import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_CLOCKWISE;
 import static org.firstinspires.ftc.teamcode.MecanumWheels.MIN_FORWARD;
@@ -64,7 +66,7 @@ public class DriverRover extends OpMode {
     static final int DELIVERY_ROTATE_HORIZ_POS = 350; // arm is horizontal
     static final int DELIVERY_ROTATE_INTAKE_POS = 103; //position when box is sitting on platform
     static final int DELIVERY_ROTATE_CAMERA_POS = 260; //lowest position that allows camera to see minerals
-    static final int DELIVERY_ROTATE_CLEAR_PLATFORM = 350; //lowest position for platform to fall
+    static final int DELIVERY_ROTATE_CLEAR_PLATFORM = 370; //lowest position for platform to fall
 
     // encode positions for the delivery extension motor
     // 0 - arm is not extended
@@ -136,8 +138,9 @@ public class DriverRover extends OpMode {
     private boolean hookReleased = true; //when true, the hook is released
     private boolean hookButtonPressed = false; //when true, the hook button is pressed down
 
-    private boolean switchExtension = false;
-    private static boolean fullExtension = true;
+    // current box requires full extension
+    //private boolean switchExtension = false;
+    //private static boolean fullExtension = true;
 
     private boolean switchCrater = false;
     protected boolean ourCrater = false;
@@ -145,7 +148,7 @@ public class DriverRover extends OpMode {
 
     private boolean leftBumper1Pressed = false;
 
-    private static final long BLINK_START_MILLIS = 95000;
+    private static final long BLINK_START_MILLIS = 100000;
     private static final int INIT_BLINK_WAIT = 1800;
 
     enum BlinkerState {
@@ -166,12 +169,6 @@ public class DriverRover extends OpMode {
     private boolean intakeReleased;
     private static boolean isError; //IS there an error?
 
-//    enum MineralTransferState{
-//        INTAKE, DELIVERY_GATE_OPEN, INTAKE_GATE_OPEN, TRANSFER, DELIVERY_GATE_CLOSED, DELIVERY
-//    }
-//    private MineralTransferState transferState;
-//    private long transferTime;
-
     boolean dgateBtnPressed = false;
     boolean igateBtnPressed = false;
 
@@ -185,7 +182,7 @@ public class DriverRover extends OpMode {
     // minimum and maximum radius of arc move
     // between crater and depot side launcher
     //private static final double ARC_MIN_RADIUS = 20.0;
-    //private static final double ARC_MAX_RADIUS = 35.0;
+    //private static final double ARC_MAX_RADIUS = 27.0;
 
     StringBuffer out;
     long loopEndTime = 0;
@@ -268,11 +265,11 @@ public class DriverRover extends OpMode {
         isDepotAuto = !ourCrater;
 
         if (!ourCrater) {
-            switchExtension();
+            //switchExtension();
         }
 
         Lights.green(true);
-        Lights.yellow(!fullExtension);
+        //Lights.yellow(!fullExtension);
         Lights.white(!ourCrater);
         Lights.blue(deliveryDownTouch.isPressed());
 
@@ -295,8 +292,7 @@ public class DriverRover extends OpMode {
         //ServoImplEx allows to energize and deenergize servo
         // we don't want to hook servo to keep position when robot is lifting or lowering
         hookServo = (ServoImplEx) hardwareMap.servo.get("hookServo");
-        //set position to 0 for releasing the hook and use position 1 to close hook
-        setUpServo(hookServo, AutonomousRover.POS_HOOK_OPEN, AutonomousRover.POS_HOOK_CLOSED);
+        hookServo.setPosition(POS_HOOK_OPEN);
         deenergizeHook();
 
         platformServo = hardwareMap.servo.get("markerServo");
@@ -321,8 +317,6 @@ public class DriverRover extends OpMode {
         setUpServo(boxServo, POS_BUCKET_INTAKE, POS_BUCKET_UP);
 
         intakeWheelServo = hardwareMap.crservo.get("rightIntake");
-
-        //transferState = MineralTransferState.INTAKE;
     }
 
     @Override
@@ -399,15 +393,15 @@ public class DriverRover extends OpMode {
         if (!gamepad1.left_bumper) {
             controlIntake();
             controlLift();
-            controlBlinker();
         }
+        controlBlinker();
 
         if (blinkerState != BlinkerState.SUCCESS) {
             // If opposite crater WHITE LIGHT
             // used for arc moves
             Lights.white(!ourCrater);
             // If not fully extended (halfway), then YELLOW LIGHT
-            Lights.yellow(!fullExtension);
+            //Lights.yellow(!fullExtension);
             // If delivery arm is all the way down, then BLUE LIGHT
             Lights.blue(isDeliveryArmDown(deliveryRotatePos));
         }
@@ -441,9 +435,9 @@ public class DriverRover extends OpMode {
                     //blinkerWait depends on how close you are to the end of the game (time-wise)
                     long millisFromStart = currentTimeMillis() - startTime;
 
-                    if (millisFromStart < BLINK_START_MILLIS + 10000) {
+                    if (millisFromStart < BLINK_START_MILLIS + 5000) {
                         blinkerWait = INIT_BLINK_WAIT;
-                    } else if (millisFromStart < BLINK_START_MILLIS + 15000) {
+                    } else if (millisFromStart < BLINK_START_MILLIS + 10000) {
                         blinkerWait = INIT_BLINK_WAIT / 2;
                     } else {
                         blinkerWait = INIT_BLINK_WAIT / 4;
@@ -473,14 +467,16 @@ public class DriverRover extends OpMode {
 
     private int controlDelivery() {
         //gamepad2 will be used to control the delivery of the minerals
-        if (gamepad2.y) {
-            switchExtension = true;
-        } else {
-            if (switchExtension) {
-                switchExtension();
-                switchExtension = false;
-            }
-        }
+
+// current box requires fully extended position
+//        if (gamepad2.y) {
+//            switchExtension = true;
+//        } else {
+//            if (switchExtension) {
+//                switchExtension();
+//                switchExtension = false;
+//            }
+//        }
 
         if (gamepad2.left_bumper) {
             if (!igateBtnPressed) {
@@ -531,7 +527,7 @@ public class DriverRover extends OpMode {
                      * When dropping debris, servo position 1 when
                      * box is vertical and position 0 when box is down.
                      */
-                    boxServo.setPosition(1 - (gamepad2.right_trigger - 0.2)); //Uses analog trigger position
+                    boxServo.setPosition(1 - (gamepad2.right_trigger - 0.22)); //Uses analog trigger position
                 } else {
                     boxServo.setPosition(1);
                 }
@@ -579,7 +575,6 @@ public class DriverRover extends OpMode {
             return;
         }
 
-
         switch (deliveryArmState) {
             case HOME:
                 if (currentPos > DELIVERY_ROTATE_INTAKE_POS) {
@@ -624,7 +619,6 @@ public class DriverRover extends OpMode {
             case BEFORE_HOME:
                 deliveryRotate.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
                 deliveryRotate.setPower(0.6);
-                //transferState = MineralTransferState.INTAKE;
                 deliveryArmState = DeliveryState.ARM_UP;
                 break;
             case ARM_UP:
@@ -661,74 +655,33 @@ public class DriverRover extends OpMode {
     }
 
     private void retractDeliveryArm(double power) {
-        if (deliveryExtendTouch.isPressed()) {
+        // optimal transfer position is a little extended arm
+        // but we need to have a way to retract arm fully using driver's controls
+        int minPos = power < -0.99 ? 150 : 0;
+        int deliveryExtendPos = deliveryExtend.getCurrentPosition();
+        if (deliveryExtendTouch.isPressed() || deliveryExtendPos < minPos) {
             deliveryExtend.setPower(0);
-        } else if (deliveryExtend.getCurrentPosition() < ALMOST_MIN_DELIVERY_EXTEND_POS) {
+        } else if (deliveryExtendPos < ALMOST_MIN_DELIVERY_EXTEND_POS + minPos) {
             deliveryExtend.setPower(-0.2);
         } else {
             deliveryExtend.setPower(-Math.abs(power));
         }
     }
 
-    /**
-     * Switches delivery arm maximum extension to half and back
-     */
-    private void switchExtension() {
-        if (fullExtension) {
-            MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS / 2;
-            ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS / 2;
-        } else {
-            MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS * 2;
-            ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS * 2;
-        }
-        fullExtension = !fullExtension;
-    }
-
-//     private void transferToDelivery(){
-//        switch(transferState){
-//            case INTAKE:
-//                deliveryGateServo.setPosition(POS_DGATE_OPEN);
-//                transferState = MineralTransferState.DELIVERY_GATE_OPEN;
-//                transferTime = currentTimeMillis();
-//                break;
-//            case DELIVERY_GATE_OPEN:
-//                if(currentTimeMillis() - transferTime > 400){
-//                    intakeGateServo.setPosition(POS_IGATE_OPEN);
-//                    transferState = MineralTransferState.INTAKE_GATE_OPEN;
-//                    transferTime = currentTimeMillis();
-//                }
-//                break;
-//            case INTAKE_GATE_OPEN:
-//                if(currentTimeMillis() - transferTime > 400){
-//                    transferState = MineralTransferState.TRANSFER;
-//                }
-//                break;
-//            case TRANSFER:
-//                if (!gamepad2.a) {
-//                    fingersServo.setPosition(POS_FINGERS_FLIPPED);
-//                } else {
-//                    fingersServo.setPosition(POS_FINGERS_PARKED);
-//                }
-//                if(gamepad2.b){
-//                    fingersServo.setPosition(POS_FINGERS_PARKED);
-//                    intakeGateServo.setPosition(POS_IGATE_CLOSED);
-//                    transferState = MineralTransferState.DELIVERY_GATE_CLOSED;
-//                    transferTime = currentTimeMillis();
-//                }
-//                break;
-//            case DELIVERY_GATE_CLOSED:
-//                if(currentTimeMillis() - transferTime > 300) {
-//                    deliveryGateServo.setPosition(POS_DGATE_CLOSED);
-//                } else if (currentTimeMillis() - transferTime > 500) {
-//                    transferState = MineralTransferState.DELIVERY;
-//                }
-//                break;
-//            case DELIVERY:
-//                break;
+//    /**
+//     * Switches delivery arm maximum extension to half and back
+//     */
+//    private void switchExtension() {
+//        if (fullExtension) {
+//            MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS / 2;
+//            ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS / 2;
+//        } else {
+//            MAX_DELIVERY_EXTEND_POS = MAX_DELIVERY_EXTEND_POS * 2;
+//            ALMOST_MAX_DELIVERY_EXTEND_POS = ALMOST_MAX_DELIVERY_EXTEND_POS * 2;
 //        }
-//     }
+//        fullExtension = !fullExtension;
+//    }
 
-    //INTAKE, INTAKE_GATE_CLOSED, DELIVERY_GATE_OPEN, INTAKE_GATE_OPEN, TRANSFER, DELIVERY_GATE_CLOSED, DELIVERY
 
     /**
      * @param coefficient between -1 and 1, controls direction and radius of arc
@@ -827,7 +780,7 @@ public class DriverRover extends OpMode {
                 arcstate = ArcState.MOVING_TO_CRATER;
                 break;
             case MOVING_TO_CRATER:
-                doArc(ourCrater ? -0.4 : 0.32);
+                doArc(ourCrater ? -0.45 : 0.32); // 0.4
                 if(isParallelToWall()) {
                     //stop the robot by giving 0 power
                     powerRotate(0);
@@ -845,11 +798,7 @@ public class DriverRover extends OpMode {
         Heading targetHeading = new Heading(getHeadingParallelToWall());
         Heading currentHeading = new Heading(getGyroAngles().firstAngle);
         double angleToTarget = Heading.clockwiseRotateAngle(currentHeading, targetHeading);
-        if (Math.abs(angleToTarget) > 2.5) {
-            return false;
-        } else {
-            return true;
-        }
+        return !(Math.abs(angleToTarget) > 2.5);
     }
 
     private boolean onLine() {
@@ -1067,9 +1016,9 @@ public class DriverRover extends OpMode {
             if (hookButtonPressed) {
                 energizeHook();
                 if (hookReleased) {
-                    hookServo.setPosition(1);
+                    hookServo.setPosition(POS_HOOK_CLOSED);
                 } else {
-                    hookServo.setPosition(0);
+                    hookServo.setPosition(POS_HOOK_OPEN);
                 }
                 hookReleased = !hookReleased;
             }
@@ -1078,7 +1027,7 @@ public class DriverRover extends OpMode {
 
         double liftMotorPower;
         // the lift arm rises when given negative power and lowers when given positive power
-        if ((gamepad1.x || gamepad1.a) && !gamepad1.left_bumper) {
+        if (!gamepad1.left_bumper && currentTimeMillis() - platformTimer > 500 && (gamepad1.x || gamepad1.a)) {
             int currentPos = Math.abs(liftMotor.getCurrentPosition());
             if (gamepad1.x) {
                 if (LATCHING_POS < currentPos) {
@@ -1203,7 +1152,6 @@ public class DriverRover extends OpMode {
     }
 
     private void log() {
-        //telemetry.addData("transfer state", transferState);
         telemetry.addData("box trigger", gamepad2.right_trigger);
 //        telemetry.addData("intake extend / touch",
 //                intakeExtend.getCurrentPosition() + "/" + intakeExtendTouch.isPressed());

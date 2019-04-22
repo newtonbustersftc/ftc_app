@@ -250,14 +250,14 @@ public abstract class BaseAutonomous extends LinearOpMode {
             //use minimum rotate power when we are 10 degrees or less from the desired/required heading
             //use maximum rotate power when we are more that 90 degrees from the desired/required heading
             angleOff = angle - Math.abs(currentHeading - originalHeading);
-            if(angleOff < CLOSE_ANGlE){
+            if (angleOff < CLOSE_ANGlE) {
                 currentPower = MIN_ROTATE_POWER;
-            }else if(angleOff > FAR_ANGLE){
+            } else if (angleOff > FAR_ANGLE) {
                 currentPower = MAX_ROTATE_POWER;
-            }else{
+            } else {
                 //(A - MIN_A) / (P - MIN_P) = (MAX_A - MIN_A) / (MAX_P - MIN_P)
-                currentPower = ((MAX_ROTATE_POWER - MIN_ROTATE_POWER) * (angleOff - CLOSE_ANGlE))/
-                        (FAR_ANGLE-CLOSE_ANGlE) + MIN_ROTATE_POWER;
+                currentPower = ((MAX_ROTATE_POWER - MIN_ROTATE_POWER) * (angleOff - CLOSE_ANGlE)) /
+                        (FAR_ANGLE - CLOSE_ANGlE) + MIN_ROTATE_POWER;
             }
 
             powerRotate(currentPower * signFactor);
@@ -266,13 +266,13 @@ public abstract class BaseAutonomous extends LinearOpMode {
 
             if (TEST) {
                 currentTime = new Date().getTime();
-                logRotate(currentTime-startTime,currentHeading, currentPower);
+                logRotate(currentTime - startTime, currentHeading, currentPower);
             }
         }
         powerRotate(0);
         if (TEST) {
             currentTime = new Date().getTime();
-            logRotate(currentTime-startTime, currentHeading, 0);
+            logRotate(currentTime - startTime, currentHeading, 0);
         }
         currentHeading = getGyroAngles().firstAngle;
         telemetry.addData("current heading", currentHeading);

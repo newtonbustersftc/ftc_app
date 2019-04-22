@@ -1,10 +1,9 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Servo;
 
-@TeleOp(name = "LightTest", group = "Sensor")
+//@TeleOp(name = "LightTest", group = "Sensor")
 public class LightTest extends OpMode {
 
     Servo[] lights = new Servo[3];

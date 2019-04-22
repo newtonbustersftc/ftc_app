@@ -1,11 +1,10 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
 
 import java.util.Locale;
 
-@Autonomous(name = "TestAuto", group = "Main")
+//@Autonomous(name = "TestAuto", group = "Main")
 public class AutonomousTestRover extends AutonomousRover {
 
     @Override

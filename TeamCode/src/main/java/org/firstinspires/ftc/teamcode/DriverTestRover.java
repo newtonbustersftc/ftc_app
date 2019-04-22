@@ -1,9 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-
-@TeleOp(name = "TestDriver", group = "Main")
-
+//@TeleOp(name = "TestDriver", group = "Main")
 public class DriverTestRover extends DriverRover {
 
     boolean doneRotating = false;

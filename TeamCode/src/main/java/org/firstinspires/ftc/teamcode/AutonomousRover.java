@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
+import android.annotation.SuppressLint;
 import android.content.SharedPreferences;
 
 import com.qualcomm.hardware.lynx.LynxModule;
@@ -191,7 +192,6 @@ public class AutonomousRover extends BaseAutonomous {
                 park();
             }
 
-            intakeHolder.setPosition(POS_INTAKE_RELEASE_EXTREME);
             Lights.disableRed();
             Lights.green(true);
             sleep(600);
@@ -214,6 +214,7 @@ public class AutonomousRover extends BaseAutonomous {
         }
     }
 
+    @SuppressLint("DefaultLocale")
     void preRun() {
 
         if (isStopRequested()) {
@@ -343,11 +344,11 @@ public class AutonomousRover extends BaseAutonomous {
         Lights.resetLights();
 
         try {
+            boxServo = hardwareMap.servo.get("box");
+            boxServo.setPosition(DriverRover.POS_BUCKET_CAMERA);
             deliveryRotate.setTargetPosition(DELIVERY_ROTATE_CLEAR_PLATFORM);
             deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
             deliveryRotate.setPower(0.8);
-            boxServo = hardwareMap.servo.get("box");
-            boxServo.setPosition(DriverRover.POS_BUCKET_INTAKE);
             sleep(800);
 
             // detect where the gold is
@@ -388,11 +389,6 @@ public class AutonomousRover extends BaseAutonomous {
                 }
             }
 
-            //sleep(3000);
-
-//            deliveryRotate.setPower(DELIVERY_ROTATE_INTAKE_POS); // let the delivery arm go down
-//            deliveryRotate.setPower(0.1); // let the delivery arm go down
-
             // lower the robot
             liftMotor.setTargetPosition(-DriverRover.LATCHING_POS);
             liftMotor.setPower(-1);
@@ -418,19 +414,14 @@ public class AutonomousRover extends BaseAutonomous {
             // retract lift
             liftMotor.setTargetPosition(DriverRover.LIFT_POS_CLEAR);
             liftMotor.setPower(1);
-            // let hook clear the handle
-//            while (opModeIsActive() && Math.abs(liftMotor.getCurrentPosition()) > DriverRover.LIFT_POS_CLEAR) {
-//                idle();
-//            }
-//            liftMotor.setPower(0);
 
             // move forward where the gold is visible again
             checkForGyroError();
             moveWithErrorCorrection(0.5, 0.2, 7, new GyroErrorHandler(0));
 
+            // done retracting lift at this point
             liftMotor.setPower(0);
 
-            //sleep(2000);
             log("At the line");
         } finally {
             if (tfod != null) {
@@ -482,14 +473,16 @@ public class AutonomousRover extends BaseAutonomous {
         log("Rotated to gold");
 
         int distanceToCenterGold = 18; //distance is in inches
-        int distanceToSideGold = 20 ; //distance is in inches
+        int distanceToSideGold = 20 + 1; //distance is in inches
 
         int extraDistance = 0; //extraDistance is for the depot side only
 
         if (goldOnSide) {
-
             if (shortCraterMode && goldOnRight) {
                 extraDistance += 14;
+            } else if (!goldOnRight) {
+                // not clear why, but need extra distance on the left
+                extraDistance = 2;
             }
             checkForGyroError();
             moveWithErrorCorrection(DRIVE_POWER, 0.2, distanceToSideGold + extraDistance, new GyroErrorHandler(heading));
@@ -497,15 +490,12 @@ public class AutonomousRover extends BaseAutonomous {
         } else {
             checkForGyroError();
             moveWithErrorCorrection(DRIVE_POWER, 0.2, distanceToCenterGold + extraDistance, new GyroErrorHandler(heading));
-
         }
         log("Moved mineral");
 
         if (checkForGyroError()) {
-            if (depotSide()) {
-                //if gyro is not functioning, go back to landing position and stop
-                moveWithErrorCorrection(-DRIVE_POWER, -0.2, distanceToCenterGold + extraDistance, new GyroErrorHandler(heading));
-            }
+            //if gyro is not functioning, go back to landing position and stop
+            moveWithErrorCorrection(-DRIVE_POWER, -0.2, distanceToCenterGold + extraDistance, new GyroErrorHandler(heading));
             return false;
         } else {
             return true;
@@ -521,8 +511,9 @@ public class AutonomousRover extends BaseAutonomous {
         double distanceToWall = depotSide() ? 46 : 44; // distance to wall center pos
         // come back
         if (goldOnSide) {
-            // added 3 inches because the robot is landing closer to jewels
-            distanceBack = 20.0 / 2.0 + 1;
+            // added a few inches because the robot is landing closer to jewels
+            // also take care of 2 inches extra distance for left
+            distanceBack = 20.0 / 2.0 + 1 + 1 + (goldOnRight ? 0 : 2);
             if (goldOnRight) {
                 heading = -35;
                 distanceToWall += 6;
@@ -556,10 +547,7 @@ public class AutonomousRover extends BaseAutonomous {
         checkForGyroError();
 
         int sign = depotSide()? 1 : -1;
-
-        //sleep(5000);
         moveWithErrorCorrection( sign * DRIVE_POWER, sign * 0.2, distanceToWall, new GyroErrorHandler(driveHeading));
-        // sleep(5000);
         log("At the wall");
 
         // rotate along the wall
@@ -581,27 +569,24 @@ public class AutonomousRover extends BaseAutonomous {
         }
         log("Close enough");
 
-
-        // drive along the wall using two range sensors for correction
+        // drive forward along the wall using two range sensors for correction
         double inchesBack = depotSide() ? 40 : 30;
-        // drive forward along the wall
         boolean clockwiseWhenTooClose = depotSide();
         double inchesToWall = 4;
-        TEST = true;
         DistanceSensor leadingSensor = depotSide() ? rangeSensorBackRight : rangeSensorBackLeft;
         DistanceSensor followingSensor = depotSide() ? rangeSensorFrontRight : rangeSensorFrontLeft;
         RangeErrorHandler errorHandler = new RangeErrorHandler(leadingSensor,
                 followingSensor, inchesToWall, clockwiseWhenTooClose, driveHeading);
         moveWithErrorCorrection(-DRIVE_POWER, -0.2, inchesBack, errorHandler);
         checkForGyroError();
-        //moveWithErrorCorrection(DRIVE_POWER, 0.2, inchesBack, new GyroErrorHandler(driveHeading));
 
         rotateToHeading(driveHeading);
         log("Aligned before drop");
+
         dropMarker();
 
-
-
+        rotateToHeading(driveHeading);
+        log("Aligned after drop");
     }
 
     public void dropMarker() {
@@ -610,7 +595,7 @@ public class AutonomousRover extends BaseAutonomous {
         deliveryRotate.setMode(DcMotor.RunMode.RUN_TO_POSITION);
 
         //DELIVERY_ROTATE_INTAKE_POS, DELIVERY_ROTATE_UP_POS - arm positions
-        //POS_BUCKET_INTAKE, POS_BUCKET_UP
+        //POS_BUCKET_INTAKE, POS_BUCKET_UP - bucket positions
         int armPos = deliveryRotate.getCurrentPosition();
         double boxPos;
         log("Before drop");
@@ -655,9 +640,10 @@ public class AutonomousRover extends BaseAutonomous {
         deliveryRotate.setPower(0.1);
 
         log("Delivered marker");
+
         // use for testing autonomous
-        retractLift();
-        log("Lift retracted");
+        //retractLift();
+        //log("Lift retracted");
     }
 
 
@@ -665,11 +651,7 @@ public class AutonomousRover extends BaseAutonomous {
         double distance = sensor.getDistance(DistanceUnit.INCH);
         //if sensor misbehaves, it returns values larger than 300
         logComment(distance + "");
-        if (distance < 20 && distance > 5) {
-            return true;
-        } else {
-            return false;
-        }
+        return distance < 20 && distance > 5;
     }
 
     void shortCraterModePark() {
@@ -687,7 +669,6 @@ public class AutonomousRover extends BaseAutonomous {
             }
             intakeHolder.setPosition(POS_INTAKE_RELEASE);
         }
-
     }
 
     void park() {
@@ -701,17 +682,22 @@ public class AutonomousRover extends BaseAutonomous {
 
         boolean clockwiseWhenTooClose = !depotSide();
         double inchesToWall = 4;
-        TEST = true;
         DistanceSensor leadingSensor = depotSide() ? rangeSensorFrontRight : rangeSensorFrontLeft;
         DistanceSensor followingSensor = depotSide() ? rangeSensorBackRight : rangeSensorBackLeft;
         RangeErrorHandler errorHandler = new RangeErrorHandler(leadingSensor,
                 followingSensor, inchesToWall, clockwiseWhenTooClose, driveHeading);
         //usually use distance sensor not gyro
+        intakeHolder.setPosition(POS_INTAKE_RELEASE_EXTREME);
         boolean success = moveWithErrorCorrection(DRIVE_POWER, 0.2, distanceToTravel, errorHandler);
+        sleep(100);
+        intakeExtend.setTargetPosition(-1200);
+        intakeExtend.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        intakeExtend.setPower(0.35);
         if (!success) return;
         log("Parked");
     }
 
+    // used for autonomous testing only
     void retractLift() {
         long startMs = currentTimeMillis();
         while (!liftTouch.isPressed() && currentTimeMillis() - startMs < 4000) {
@@ -832,31 +818,17 @@ public class AutonomousRover extends BaseAutonomous {
 
     /**
      * This method converts straight distance in inches
-     * into left motor encoder counts.
+     * into calibration motor encoder counts.
      *
      * @param inches
      * @return
      */
-    static int inchesToCounts(double inches) { //TODO Redo inches to counts conversion
+    static int inchesToCounts(double inches) {
         // motorLeft with power 0.3 was used for testing
-        //return (int) (1000 * inches / 11.5); - old robot
+        //return (int) (1000 * inches / 11.5); // old robot - left motor counts
         //  1000 / 23.75 = counts per inch
-        return (int) (1000 * inches / 23.75);
+        return (int) (1000 * inches / 23.75); // front-left mecanum wheel is used for calibration
     }
-
-//    void initializeTensorFlow() {
-//        // The TFObjectDetector uses the camera frames from the VuforiaLocalizer,
-//        // so we create that first.
-//        initVuforia();
-//
-//        if (ClassFactory.getInstance().canCreateTFObjectDetector()) {
-//            initTfod();
-//        } else {
-//            telemetry.addData("Sorry!", "This device is not compatible with TFOD");
-//            telemetry.update();
-//            sleep(10000);
-//        }
-//    }
 
     /**
      * Initialize the Vuforia localization engine.
@@ -1007,7 +979,7 @@ public class AutonomousRover extends BaseAutonomous {
      * top of the phone, the bottom coordinate of the rightmost mineral must be between
      * 0 and 266.
      *
-     * @param y
+     * @param y - y position
      * @return
      */
     boolean isLeft(float y) {

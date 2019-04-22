@@ -31,8 +31,6 @@ package org.firstinspires.ftc.teamcode;
 
 import android.os.Environment;
 
-import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
@@ -56,7 +54,7 @@ import static java.lang.System.currentTimeMillis;
  * IMPORTANT: In order to use this OpMode, you need to obtain your own Vuforia license key as
  * is explained below.
  */
-@Autonomous(name = "TensorFlow", group = "Concept")
+//@Autonomous(name = "TensorFlow", group = "Concept")
 //@Disabled
 public class TensorFlowTest extends BaseAutonomous {
     private static final String TFOD_MODEL_ASSET = "RoverRuckus.tflite";
