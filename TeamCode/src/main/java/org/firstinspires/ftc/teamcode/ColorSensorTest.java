@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.graphics.Color;
 import android.view.View;
 
-import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DistanceSensor;
 
@@ -14,7 +13,7 @@ import java.util.Locale;
 
 import static java.lang.System.currentTimeMillis;
 
-@Autonomous(name = "TestColor", group = "Main")
+//@Autonomous(name = "TestColor", group = "Main")
 public class ColorSensorTest extends AutonomousRover {
 
     @Override

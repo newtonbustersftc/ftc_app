@@ -407,11 +407,11 @@ public class DriverRover extends OpMode {
         }
 
         log();
-        long ct = currentTimeMillis();
-        if (loopEndTime > 0) {
-            logEntry((ct - startTime) + "," + (ct - loopEndTime));
-        }
-        loopEndTime = ct;
+//        long ct = currentTimeMillis();
+//        if (loopEndTime > 0) {
+//            logEntry((ct - startTime) + "," + (ct - loopEndTime));
+//        }
+//        loopEndTime = ct;
     }
 
     private void controlBlinker() {
@@ -818,7 +818,7 @@ public class DriverRover extends OpMode {
 
 
         if (red == 0 && green == 0 && blue == 0) {
-            logEntry("R/G/B all 0");
+//            logEntry("R/G/B all 0");
             //sensor is unaccessable
             return false;
         }
@@ -839,7 +839,7 @@ public class DriverRover extends OpMode {
                 (int) (blue * SCALE_FACTOR),
                 hsvValues);
 
-        logEntry("R/G/B hue" + red + "/" + green + "/" + blue + " " + hsvValues[0]);
+//        logEntry("R/G/B hue" + red + "/" + green + "/" + blue + " " + hsvValues[0]);
 
         // hue for red is <50, for blue is >170
         return hsvValues[0] < 50 || hsvValues[0] > 170;
